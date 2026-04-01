@@ -6,7 +6,8 @@ The current baseline is designed against the bundled `pve-docs/` reference and i
 
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
-- A declarative `proxmox_pool` resource backed by `/pools`
+- Declarative `proxmox_group` and `proxmox_pool` resources backed by `/access/groups` and `/pools`
+- Inventory data sources for `proxmox_group`, `proxmox_groups`, `proxmox_pool`, `proxmox_pools`, `proxmox_node_dns`, `proxmox_node_time`, and `proxmox_cluster_metrics_servers`
 
 ## Requirements
 
@@ -38,6 +39,25 @@ provider "proxmox" {
 ```
 
 Provider configuration also supports ticket-based authentication with `username` and `password`.
+
+## Supported Resources
+
+- `proxmox_group`
+- `proxmox_pool`
+
+## Supported Data Sources
+
+- `proxmox_cluster_metrics_servers`
+- `proxmox_cluster_resources`
+- `proxmox_group`
+- `proxmox_groups`
+- `proxmox_node_dns`
+- `proxmox_node_time`
+- `proxmox_node`
+- `proxmox_nodes`
+- `proxmox_pool`
+- `proxmox_pools`
+- `proxmox_version`
 
 Supported environment variables:
 

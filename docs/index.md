@@ -29,3 +29,23 @@ provider "proxmox" {
 - `timeout_seconds` (Number) HTTP request timeout in seconds. Defaults to `30`. Can also be set with `PROXMOX_VE_TIMEOUT`.
 - `user_agent` (String) Optional custom HTTP user agent string sent to the Proxmox API.
 - `username` (String) Proxmox user ID for ticket-based authentication, for example `root@pam`. Can also be set with `PROXMOX_VE_USERNAME`.
+
+
+## Supported Resources
+
+- `proxmox_group`
+- `proxmox_pool`
+
+## Supported Data Sources
+
+- `proxmox_cluster_metrics_servers`
+- `proxmox_cluster_resources`
+- `proxmox_group`
+- `proxmox_groups`
+- `proxmox_node_dns`
+- `proxmox_node_time`
+- `proxmox_node`
+- `proxmox_nodes`
+- `proxmox_pool`
+- `proxmox_pools`
+- `proxmox_version`

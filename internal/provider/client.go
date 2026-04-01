@@ -72,6 +72,19 @@ type NodeStatus struct {
 	RootFS        NodeRootFS        `json:"rootfs"`
 }
 
+type NodeDNS struct {
+	DNS1   string `json:"dns1"`
+	DNS2   string `json:"dns2"`
+	DNS3   string `json:"dns3"`
+	Search string `json:"search"`
+}
+
+type NodeTime struct {
+	LocalTime int64  `json:"localtime"`
+	Time      int64  `json:"time"`
+	Timezone  string `json:"timezone"`
+}
+
 type NodeBootInfo struct {
 	Mode       string `json:"mode"`
 	SecureBoot *bool  `json:"secureboot"`
@@ -148,6 +161,20 @@ type Pool struct {
 	Members []PoolMember `json:"members"`
 }
 
+type Group struct {
+	GroupID string   `json:"groupid"`
+	Comment string   `json:"comment"`
+	Members []string `json:"members"`
+}
+
+type ClusterMetricsServer struct {
+	Disable *bool  `json:"disable"`
+	ID      string `json:"id"`
+	Port    *int64 `json:"port"`
+	Server  string `json:"server"`
+	Type    string `json:"type"`
+}
+
 type PoolMember struct {
 	ID      string `json:"id"`
 	Node    string `json:"node"`
@@ -163,6 +190,12 @@ type UpdatePoolRequest struct {
 	Delete     bool
 	StorageIDs []string
 	VMIDs      []int64
+}
+
+type groupIndexResponse struct {
+	GroupID string `json:"groupid"`
+	Comment string `json:"comment"`
+	Users   string `json:"users"`
 }
 
 type ticketResponse struct {
@@ -245,6 +278,18 @@ func (c *Client) NodeStatus(ctx context.Context, node string) (NodeStatus, error
 	return status, err
 }
 
+func (c *Client) NodeDNS(ctx context.Context, node string) (NodeDNS, error) {
+	var dns NodeDNS
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/dns", url.PathEscape(node)), nil, nil, &dns)
+	return dns, err
+}
+
+func (c *Client) NodeTime(ctx context.Context, node string) (NodeTime, error) {
+	var nodeTime NodeTime
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/time", url.PathEscape(node)), nil, nil, &nodeTime)
+	return nodeTime, err
+}
+
 func (c *Client) ClusterResources(ctx context.Context, resourceType string) ([]ClusterResource, error) {
 	query := url.Values{}
 	if resourceType != "" {
@@ -254,6 +299,12 @@ func (c *Client) ClusterResources(ctx context.Context, resourceType string) ([]C
 	var resources []ClusterResource
 	err := c.do(ctx, http.MethodGet, "/cluster/resources", query, nil, &resources)
 	return resources, err
+}
+
+func (c *Client) ClusterMetricsServers(ctx context.Context) ([]ClusterMetricsServer, error) {
+	var servers []ClusterMetricsServer
+	err := c.do(ctx, http.MethodGet, "/cluster/metrics/server", nil, nil, &servers)
+	return servers, err
 }
 
 func (c *Client) GetPool(ctx context.Context, poolID string) (Pool, error) {
@@ -270,6 +321,12 @@ func (c *Client) GetPool(ctx context.Context, poolID string) (Pool, error) {
 	}
 
 	return pools[0], nil
+}
+
+func (c *Client) Pools(ctx context.Context) ([]Pool, error) {
+	var pools []Pool
+	err := c.do(ctx, http.MethodGet, "/pools", nil, nil, &pools)
+	return pools, err
 }
 
 func (c *Client) CreatePool(ctx context.Context, poolID string, comment *string) error {
@@ -313,6 +370,61 @@ func (c *Client) DeletePool(ctx context.Context, poolID string) error {
 	form := url.Values{}
 	form.Set("poolid", poolID)
 	return c.do(ctx, http.MethodDelete, "/pools", nil, form, nil)
+}
+
+func (c *Client) GetGroup(ctx context.Context, groupID string) (Group, error) {
+	var group Group
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/access/groups/%s", url.PathEscape(groupID)), nil, nil, &group); err != nil {
+		return Group{}, err
+	}
+
+	group.GroupID = groupID
+	group.Members = sortedStrings(group.Members)
+	return group, nil
+}
+
+func (c *Client) Groups(ctx context.Context) ([]Group, error) {
+	var response []groupIndexResponse
+	if err := c.do(ctx, http.MethodGet, "/access/groups", nil, nil, &response); err != nil {
+		return nil, err
+	}
+
+	groups := make([]Group, 0, len(response))
+	for _, item := range response {
+		groups = append(groups, Group{
+			GroupID: item.GroupID,
+			Comment: item.Comment,
+			Members: splitProxmoxList(item.Users),
+		})
+	}
+
+	return groups, nil
+}
+
+func (c *Client) CreateGroup(ctx context.Context, groupID string, comment *string) error {
+	form := url.Values{}
+	form.Set("groupid", groupID)
+	if comment != nil {
+		form.Set("comment", *comment)
+	}
+
+	return c.do(ctx, http.MethodPost, "/access/groups", nil, form, nil)
+}
+
+func (c *Client) UpdateGroup(ctx context.Context, groupID string, comment *string) error {
+	form := url.Values{}
+	form.Set("groupid", groupID)
+	if comment != nil {
+		form.Set("comment", *comment)
+	}
+
+	return c.do(ctx, http.MethodPut, fmt.Sprintf("/access/groups/%s", url.PathEscape(groupID)), nil, form, nil)
+}
+
+func (c *Client) DeleteGroup(ctx context.Context, groupID string) error {
+	form := url.Values{}
+	form.Set("groupid", groupID)
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/access/groups/%s", url.PathEscape(groupID)), nil, form, nil)
 }
 
 func (c *Client) usesTicketAuth() bool {
@@ -478,4 +590,23 @@ func joinInt64s(values []int64) string {
 		parts = append(parts, fmt.Sprintf("%d", value))
 	}
 	return strings.Join(parts, ",")
+}
+
+func splitProxmoxList(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		result = append(result, part)
+	}
+
+	return sortedStrings(result)
 }

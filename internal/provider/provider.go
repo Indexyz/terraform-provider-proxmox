@@ -128,12 +128,20 @@ func (p *ProxmoxProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewGroupResource,
 		NewPoolResource,
 	}
 }
 
 func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		NewClusterMetricsServersDataSource,
+		NewGroupDataSource,
+		NewGroupsDataSource,
+		NewPoolDataSource,
+		NewPoolsDataSource,
+		NewNodeDNSDataSource,
+		NewNodeTimeDataSource,
 		NewVersionDataSource,
 		NewNodesDataSource,
 		NewNodeDataSource,
