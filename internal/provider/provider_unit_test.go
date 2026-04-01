@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -108,7 +111,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		resourceNames = append(resourceNames, resp.TypeName)
 	}
 	sort.Strings(resourceNames)
-	if want := []string{"proxmox_group", "proxmox_pool"}; !reflect.DeepEqual(resourceNames, want) {
+	if want := []string{"proxmox_group", "proxmox_pool", "proxmox_qemu_vm"}; !reflect.DeepEqual(resourceNames, want) {
 		t.Fatalf("unexpected resources: got %v want %v", resourceNames, want)
 	}
 
@@ -131,6 +134,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_nodes",
 		"proxmox_pool",
 		"proxmox_pools",
+		"proxmox_qemu_vm",
 		"proxmox_version",
 	}
 	if !reflect.DeepEqual(dataSourceNames, want) {

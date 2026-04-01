@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -130,6 +133,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		NewGroupResource,
 		NewPoolResource,
+		NewQemuVMResource,
 	}
 }
 
@@ -140,6 +144,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewGroupsDataSource,
 		NewPoolDataSource,
 		NewPoolsDataSource,
+		NewQemuVMDataSource,
 		NewNodeDNSDataSource,
 		NewNodeTimeDataSource,
 		NewVersionDataSource,

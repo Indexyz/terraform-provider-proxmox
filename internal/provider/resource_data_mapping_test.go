@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -116,7 +119,7 @@ func TestGroupResourceReadGroupState(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r, "terraform@pve!provider", "token-secret")
+		assertTokenAuth(t, r)
 
 		switch r.URL.Path {
 		case "/api2/json/access/groups/ops":
@@ -177,7 +180,7 @@ func TestGroupResourceReadGroupStateReportsAPIErrors(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r, "terraform@pve!provider", "token-secret")
+		assertTokenAuth(t, r)
 		w.WriteHeader(http.StatusBadGateway)
 		writeJSON(t, w, map[string]any{"errors": map[string]string{"group": "upstream unavailable"}})
 	}))

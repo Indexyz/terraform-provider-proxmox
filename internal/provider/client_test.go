@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -168,7 +171,7 @@ func TestClientTokenAuthPoolAndGroupMethods(t *testing.T) {
 	ctx := context.Background()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r, "terraform@pve!provider", "token-secret")
+		assertTokenAuth(t, r)
 
 		switch {
 		case r.URL.Path == "/api2/json/pools" && r.Method == http.MethodGet && r.URL.Query().Get("poolid") == "platform":
@@ -268,7 +271,7 @@ func TestClientTokenAuthPoolAndGroupMethods(t *testing.T) {
 
 func TestClientGetGroupNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r, "terraform@pve!provider", "token-secret")
+		assertTokenAuth(t, r)
 		http.NotFound(w, r)
 	}))
 	defer server.Close()
@@ -291,7 +294,7 @@ func TestClientGetGroupNotFound(t *testing.T) {
 
 func TestClientDecodeAPIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r, "terraform@pve!provider", "token-secret")
+		assertTokenAuth(t, r)
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(t, w, map[string]any{"errors": map[string]string{"comment": "invalid comment"}})
 	}))
@@ -324,7 +327,7 @@ func TestClientNodeAndClusterInventoryMethods(t *testing.T) {
 	ctx := context.Background()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r, "terraform@pve!provider", "token-secret")
+		assertTokenAuth(t, r)
 
 		switch r.URL.Path {
 		case "/api2/json/nodes/pve-1/dns":
@@ -392,9 +395,9 @@ func TestClientNodeAndClusterInventoryMethods(t *testing.T) {
 	}
 }
 
-func assertTokenAuth(t *testing.T, r *http.Request, tokenID, tokenSecret string) {
+func assertTokenAuth(t *testing.T, r *http.Request) {
 	t.Helper()
-	want := "PVEAPIToken=" + tokenID + "=" + tokenSecret
+	want := "PVEAPIToken=terraform@pve!provider=token-secret"
 	if got := r.Header.Get("Authorization"); got != want {
 		t.Fatalf("unexpected authorization header: got %q want %q", got, want)
 	}

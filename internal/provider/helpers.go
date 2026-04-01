@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -86,30 +89,6 @@ func expandStringSet(ctx context.Context, value types.Set) ([]string, diag.Diagn
 	diags := value.ElementsAs(ctx, &result, false)
 	sort.Strings(result)
 	return result, diags
-}
-
-func valuesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func int64ValuesEqual(a, b []int64) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func diffStrings(current, desired []string) (add []string, remove []string) {

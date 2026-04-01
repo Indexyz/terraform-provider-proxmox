@@ -6,8 +6,8 @@ The current baseline is designed against the bundled `pve-docs/` reference and i
 
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
-- Declarative `proxmox_group` and `proxmox_pool` resources backed by `/access/groups` and `/pools`
-- Inventory data sources for `proxmox_group`, `proxmox_groups`, `proxmox_pool`, `proxmox_pools`, `proxmox_node_dns`, `proxmox_node_time`, and `proxmox_cluster_metrics_servers`
+- Declarative `proxmox_group`, `proxmox_pool`, and minimal `proxmox_qemu_vm` resources backed by `/access/groups`, `/pools`, and `/nodes/{node}/qemu`
+- Inventory data sources for `proxmox_group`, `proxmox_groups`, `proxmox_pool`, `proxmox_pools`, `proxmox_qemu_vm`, `proxmox_node_dns`, `proxmox_node_time`, and `proxmox_cluster_metrics_servers`
 
 ## Requirements
 
@@ -44,6 +44,7 @@ Provider configuration also supports ticket-based authentication with `username`
 
 - `proxmox_group`
 - `proxmox_pool`
+- `proxmox_qemu_vm`
 
 ## Supported Data Sources
 
@@ -57,6 +58,7 @@ Provider configuration also supports ticket-based authentication with `username`
 - `proxmox_nodes`
 - `proxmox_pool`
 - `proxmox_pools`
+- `proxmox_qemu_vm`
 - `proxmox_version`
 
 Supported environment variables:
@@ -83,3 +85,7 @@ To run tests:
 ```shell
 go test ./...
 ```
+
+## QEMU/KVM Workflow
+
+Use `proxmox_cluster_resources` for cluster-wide inventory, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for the minimal managed configuration supported by this release.
