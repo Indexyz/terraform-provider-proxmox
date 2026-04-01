@@ -1,4 +1,4 @@
-module github.com/hashicorp/terraform-provider-scaffolding-framework
+module github.com/indexyz/terraform-provider-proxmox
 
 go 1.25.5
 
