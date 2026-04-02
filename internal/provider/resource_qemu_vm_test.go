@@ -54,7 +54,7 @@ func TestQemuVMResourceReadState(t *testing.T) {
 	}
 
 	res := &QemuVMResource{client: client}
-	state, diags := res.readQemuVMState(context.Background(), "pve-1", 101)
+	state, diags := res.readQemuVMState(context.Background(), "pve-1", 101, nil)
 	if diags.HasError() {
 		t.Fatalf("readQemuVMState() unexpected diagnostics: %v", diags)
 	}
@@ -82,7 +82,7 @@ func TestQemuVMResourceReadStateMissing(t *testing.T) {
 	}
 
 	res := &QemuVMResource{client: client}
-	state, diags := res.readQemuVMState(context.Background(), "pve-1", 404)
+	state, diags := res.readQemuVMState(context.Background(), "pve-1", 404, nil)
 	if diags.HasError() {
 		t.Fatalf("readQemuVMState() unexpected diagnostics: %v", diags)
 	}

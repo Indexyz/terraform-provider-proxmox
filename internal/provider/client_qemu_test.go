@@ -110,30 +110,34 @@ func TestClientQemuVMMethods(t *testing.T) {
 	}
 
 	if err := client.CreateQemuVM(ctx, "pve-1", CreateQemuVMRequest{
-		VMID:        101,
-		Name:        stringPtr("api-vm"),
-		Description: stringPtr("Managed by Terraform"),
-		Tags:        stringPtr("prod,terraform"),
-		Pool:        stringPtr("platform"),
-		OnBoot:      boolPtr(true),
-		Startup:     stringPtr("order=2"),
-		Bios:        stringPtr("ovmf"),
-		Machine:     stringPtr("q35"),
-		Agent:       stringPtr("enabled=1"),
-		Cores:       intPtr64(4),
-		Sockets:     intPtr64(2),
-		Memory:      intPtr64(8192),
-		CPU:         stringPtr("host"),
-		OSType:      stringPtr("l26"),
-		Boot:        stringPtr("order=scsi0;net0"),
+		VMID: 101,
+		qemuVMConfigRequest: qemuVMConfigRequest{
+			Name:        stringPtr("api-vm"),
+			Description: stringPtr("Managed by Terraform"),
+			Tags:        stringPtr("prod,terraform"),
+			Pool:        stringPtr("platform"),
+			OnBoot:      boolPtr(true),
+			Startup:     stringPtr("order=2"),
+			Bios:        stringPtr("ovmf"),
+			Machine:     stringPtr("q35"),
+			Agent:       stringPtr("enabled=1"),
+			Cores:       intPtr64(4),
+			Sockets:     intPtr64(2),
+			Memory:      intPtr64(8192),
+			CPU:         stringPtr("host"),
+			OSType:      stringPtr("l26"),
+			Boot:        stringPtr("order=scsi0;net0"),
+		},
 	}); err != nil {
 		t.Fatalf("CreateQemuVM() unexpected error: %v", err)
 	}
 
 	if err := client.UpdateQemuVM(ctx, "pve-1", 101, UpdateQemuVMRequest{
-		Name:   stringPtr("api-vm"),
-		OnBoot: boolPtr(false),
-		Memory: intPtr64(4096),
+		qemuVMConfigRequest: qemuVMConfigRequest{
+			Name:   stringPtr("api-vm"),
+			OnBoot: boolPtr(false),
+			Memory: intPtr64(4096),
+		},
 	}); err != nil {
 		t.Fatalf("UpdateQemuVM() unexpected error: %v", err)
 	}

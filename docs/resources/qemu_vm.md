@@ -3,12 +3,12 @@
 page_title: "proxmox_qemu_vm Resource - proxmox"
 subcategory: ""
 description: |-
-  Manages a minimal Proxmox VE QEMU virtual machine through /nodes/{node}/qemu and /config.
+  Manages a Proxmox VE QEMU virtual machine through /nodes/{node}/qemu, /config, and clone mode create flows.
 ---
 
 # proxmox_qemu_vm (Resource)
 
-Manages a minimal Proxmox VE QEMU virtual machine through `/nodes/{node}/qemu` and `/config`.
+Manages a Proxmox VE QEMU virtual machine through `/nodes/{node}/qemu`, `/config`, and clone mode create flows.
 
 ## Example Usage
 
@@ -22,6 +22,7 @@ resource "proxmox_qemu_vm" "example" {
   name        = "terraform-qemu-vm"
   description = "Managed by Terraform"
   tags        = "terraform,example"
+  pool        = "workloads"
   onboot      = true
   startup     = "order=1"
   bios        = "ovmf"
@@ -33,6 +34,52 @@ resource "proxmox_qemu_vm" "example" {
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"
+
+  clone = {
+    source_vmid = 9000
+    full        = true
+    storage     = "local-lvm"
+  }
+
+  common = {
+    hotplug = "network,disk,usb"
+  }
+
+  cloud_init = {
+    ciuser    = "ubuntu"
+    ciupgrade = true
+    sshkeys   = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample terraform@example"
+    ipconfig = {
+      ipconfig0 = {
+        ipv4    = "10.0.10.50/24"
+        gateway = "10.0.10.1"
+      }
+    }
+  }
+
+  network = {
+    net0 = {
+      model    = "virtio"
+      bridge   = "vmbr0"
+      firewall = true
+      tag      = 10
+    }
+  }
+
+  disk = {
+    scsi0 = {
+      storage = "local-lvm"
+      size    = "32G"
+      discard = "on"
+      ssd     = true
+    }
+  }
+
+  raw = {
+    extra_config = {
+      serial0 = "socket"
+    }
+  }
 }
 ```
 
@@ -49,15 +96,21 @@ resource "proxmox_qemu_vm" "example" {
 - `agent` (String) Raw QEMU guest agent configuration string managed through `/config`.
 - `bios` (String) Configured BIOS type managed through `/config`.
 - `boot` (String) Boot order string managed through `/config`.
+- `clone` (Attributes) Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases. (see [below for nested schema](#nestedatt--clone))
+- `cloud_init` (Attributes) Typed cloud-init configuration managed through `/config`. (see [below for nested schema](#nestedatt--cloud_init))
+- `common` (Attributes) Common advanced QEMU configuration managed through `/config`. (see [below for nested schema](#nestedatt--common))
 - `cores` (Number) Configured vCPU cores managed through `/config`.
 - `cpu` (String) Configured CPU model managed through `/config`.
-- `description` (String) Optional VM description managed through `/config`.
+- `description` (String) Optional VM description managed through clone mode and `/config`.
+- `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. (see [below for nested schema](#nestedatt--disk))
 - `machine` (String) Configured machine type managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
-- `name` (String) Virtual machine name managed through `/nodes/{node}/qemu` and `/config`.
+- `name` (String) Virtual machine name managed through `/nodes/{node}/qemu`, clone mode, and `/config`.
+- `network` (Attributes Map) Typed network devices keyed by Proxmox slot name such as `net0`. (see [below for nested schema](#nestedatt--network))
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type managed through `/config`.
-- `pool` (String) Pool assignment managed through `/config`.
+- `pool` (String) Pool assignment managed through clone mode and `/config`.
+- `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
@@ -68,3 +121,92 @@ resource "proxmox_qemu_vm" "example" {
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state.
 - `template` (Boolean) Whether the guest is a template, as observed from `/config`. Terraform does not manage template conversion.
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
+
+<a id="nestedatt--clone"></a>
+### Nested Schema for `clone`
+
+Required:
+
+- `source_vmid` (Number) Source VMID to clone from.
+
+Optional:
+
+- `bwlimit` (Number) Optional clone bandwidth limit in KiB/s.
+- `format` (String) Optional target disk format for full clones.
+- `full` (Boolean) Whether to request a full clone.
+- `snapshot_name` (String) Optional source snapshot name to clone from.
+- `source_node` (String) Source node that owns `source_vmid`. Defaults to the managed `node` when omitted.
+- `storage` (String) Optional target storage override for full clones.
+
+
+<a id="nestedatt--cloud_init"></a>
+### Nested Schema for `cloud_init`
+
+Optional:
+
+- `cicustom` (String)
+- `cipassword` (String, Sensitive)
+- `citype` (String)
+- `ciupgrade` (Boolean)
+- `ciuser` (String)
+- `ipconfig` (Attributes Map) Cloud-init interface IP configuration keyed by Proxmox slot name such as `ipconfig0`. (see [below for nested schema](#nestedatt--cloud_init--ipconfig))
+- `sshkeys` (String)
+
+<a id="nestedatt--cloud_init--ipconfig"></a>
+### Nested Schema for `cloud_init.ipconfig`
+
+Optional:
+
+- `gateway` (String)
+- `gateway6` (String)
+- `ipv4` (String)
+- `ipv6` (String)
+
+
+
+<a id="nestedatt--common"></a>
+### Nested Schema for `common`
+
+Optional:
+
+- `hotplug` (String) Hotplug feature set managed through `/config`.
+
+
+<a id="nestedatt--disk"></a>
+### Nested Schema for `disk`
+
+Optional:
+
+- `cache` (String)
+- `discard` (String)
+- `iothread` (Boolean)
+- `media` (String)
+- `replicate` (Boolean)
+- `size` (String)
+- `ssd` (Boolean)
+- `storage` (String)
+- `volume` (String)
+
+
+<a id="nestedatt--network"></a>
+### Nested Schema for `network`
+
+Optional:
+
+- `bridge` (String)
+- `firewall` (Boolean)
+- `link_down` (Boolean)
+- `macaddr` (String)
+- `model` (String)
+- `mtu` (Number)
+- `queues` (Number)
+- `rate` (Number)
+- `tag` (Number)
+
+
+<a id="nestedatt--raw"></a>
+### Nested Schema for `raw`
+
+Optional:
+
+- `extra_config` (Map of String) Raw Proxmox config entries keyed by their exact `/config` key such as `hostpci0` or unsupported disk/network slots.

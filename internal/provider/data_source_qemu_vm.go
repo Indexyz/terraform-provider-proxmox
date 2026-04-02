@@ -29,7 +29,7 @@ func (d *QemuVMDataSource) Metadata(_ context.Context, req datasource.MetadataRe
 
 func (d *QemuVMDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = datasourceschema.Schema{
-		MarkdownDescription: "Reads a single Proxmox VE QEMU virtual machine from `/nodes/{node}/qemu/{vmid}/config` and `/status/current`.",
+		MarkdownDescription: "Reads a single Proxmox VE QEMU virtual machine from `/nodes/{node}/qemu/{vmid}/config` and `/status/current`, including typed advanced config when supported.",
 		Attributes:          qemuVMDataSourceAttributes(),
 	}
 }
@@ -77,6 +77,10 @@ func (d *QemuVMDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	state := qemuVMStateFromAPI(node, vmID, qemuConfig, status)
+	state, diags := qemuVMStateFromAPI(ctx, node, vmID, qemuConfig, status, nil)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

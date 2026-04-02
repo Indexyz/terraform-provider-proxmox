@@ -17,6 +17,7 @@ import (
 
 var _ resource.Resource = &QemuVMResource{}
 var _ resource.ResourceWithImportState = &QemuVMResource{}
+var _ resource.ResourceWithValidateConfig = &QemuVMResource{}
 
 type QemuVMResource struct {
 	client *Client
@@ -32,7 +33,7 @@ func (r *QemuVMResource) Metadata(_ context.Context, req resource.MetadataReques
 
 func (r *QemuVMResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = resourceschema.Schema{
-		MarkdownDescription: "Manages a minimal Proxmox VE QEMU virtual machine through `/nodes/{node}/qemu` and `/config`.",
+		MarkdownDescription: "Manages a Proxmox VE QEMU virtual machine through `/nodes/{node}/qemu`, `/config`, and clone mode create flows.",
 		Attributes:          qemuVMResourceAttributes(),
 	}
 }
@@ -51,6 +52,16 @@ func (r *QemuVMResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = client
 }
 
+func (r *QemuVMResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config qemuVMModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(validateQemuVMRawConflicts(ctx, config)...)
+}
+
 func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan qemuVMModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -58,12 +69,41 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	if err := r.client.CreateQemuVM(ctx, plan.Node.ValueString(), qemuVMCreateRequestFromModel(plan)); err != nil {
-		resp.Diagnostics.AddError("Unable to Create Proxmox QEMU VM", err.Error())
-		return
+	if !plan.Clone.IsNull() && !plan.Clone.IsUnknown() {
+		cloneReq, diags := qemuVMCloneRequestFromModel(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if err := r.client.CloneQemuVM(ctx, cloneReq); err != nil {
+			resp.Diagnostics.AddError("Unable to Clone Proxmox QEMU VM", err.Error())
+			return
+		}
+
+		updateReq, diags := qemuVMUpdateRequestFromModel(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if !updateReq.IsEmpty() {
+			if err := r.client.UpdateQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), updateReq); err != nil {
+				resp.Diagnostics.AddError("Unable to Update Cloned Proxmox QEMU VM", err.Error())
+				return
+			}
+		}
+	} else {
+		createReq, diags := qemuVMCreateRequestFromModel(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if err := r.client.CreateQemuVM(ctx, plan.Node.ValueString(), createReq); err != nil {
+			resp.Diagnostics.AddError("Unable to Create Proxmox QEMU VM", err.Error())
+			return
+		}
 	}
 
-	state, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
+	state, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -79,7 +119,7 @@ func (r *QemuVMResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	refreshed, diags := r.readQemuVMState(ctx, state.Node.ValueString(), state.VMID.ValueInt64())
+	refreshed, diags := r.readQemuVMState(ctx, state.Node.ValueString(), state.VMID.ValueInt64(), &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -116,12 +156,18 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	if err := r.client.UpdateQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), qemuVMUpdateRequestFromModel(plan)); err != nil {
+	updateReq, diags := qemuVMUpdateRequestFromModel(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if err := r.client.UpdateQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Update Proxmox QEMU VM", err.Error())
 		return
 	}
 
-	refreshed, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
+	refreshed, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -154,7 +200,7 @@ func (r *QemuVMResource) ImportState(ctx context.Context, req resource.ImportSta
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vm_id"), vmID)...)
 }
 
-func (r *QemuVMResource) readQemuVMState(ctx context.Context, node string, vmID int64) (qemuVMModel, diag.Diagnostics) {
+func (r *QemuVMResource) readQemuVMState(ctx context.Context, node string, vmID int64, prior *qemuVMModel) (qemuVMModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	config, err := r.client.GetQemuVMConfig(ctx, node, vmID)
@@ -177,5 +223,7 @@ func (r *QemuVMResource) readQemuVMState(ctx context.Context, node string, vmID 
 		return qemuVMModel{}, diags
 	}
 
-	return qemuVMStateFromAPI(node, vmID, config, status), diags
+	state, stateDiags := qemuVMStateFromAPI(ctx, node, vmID, config, status, prior)
+	diags.Append(stateDiags...)
+	return state, diags
 }

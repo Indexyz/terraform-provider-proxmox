@@ -88,4 +88,13 @@ go test ./...
 
 ## QEMU/KVM Workflow
 
-Use `proxmox_cluster_resources` for cluster-wide inventory, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for the minimal managed configuration supported by this release.
+Use `proxmox_cluster_resources` for cluster-wide inventory, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for managed QEMU configuration including Phase 1A/1B clone, common, cloud-init, network, disk, and raw escape-hatch support.
+
+When extending `proxmox_qemu_vm` beyond the minimal surface, keep these boundaries intact:
+
+- `proxmox_cluster_resources` remains the bulk inventory surface; advanced VM management belongs on `proxmox_qemu_vm`.
+- `status` and `uptime` stay observed-only. Declarative power management is a separate concern and must not be inferred from runtime reads.
+- Clone inputs are create-mode only. They should select the initial provisioning path without becoming a permanent source of drift after the VM exists.
+- Disk, network, and cloud-init domains should use stable slot identities (`scsi0`, `net0`, `ipconfig0`) instead of list-order identity.
+- Typed nested blocks should cover the common cases, while raw escape hatches remain available only for uncovered long-tail Proxmox keys.
+- Typed and raw configuration must not control the same Proxmox key or slot in the same plan; validation should fail fast before apply.

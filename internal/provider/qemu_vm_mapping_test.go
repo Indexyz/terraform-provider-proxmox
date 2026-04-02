@@ -4,16 +4,18 @@
 package provider
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestQemuVMStateFromAPI(t *testing.T) {
 	t.Parallel()
 
-	state := qemuVMStateFromAPI("pve-1", 101, QemuVMConfig{
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
 		Name:        "api-vm",
 		Description: "Managed by Terraform",
 		Tags:        "prod,terraform",
@@ -30,7 +32,29 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 		CPU:         "host",
 		OSType:      "l26",
 		Boot:        "order=scsi0;net0",
-	}, QemuVMStatus{Status: "running", Uptime: proxmoxOptionalInt64{value: intPtr64(300)}})
+		Hotplug:     "network,disk,usb,cloudinit",
+		CIUser:      "ubuntu",
+		CIType:      "nocloud",
+		CIUpgrade:   proxmoxOptionalBool{value: boolPtr(true)},
+		SSHKeys:     "ssh-ed25519 AAAA... user@example",
+		IPConfig: map[string]string{
+			"ipconfig0": "ip=dhcp,ip6=auto",
+		},
+		Network: map[string]string{
+			"net0": "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=20,firewall=1,link_down=0,mtu=1400,queues=4,rate=5",
+			"net1": "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
+		},
+		Disk: map[string]string{
+			"scsi0": "local-lvm:vm-101-disk-0,cache=writeback,discard=on,iothread=1,media=disk,replicate=0,size=32G,ssd=1",
+			"scsi1": "local-lvm:vm-101-disk-1,serial=needs-raw",
+		},
+		ExtraConfig: map[string]string{
+			"hostpci0": "0000:00:1f.0",
+		},
+	}, QemuVMStatus{Status: "running", Uptime: proxmoxOptionalInt64{value: intPtr64(300)}}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
 
 	if state.ID.ValueString() != "pve-1/101" || state.Node.ValueString() != "pve-1" || state.VMID.ValueInt64() != 101 {
 		t.Fatalf("unexpected identity state: %#v", state)
@@ -40,6 +64,141 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 	}
 	if state.Cores.ValueInt64() != 4 || state.Uptime.ValueInt64() != 300 {
 		t.Fatalf("unexpected integer mapping: %#v", state)
+	}
+
+	common := decodeQemuVMCommon(t, state.Common)
+	if common.Hotplug.ValueString() != "network,disk,usb,cloudinit" {
+		t.Fatalf("unexpected common block: %#v", common)
+	}
+
+	cloudInit := decodeQemuVMCloudInit(t, state.CloudInit)
+	if cloudInit.CIUser.ValueString() != "ubuntu" || !cloudInit.CIUpgrade.ValueBool() {
+		t.Fatalf("unexpected cloud_init block: %#v", cloudInit)
+	}
+	ipConfig := decodeQemuVMIPConfigMap(t, cloudInit.IPConfig)
+	if entry := ipConfig["ipconfig0"]; entry.IPv4.ValueString() != "dhcp" || entry.IPv6.ValueString() != "auto" {
+		t.Fatalf("unexpected ipconfig mapping: %#v", ipConfig)
+	}
+
+	network := decodeQemuVMNetworkMap(t, state.Network)
+	if got := network["net0"]; got.Model.ValueString() != "virtio" || got.Bridge.ValueString() != "vmbr0" || got.Tag.ValueInt64() != 20 || !got.Firewall.ValueBool() || got.Rate.ValueFloat64() != 5 {
+		t.Fatalf("unexpected network mapping: %#v", network)
+	}
+	if _, ok := network["net1"]; ok {
+		t.Fatalf("expected unsupported net1 config to remain raw, got %#v", network["net1"])
+	}
+
+	disks := decodeQemuVMDiskMap(t, state.Disk)
+	if got := disks["scsi0"]; got.Storage.ValueString() != "local-lvm" || got.Volume.ValueString() != "local-lvm:vm-101-disk-0" || got.Size.ValueString() != "32G" || !got.Iothread.ValueBool() || got.Replicate.ValueBool() {
+		t.Fatalf("unexpected disk mapping: %#v", disks)
+	}
+	if _, ok := disks["scsi1"]; ok {
+		t.Fatalf("expected unsupported scsi1 config to remain raw, got %#v", disks["scsi1"])
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	wantRaw := map[string]string{
+		"hostpci0": "0000:00:1f.0",
+		"net1":     "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
+		"scsi1":    "local-lvm:vm-101-disk-1,serial=needs-raw",
+	}
+	if !reflect.DeepEqual(gotRaw, wantRaw) {
+		t.Fatalf("unexpected raw extra_config: got %#v want %#v", gotRaw, wantRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIPreservesCloneState(t *testing.T) {
+	t.Parallel()
+
+	clone := mustQemuVMCloneValue(t, qemuVMCloneModel{
+		SourceNode:   types.StringValue("pve-template"),
+		SourceVMID:   types.Int64Value(9000),
+		Full:         types.BoolValue(true),
+		SnapshotName: types.StringValue("golden"),
+		Storage:      types.StringValue("local-lvm"),
+	})
+
+	prior := qemuVMModel{Clone: clone}
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{Status: "running"}, &prior)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	got := decodeQemuVMClone(t, state.Clone)
+	if got.SourceNode.ValueString() != "pve-template" || got.SourceVMID.ValueInt64() != 9000 || !got.Full.ValueBool() {
+		t.Fatalf("expected clone state to be preserved, got %#v", got)
+	}
+}
+
+func TestQemuVMStateFromAPINullCloneWithoutPriorState(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		prior *qemuVMModel
+	}{
+		{name: "nil prior"},
+		{name: "prior without clone provenance", prior: &qemuVMModel{Clone: types.ObjectNull(qemuVMCloneAttrTypes())}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{Status: "running"}, tc.prior)
+			if diags.HasError() {
+				t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+			}
+			if !state.Clone.IsNull() || state.Clone.IsUnknown() {
+				t.Fatalf("expected clone to remain null without prior clone provenance, got %#v", state.Clone)
+			}
+		})
+	}
+}
+
+func TestQemuVMStateFromAPIPreservesSlotKeyedAdvancedDomains(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		IPConfig: map[string]string{
+			"ipconfig0": "ip=dhcp,ip6=auto",
+		},
+		Network: map[string]string{
+			"net1": "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
+			"net0": "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=20,firewall=1,link_down=0,mtu=1400,queues=4,rate=5",
+		},
+		Disk: map[string]string{
+			"scsi1": "local-lvm:vm-101-disk-1,serial=needs-raw",
+			"scsi0": "local-lvm:vm-101-disk-0,cache=writeback,discard=on,iothread=1,media=disk,replicate=0,size=32G,ssd=1",
+		},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	cloudInit := decodeQemuVMCloudInit(t, state.CloudInit)
+	ipConfig := decodeQemuVMIPConfigMap(t, cloudInit.IPConfig)
+	if _, ok := ipConfig["ipconfig0"]; !ok || len(ipConfig) != 1 {
+		t.Fatalf("expected slot-keyed ipconfig map to preserve ipconfig0, got %#v", ipConfig)
+	}
+
+	network := decodeQemuVMNetworkMap(t, state.Network)
+	if _, ok := network["net0"]; !ok || len(network) != 1 {
+		t.Fatalf("expected slot-keyed network map to preserve net0, got %#v", network)
+	}
+
+	disks := decodeQemuVMDiskMap(t, state.Disk)
+	if _, ok := disks["scsi0"]; !ok || len(disks) != 1 {
+		t.Fatalf("expected slot-keyed disk map to preserve scsi0, got %#v", disks)
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	wantRaw := map[string]string{
+		"net1":  "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
+		"scsi1": "local-lvm:vm-101-disk-1,serial=needs-raw",
+	}
+	if !reflect.DeepEqual(gotRaw, wantRaw) {
+		t.Fatalf("expected unsupported slot grammar to remain in raw.extra_config, got %#v want %#v", gotRaw, wantRaw)
 	}
 }
 
@@ -79,19 +238,254 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 		CPU:         types.StringValue("host"),
 		OSType:      types.StringValue("l26"),
 		Boot:        types.StringValue("order=scsi0;net0"),
+		Common: mustQemuVMCommonValue(t, qemuVMCommonModel{
+			Hotplug: types.StringValue("network,disk,usb,cloudinit"),
+		}),
+		CloudInit: mustQemuVMCloudInitValue(t, qemuVMCloudInitModel{
+			CIUser:    types.StringValue("ubuntu"),
+			CIType:    types.StringValue("nocloud"),
+			CIUpgrade: types.BoolValue(true),
+			SSHKeys:   types.StringValue("ssh-ed25519 AAAA... user@example"),
+			IPConfig: mustQemuVMIPConfigMapValue(t, map[string]qemuVMIPConfigModel{
+				"ipconfig0": {
+					IPv4:     types.StringValue("dhcp"),
+					Gateway:  types.StringNull(),
+					IPv6:     types.StringValue("auto"),
+					Gateway6: types.StringNull(),
+				},
+			}),
+		}),
+		Network: mustQemuVMNetworkMapValue(t, map[string]qemuVMNetworkModel{
+			"net0": {
+				Model:    types.StringValue("virtio"),
+				Bridge:   types.StringValue("vmbr0"),
+				MACAddr:  types.StringValue("BC:24:11:AA:BB:CC"),
+				Tag:      types.Int64Value(20),
+				Firewall: types.BoolValue(true),
+				LinkDown: types.BoolValue(false),
+				MTU:      types.Int64Value(1400),
+				Queues:   types.Int64Value(4),
+				Rate:     types.Float64Value(5),
+			},
+		}),
+		Disk: mustQemuVMDiskMapValue(t, map[string]qemuVMDiskModel{
+			"scsi0": {
+				Storage:   types.StringValue("local-lvm"),
+				Size:      types.StringValue("32G"),
+				Media:     types.StringValue("disk"),
+				Cache:     types.StringValue("writeback"),
+				Discard:   types.StringValue("on"),
+				Iothread:  types.BoolValue(true),
+				SSD:       types.BoolValue(true),
+				Replicate: types.BoolValue(false),
+			},
+		}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{"hostpci0": "0000:00:1f.0"}),
+		}),
+		Clone: mustQemuVMCloneValue(t, qemuVMCloneModel{
+			SourceNode:   types.StringValue("pve-template"),
+			SourceVMID:   types.Int64Value(9000),
+			Full:         types.BoolValue(true),
+			SnapshotName: types.StringValue("golden"),
+			Storage:      types.StringValue("local-lvm"),
+			BWLimit:      types.Int64Value(2048),
+		}),
 	}
 
-	createReq := qemuVMCreateRequestFromModel(model)
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
 	if createReq.VMID != 101 || createReq.Name == nil || *createReq.Name != "api-vm" {
 		t.Fatalf("unexpected create request: %#v", createReq)
 	}
+	if createReq.Hotplug == nil || *createReq.Hotplug != "network,disk,usb,cloudinit" {
+		t.Fatalf("expected hotplug in create request, got %#v", createReq)
+	}
+	if got := createReq.IPConfig["ipconfig0"]; got != "ip=dhcp,ip6=auto" {
+		t.Fatalf("unexpected ipconfig encoding: %#v", createReq.IPConfig)
+	}
+	if got := createReq.Network["net0"]; got != "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=20,firewall=1,link_down=0,mtu=1400,queues=4,rate=5" {
+		t.Fatalf("unexpected network encoding: %#v", createReq.Network)
+	}
+	if got := createReq.Disk["scsi0"]; got != "local-lvm:32G,media=disk,cache=writeback,discard=on,iothread=1,replicate=0,ssd=1" {
+		t.Fatalf("unexpected disk encoding: %#v", createReq.Disk)
+	}
+	if got := createReq.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("unexpected raw encoding: %#v", createReq.ExtraConfig)
+	}
 
-	updateReq := qemuVMUpdateRequestFromModel(model)
+	cloneReq, diags := qemuVMCloneRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if cloneReq.SourceNode != "pve-template" || cloneReq.SourceVMID != 9000 || cloneReq.TargetNode != "" {
+		t.Fatalf("unexpected clone request core values: %#v", cloneReq)
+	}
+	if cloneReq.NewID != 101 || cloneReq.Storage == nil || *cloneReq.Storage != "local-lvm" || cloneReq.BWLimit == nil || *cloneReq.BWLimit != 2048 {
+		t.Fatalf("unexpected clone request: %#v", cloneReq)
+	}
+
+	updateReq, diags := qemuVMUpdateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
 	if updateReq.OnBoot == nil || !*updateReq.OnBoot || updateReq.Memory == nil || *updateReq.Memory != 8192 {
 		t.Fatalf("unexpected update request: %#v", updateReq)
 	}
-
 	if got, want := reflect.ValueOf(updateReq).NumField(), reflect.ValueOf(UpdateQemuVMRequest{}).NumField(); got != want {
 		t.Fatalf("unexpected update request field count: got %d want %d", got, want)
+	}
+}
+
+func TestValidateQemuVMRawConflicts(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		Network: mustQemuVMNetworkMapValue(t, map[string]qemuVMNetworkModel{
+			"net0": {
+				Model:  types.StringValue("virtio"),
+				Bridge: types.StringValue("vmbr0"),
+			},
+		}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"net0": "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0",
+			}),
+		}),
+	}
+
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}
+
+func decodeQemuVMCommon(t *testing.T, value types.Object) qemuVMCommonModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known common object, got %#v", value)
+	}
+	var result qemuVMCommonModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func decodeQemuVMCloudInit(t *testing.T, value types.Object) qemuVMCloudInitModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known cloud_init object, got %#v", value)
+	}
+	var result qemuVMCloudInitModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func decodeQemuVMRaw(t *testing.T, value types.Object) qemuVMRawModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known raw object, got %#v", value)
+	}
+	var result qemuVMRawModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func decodeQemuVMClone(t *testing.T, value types.Object) qemuVMCloneModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known clone object, got %#v", value)
+	}
+	var result qemuVMCloneModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func decodeQemuVMIPConfigMap(t *testing.T, value types.Map) map[string]qemuVMIPConfigModel {
+	t.Helper()
+	var result map[string]qemuVMIPConfigModel
+	assertNoDiags(t, value.ElementsAs(context.Background(), &result, false))
+	return result
+}
+
+func decodeQemuVMNetworkMap(t *testing.T, value types.Map) map[string]qemuVMNetworkModel {
+	t.Helper()
+	var result map[string]qemuVMNetworkModel
+	assertNoDiags(t, value.ElementsAs(context.Background(), &result, false))
+	return result
+}
+
+func decodeQemuVMDiskMap(t *testing.T, value types.Map) map[string]qemuVMDiskModel {
+	t.Helper()
+	var result map[string]qemuVMDiskModel
+	assertNoDiags(t, value.ElementsAs(context.Background(), &result, false))
+	return result
+}
+
+func decodeStringMap(t *testing.T, value types.Map) map[string]string {
+	t.Helper()
+	var result map[string]string
+	assertNoDiags(t, value.ElementsAs(context.Background(), &result, false))
+	return result
+}
+
+func mustQemuVMCommonValue(t *testing.T, value qemuVMCommonModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMCommonAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustQemuVMCloudInitValue(t *testing.T, value qemuVMCloudInitModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMCloudInitAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustQemuVMRawValue(t *testing.T, value qemuVMRawModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMRawAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustQemuVMCloneValue(t *testing.T, value qemuVMCloneModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMCloneAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustQemuVMIPConfigMapValue(t *testing.T, value map[string]qemuVMIPConfigModel) types.Map {
+	t.Helper()
+	result, diags := types.MapValueFrom(context.Background(), types.ObjectType{AttrTypes: qemuVMIPConfigAttrTypes()}, value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustQemuVMNetworkMapValue(t *testing.T, value map[string]qemuVMNetworkModel) types.Map {
+	t.Helper()
+	result, diags := types.MapValueFrom(context.Background(), types.ObjectType{AttrTypes: qemuVMNetworkAttrTypes()}, value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustQemuVMDiskMapValue(t *testing.T, value map[string]qemuVMDiskModel) types.Map {
+	t.Helper()
+	result, diags := types.MapValueFrom(context.Background(), types.ObjectType{AttrTypes: qemuVMDiskAttrTypes()}, value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustStringMapValue(t *testing.T, value map[string]string) types.Map {
+	t.Helper()
+	result, diags := types.MapValueFrom(context.Background(), types.StringType, value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func assertNoDiags(t *testing.T, diags diag.Diagnostics) {
+	t.Helper()
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 }
