@@ -46,6 +46,7 @@ data "proxmox_qemu_vm" "example" {
 - `cpu` (String) Configured CPU model from `/config`.
 - `description` (String) Optional VM description from `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0` when fully covered by this provider version. (see [below for nested schema](#nestedatt--disk))
+- `efi_disk` (Attributes) Typed `efidisk0` firmware storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--efi_disk))
 - `id` (String) Terraform identifier in `node/vm_id` form.
 - `machine` (String) Configured machine type from `/config`.
 - `memory` (Number) Configured memory in MiB from `/config`.
@@ -137,6 +138,20 @@ Read-Only:
 - `size` (String)
 - `snapshot` (Boolean)
 - `ssd` (Boolean)
+- `storage` (String)
+- `volume` (String)
+
+
+<a id="nestedatt--efi_disk"></a>
+### Nested Schema for `efi_disk`
+
+Read-Only:
+
+- `efitype` (String)
+- `format` (String)
+- `ms_cert` (String)
+- `pre_enrolled_keys` (Boolean)
+- `size` (String)
 - `storage` (String)
 - `volume` (String)
 
