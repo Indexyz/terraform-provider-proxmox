@@ -40,6 +40,7 @@ type qemuVMModel struct {
 	Network     types.Map    `tfsdk:"network"`
 	Disk        types.Map    `tfsdk:"disk"`
 	EFIDisk     types.Object `tfsdk:"efi_disk"`
+	TPMState    types.Object `tfsdk:"tpm_state"`
 	Raw         types.Object `tfsdk:"raw"`
 	Clone       types.Object `tfsdk:"clone"`
 	Status      types.String `tfsdk:"status"`
@@ -116,6 +117,14 @@ type qemuVMEFIDiskModel struct {
 	Format          types.String `tfsdk:"format"`
 	MSCert          types.String `tfsdk:"ms_cert"`
 	PreEnrolledKeys types.Bool   `tfsdk:"pre_enrolled_keys"`
+}
+
+type qemuVMTPMStateModel struct {
+	Storage types.String `tfsdk:"storage"`
+	Volume  types.String `tfsdk:"volume"`
+	Size    types.String `tfsdk:"size"`
+	Format  types.String `tfsdk:"format"`
+	Version types.String `tfsdk:"version"`
 }
 
 type qemuVMRawModel struct {
@@ -213,6 +222,16 @@ func qemuVMEFIDiskAttrTypes() map[string]attr.Type {
 		"format":            types.StringType,
 		"ms_cert":           types.StringType,
 		"pre_enrolled_keys": types.BoolType,
+	}
+}
+
+func qemuVMTPMStateAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"storage": types.StringType,
+		"volume":  types.StringType,
+		"size":    types.StringType,
+		"format":  types.StringType,
+		"version": types.StringType,
 	}
 }
 
@@ -451,6 +470,35 @@ func qemuVMEFIDiskResourceAttribute() schema.SingleNestedAttribute {
 	}
 }
 
+func qemuVMTPMStateDataSourceAttribute() datasourceschema.SingleNestedAttribute {
+	return datasourceschema.SingleNestedAttribute{
+		Computed:            true,
+		MarkdownDescription: "Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`.",
+		Attributes: map[string]datasourceschema.Attribute{
+			"storage": datasourceschema.StringAttribute{Computed: true},
+			"volume":  datasourceschema.StringAttribute{Computed: true},
+			"size":    datasourceschema.StringAttribute{Computed: true},
+			"format":  datasourceschema.StringAttribute{Computed: true},
+			"version": datasourceschema.StringAttribute{Computed: true},
+		},
+	}
+}
+
+func qemuVMTPMStateResourceAttribute() schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		Computed:            true,
+		MarkdownDescription: "Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config[\"tpmstate0\"]`.",
+		Attributes: map[string]schema.Attribute{
+			"storage": schema.StringAttribute{Optional: true, Computed: true},
+			"volume":  schema.StringAttribute{Optional: true, Computed: true},
+			"size":    schema.StringAttribute{Optional: true, Computed: true},
+			"format":  schema.StringAttribute{Optional: true, Computed: true},
+			"version": schema.StringAttribute{Optional: true, Computed: true},
+		},
+	}
+}
+
 func qemuVMRawDataSourceAttribute() datasourceschema.SingleNestedAttribute {
 	return datasourceschema.SingleNestedAttribute{
 		Computed:            true,
@@ -540,6 +588,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"network":     qemuVMNetworkDataSourceAttribute(),
 		"disk":        qemuVMDiskDataSourceAttribute(),
 		"efi_disk":    qemuVMEFIDiskDataSourceAttribute(),
+		"tpm_state":   qemuVMTPMStateDataSourceAttribute(),
 		"raw":         qemuVMRawDataSourceAttribute(),
 		"clone":       qemuVMCloneDataSourceAttribute(),
 		"status":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`."},
@@ -591,6 +640,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"network":     qemuVMNetworkResourceAttribute(),
 		"disk":        qemuVMDiskResourceAttribute(),
 		"efi_disk":    qemuVMEFIDiskResourceAttribute(),
+		"tpm_state":   qemuVMTPMStateResourceAttribute(),
 		"raw":         qemuVMRawResourceAttribute(),
 		"clone":       qemuVMCloneResourceAttribute(),
 		"status":      schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state."},
