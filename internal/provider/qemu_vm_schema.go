@@ -39,6 +39,7 @@ type qemuVMModel struct {
 	CloudInit   types.Object `tfsdk:"cloud_init"`
 	Network     types.Map    `tfsdk:"network"`
 	Disk        types.Map    `tfsdk:"disk"`
+	EFIDisk     types.Object `tfsdk:"efi_disk"`
 	Raw         types.Object `tfsdk:"raw"`
 	Clone       types.Object `tfsdk:"clone"`
 	Status      types.String `tfsdk:"status"`
@@ -105,6 +106,16 @@ type qemuVMDiskModel struct {
 	MBPSRdMax types.Float64 `tfsdk:"mbps_rd_max"`
 	MBPSWr    types.Float64 `tfsdk:"mbps_wr"`
 	MBPSWrMax types.Float64 `tfsdk:"mbps_wr_max"`
+}
+
+type qemuVMEFIDiskModel struct {
+	Storage         types.String `tfsdk:"storage"`
+	Volume          types.String `tfsdk:"volume"`
+	Size            types.String `tfsdk:"size"`
+	EFIType         types.String `tfsdk:"efitype"`
+	Format          types.String `tfsdk:"format"`
+	MSCert          types.String `tfsdk:"ms_cert"`
+	PreEnrolledKeys types.Bool   `tfsdk:"pre_enrolled_keys"`
 }
 
 type qemuVMRawModel struct {
@@ -190,6 +201,18 @@ func qemuVMDiskAttrTypes() map[string]attr.Type {
 		"mbps_rd_max": types.Float64Type,
 		"mbps_wr":     types.Float64Type,
 		"mbps_wr_max": types.Float64Type,
+	}
+}
+
+func qemuVMEFIDiskAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"storage":           types.StringType,
+		"volume":            types.StringType,
+		"size":              types.StringType,
+		"efitype":           types.StringType,
+		"format":            types.StringType,
+		"ms_cert":           types.StringType,
+		"pre_enrolled_keys": types.BoolType,
 	}
 }
 
@@ -395,6 +418,39 @@ func qemuVMDiskResourceAttribute() schema.MapNestedAttribute {
 	}
 }
 
+func qemuVMEFIDiskDataSourceAttribute() datasourceschema.SingleNestedAttribute {
+	return datasourceschema.SingleNestedAttribute{
+		Computed:            true,
+		MarkdownDescription: "Typed `efidisk0` firmware storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`.",
+		Attributes: map[string]datasourceschema.Attribute{
+			"storage":           datasourceschema.StringAttribute{Computed: true},
+			"volume":            datasourceschema.StringAttribute{Computed: true},
+			"size":              datasourceschema.StringAttribute{Computed: true},
+			"efitype":           datasourceschema.StringAttribute{Computed: true},
+			"format":            datasourceschema.StringAttribute{Computed: true},
+			"ms_cert":           datasourceschema.StringAttribute{Computed: true},
+			"pre_enrolled_keys": datasourceschema.BoolAttribute{Computed: true},
+		},
+	}
+}
+
+func qemuVMEFIDiskResourceAttribute() schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		Computed:            true,
+		MarkdownDescription: "Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config[\"efidisk0\"]`.",
+		Attributes: map[string]schema.Attribute{
+			"storage":           schema.StringAttribute{Optional: true, Computed: true},
+			"volume":            schema.StringAttribute{Optional: true, Computed: true},
+			"size":              schema.StringAttribute{Optional: true, Computed: true},
+			"efitype":           schema.StringAttribute{Optional: true, Computed: true},
+			"format":            schema.StringAttribute{Optional: true, Computed: true},
+			"ms_cert":           schema.StringAttribute{Optional: true, Computed: true},
+			"pre_enrolled_keys": schema.BoolAttribute{Optional: true, Computed: true},
+		},
+	}
+}
+
 func qemuVMRawDataSourceAttribute() datasourceschema.SingleNestedAttribute {
 	return datasourceschema.SingleNestedAttribute{
 		Computed:            true,
@@ -483,6 +539,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"cloud_init":  qemuVMCloudInitDataSourceAttribute(),
 		"network":     qemuVMNetworkDataSourceAttribute(),
 		"disk":        qemuVMDiskDataSourceAttribute(),
+		"efi_disk":    qemuVMEFIDiskDataSourceAttribute(),
 		"raw":         qemuVMRawDataSourceAttribute(),
 		"clone":       qemuVMCloneDataSourceAttribute(),
 		"status":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`."},
@@ -533,6 +590,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"cloud_init":  qemuVMCloudInitResourceAttribute(),
 		"network":     qemuVMNetworkResourceAttribute(),
 		"disk":        qemuVMDiskResourceAttribute(),
+		"efi_disk":    qemuVMEFIDiskResourceAttribute(),
 		"raw":         qemuVMRawResourceAttribute(),
 		"clone":       qemuVMCloneResourceAttribute(),
 		"status":      schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state."},
