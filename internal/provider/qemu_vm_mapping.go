@@ -33,7 +33,9 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	diags.Append(networkDiags...)
 	diskValue, diskRaw, diskDiags := qemuVMDiskStateValue(ctx, config.Disk)
 	diags.Append(diskDiags...)
-	efiDiskValue, extraConfigRaw, efiDiskDiags := qemuVMEFIDiskStateValue(ctx, config.ExtraConfig)
+	tpmStateValue, extraConfigRaw, tpmStateDiags := qemuVMTPMStateValue(ctx, config.ExtraConfig)
+	diags.Append(tpmStateDiags...)
+	efiDiskValue, extraConfigRaw, efiDiskDiags := qemuVMEFIDiskStateValue(ctx, extraConfigRaw)
 	diags.Append(efiDiskDiags...)
 	rawValue, rawDiags := qemuVMRawStateValue(ctx, extraConfigRaw, networkRaw, diskRaw)
 	diags.Append(rawDiags...)
@@ -64,6 +66,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Network:     networkValue,
 		Disk:        diskValue,
 		EFIDisk:     efiDiskValue,
+		TPMState:    tpmStateValue,
 		Raw:         rawValue,
 		Clone:       cloneValue,
 		Status:      stringOrNull(status.Status),
@@ -177,6 +180,8 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 	diags.Append(diskDiags...)
 	efiDisk, efiDiskDiags := expandQemuVMEFIDiskModel(ctx, model.EFIDisk)
 	diags.Append(efiDiskDiags...)
+	tpmState, tpmStateDiags := expandQemuVMTPMStateModel(ctx, model.TPMState)
+	diags.Append(tpmStateDiags...)
 	raw, rawDiags := expandQemuVMRawModel(ctx, model.Raw)
 	diags.Append(rawDiags...)
 	if diags.HasError() {
@@ -194,6 +199,12 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 	var extraConfig map[string]string
 	if !raw.ExtraConfig.IsNull() && !raw.ExtraConfig.IsUnknown() {
 		diags.Append(raw.ExtraConfig.ElementsAs(ctx, &extraConfig, false)...)
+	}
+	if !qemuVMTPMStateModelIsEmpty(tpmState) {
+		if extraConfig == nil {
+			extraConfig = map[string]string{}
+		}
+		extraConfig["tpmstate0"] = encodeQemuVMTPMState(tpmState)
 	}
 	if !qemuVMEFIDiskModelIsEmpty(efiDisk) {
 		if extraConfig == nil {
@@ -399,6 +410,43 @@ func qemuVMEFIDiskStateValue(ctx context.Context, base map[string]string) (types
 	return value, extra, diags
 }
 
+func qemuVMTPMStateValue(ctx context.Context, base map[string]string) (types.Object, map[string]string, diag.Diagnostics) {
+	if len(base) == 0 {
+		return types.ObjectNull(qemuVMTPMStateAttrTypes()), nil, nil
+	}
+
+	extra := make(map[string]string, len(base))
+	for key, value := range base {
+		if key == "tpmstate0" {
+			continue
+		}
+		extra[key] = value
+	}
+
+	raw, ok := base["tpmstate0"]
+	if !ok {
+		if len(extra) == 0 {
+			extra = nil
+		}
+		return types.ObjectNull(qemuVMTPMStateAttrTypes()), extra, nil
+	}
+
+	parsed, ok := parseQemuVMTPMState(raw)
+	if !ok {
+		extra["tpmstate0"] = raw
+		return types.ObjectNull(qemuVMTPMStateAttrTypes()), extra, nil
+	}
+
+	value, diags := types.ObjectValueFrom(ctx, qemuVMTPMStateAttrTypes(), parsed)
+	if diags.HasError() {
+		return types.Object{}, nil, diags
+	}
+	if len(extra) == 0 {
+		extra = nil
+	}
+	return value, extra, diags
+}
+
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
 	keys := make([]string, 0)
 
@@ -457,6 +505,12 @@ func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.D
 		keys = append(keys, "efidisk0")
 	}
 
+	tpmState, tpmStateDiags := expandQemuVMTPMStateModel(ctx, model.TPMState)
+	diags.Append(tpmStateDiags...)
+	if !qemuVMTPMStateModelIsEmpty(tpmState) {
+		keys = append(keys, "tpmstate0")
+	}
+
 	sort.Strings(keys)
 	return keys
 }
@@ -482,6 +536,14 @@ func expandQemuVMEFIDiskModel(ctx context.Context, value types.Object) (qemuVMEF
 		return qemuVMEFIDiskModel{}, nil
 	}
 	var result qemuVMEFIDiskModel
+	return result, value.As(ctx, &result, qemuObjectAsOptions())
+}
+
+func expandQemuVMTPMStateModel(ctx context.Context, value types.Object) (qemuVMTPMStateModel, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return qemuVMTPMStateModel{}, nil
+	}
+	var result qemuVMTPMStateModel
 	return result, value.As(ctx, &result, qemuObjectAsOptions())
 }
 
@@ -594,6 +656,50 @@ func parseQemuVMEFIDisk(raw string) (qemuVMEFIDiskModel, bool) {
 			item.PreEnrolledKeys = types.BoolValue(parsed)
 		default:
 			return qemuVMEFIDiskModel{}, false
+		}
+	}
+	return item, !item.Volume.IsNull() && !item.Volume.IsUnknown()
+}
+
+func parseQemuVMTPMState(raw string) (qemuVMTPMStateModel, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return qemuVMTPMStateModel{}, false
+	}
+	parts := splitQemuConfigSegments(raw)
+	item := qemuVMTPMStateModel{}
+	for index, segment := range parts {
+		key, value, ok := splitQemuConfigKeyValue(segment)
+		if !ok {
+			if index != 0 {
+				return qemuVMTPMStateModel{}, false
+			}
+			trimmed := strings.TrimSpace(segment)
+			if trimmed == "" {
+				return qemuVMTPMStateModel{}, false
+			}
+			item.Volume = types.StringValue(trimmed)
+			if storage := qemuVMDiskStorageFromVolume(trimmed); storage != "" {
+				item.Storage = types.StringValue(storage)
+			}
+			continue
+		}
+		if strings.TrimSpace(value) == "" {
+			return qemuVMTPMStateModel{}, false
+		}
+		switch key {
+		case "file", "volume":
+			item.Volume = types.StringValue(value)
+			if storage := qemuVMDiskStorageFromVolume(value); storage != "" {
+				item.Storage = types.StringValue(storage)
+			}
+		case "size":
+			item.Size = types.StringValue(value)
+		case "format":
+			item.Format = types.StringValue(value)
+		case "version":
+			item.Version = types.StringValue(value)
+		default:
+			return qemuVMTPMStateModel{}, false
 		}
 	}
 	return item, !item.Volume.IsNull() && !item.Volume.IsUnknown()
@@ -947,6 +1053,30 @@ func encodeQemuVMEFIDisk(item qemuVMEFIDiskModel) string {
 	return strings.Join(segments, ",")
 }
 
+func encodeQemuVMTPMState(item qemuVMTPMStateModel) string {
+	segments := make([]string, 0, 5)
+	filePart := stringValue(item.Volume)
+	if filePart == "" {
+		storage := stringValue(item.Storage)
+		size := stringValue(item.Size)
+		switch {
+		case storage != "" && size != "":
+			filePart = fmt.Sprintf("%s:%s", storage, size)
+		case storage != "":
+			filePart = storage
+		}
+	}
+	if filePart != "" {
+		segments = append(segments, filePart)
+	}
+	appendStringConfig(&segments, "format", item.Format)
+	if stringValue(item.Volume) != "" {
+		appendStringConfig(&segments, "size", item.Size)
+	}
+	appendStringConfig(&segments, "version", item.Version)
+	return strings.Join(segments, ",")
+}
+
 func splitQemuConfigSegments(raw string) []string {
 	segments := strings.Split(raw, ",")
 	for i := range segments {
@@ -1020,6 +1150,10 @@ func qemuVMCloudInitModelIsEmpty(model qemuVMCloudInitModel) bool {
 
 func qemuVMEFIDiskModelIsEmpty(model qemuVMEFIDiskModel) bool {
 	return model.Storage.IsNull() && model.Volume.IsNull() && model.Size.IsNull() && model.EFIType.IsNull() && model.Format.IsNull() && model.MSCert.IsNull() && model.PreEnrolledKeys.IsNull()
+}
+
+func qemuVMTPMStateModelIsEmpty(model qemuVMTPMStateModel) bool {
+	return model.Storage.IsNull() && model.Volume.IsNull() && model.Size.IsNull() && model.Format.IsNull() && model.Version.IsNull()
 }
 
 func isQemuVMIPConfigKey(key string) bool {
