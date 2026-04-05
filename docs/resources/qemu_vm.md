@@ -177,12 +177,28 @@ Optional:
 
 Optional:
 
+- `backup` (Boolean)
 - `cache` (String)
 - `discard` (String)
+- `iops` (Number)
+- `iops_max` (Number)
+- `iops_rd` (Number)
+- `iops_rd_max` (Number)
+- `iops_wr` (Number)
+- `iops_wr_max` (Number)
 - `iothread` (Boolean)
+- `mbps` (Number)
+- `mbps_max` (Number)
+- `mbps_rd` (Number)
+- `mbps_rd_max` (Number)
+- `mbps_wr` (Number)
+- `mbps_wr_max` (Number)
 - `media` (String)
 - `replicate` (Boolean)
+- `serial` (String)
+- `shared` (Boolean)
 - `size` (String)
+- `snapshot` (Boolean)
 - `ssd` (Boolean)
 - `storage` (String)
 - `volume` (String)
@@ -202,6 +218,7 @@ Optional:
 - `queues` (Number)
 - `rate` (Number)
 - `tag` (Number)
+- `trunks` (String)
 
 
 <a id="nestedatt--raw"></a>

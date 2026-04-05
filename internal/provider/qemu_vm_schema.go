@@ -71,6 +71,7 @@ type qemuVMNetworkModel struct {
 	Bridge   types.String  `tfsdk:"bridge"`
 	MACAddr  types.String  `tfsdk:"macaddr"`
 	Tag      types.Int64   `tfsdk:"tag"`
+	Trunks   types.String  `tfsdk:"trunks"`
 	Firewall types.Bool    `tfsdk:"firewall"`
 	LinkDown types.Bool    `tfsdk:"link_down"`
 	MTU      types.Int64   `tfsdk:"mtu"`
@@ -79,15 +80,31 @@ type qemuVMNetworkModel struct {
 }
 
 type qemuVMDiskModel struct {
-	Storage   types.String `tfsdk:"storage"`
-	Volume    types.String `tfsdk:"volume"`
-	Size      types.String `tfsdk:"size"`
-	Media     types.String `tfsdk:"media"`
-	Cache     types.String `tfsdk:"cache"`
-	Discard   types.String `tfsdk:"discard"`
-	Iothread  types.Bool   `tfsdk:"iothread"`
-	SSD       types.Bool   `tfsdk:"ssd"`
-	Replicate types.Bool   `tfsdk:"replicate"`
+	Storage   types.String  `tfsdk:"storage"`
+	Volume    types.String  `tfsdk:"volume"`
+	Size      types.String  `tfsdk:"size"`
+	Media     types.String  `tfsdk:"media"`
+	Cache     types.String  `tfsdk:"cache"`
+	Discard   types.String  `tfsdk:"discard"`
+	Iothread  types.Bool    `tfsdk:"iothread"`
+	SSD       types.Bool    `tfsdk:"ssd"`
+	Replicate types.Bool    `tfsdk:"replicate"`
+	Backup    types.Bool    `tfsdk:"backup"`
+	Shared    types.Bool    `tfsdk:"shared"`
+	Snapshot  types.Bool    `tfsdk:"snapshot"`
+	Serial    types.String  `tfsdk:"serial"`
+	IOPS      types.Int64   `tfsdk:"iops"`
+	IOPSMax   types.Int64   `tfsdk:"iops_max"`
+	IOPSRd    types.Int64   `tfsdk:"iops_rd"`
+	IOPSRdMax types.Int64   `tfsdk:"iops_rd_max"`
+	IOPSWr    types.Int64   `tfsdk:"iops_wr"`
+	IOPSWrMax types.Int64   `tfsdk:"iops_wr_max"`
+	MBPS      types.Float64 `tfsdk:"mbps"`
+	MBPSMax   types.Float64 `tfsdk:"mbps_max"`
+	MBPSRd    types.Float64 `tfsdk:"mbps_rd"`
+	MBPSRdMax types.Float64 `tfsdk:"mbps_rd_max"`
+	MBPSWr    types.Float64 `tfsdk:"mbps_wr"`
+	MBPSWrMax types.Float64 `tfsdk:"mbps_wr_max"`
 }
 
 type qemuVMRawModel struct {
@@ -137,6 +154,7 @@ func qemuVMNetworkAttrTypes() map[string]attr.Type {
 		"bridge":    types.StringType,
 		"macaddr":   types.StringType,
 		"tag":       types.Int64Type,
+		"trunks":    types.StringType,
 		"firewall":  types.BoolType,
 		"link_down": types.BoolType,
 		"mtu":       types.Int64Type,
@@ -147,15 +165,31 @@ func qemuVMNetworkAttrTypes() map[string]attr.Type {
 
 func qemuVMDiskAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"storage":   types.StringType,
-		"volume":    types.StringType,
-		"size":      types.StringType,
-		"media":     types.StringType,
-		"cache":     types.StringType,
-		"discard":   types.StringType,
-		"iothread":  types.BoolType,
-		"ssd":       types.BoolType,
-		"replicate": types.BoolType,
+		"storage":     types.StringType,
+		"volume":      types.StringType,
+		"size":        types.StringType,
+		"media":       types.StringType,
+		"cache":       types.StringType,
+		"discard":     types.StringType,
+		"iothread":    types.BoolType,
+		"ssd":         types.BoolType,
+		"replicate":   types.BoolType,
+		"backup":      types.BoolType,
+		"shared":      types.BoolType,
+		"snapshot":    types.BoolType,
+		"serial":      types.StringType,
+		"iops":        types.Int64Type,
+		"iops_max":    types.Int64Type,
+		"iops_rd":     types.Int64Type,
+		"iops_rd_max": types.Int64Type,
+		"iops_wr":     types.Int64Type,
+		"iops_wr_max": types.Int64Type,
+		"mbps":        types.Float64Type,
+		"mbps_max":    types.Float64Type,
+		"mbps_rd":     types.Float64Type,
+		"mbps_rd_max": types.Float64Type,
+		"mbps_wr":     types.Float64Type,
+		"mbps_wr_max": types.Float64Type,
 	}
 }
 
@@ -260,6 +294,7 @@ func qemuVMNetworkDataSourceAttribute() datasourceschema.MapNestedAttribute {
 			"bridge":    datasourceschema.StringAttribute{Computed: true},
 			"macaddr":   datasourceschema.StringAttribute{Computed: true},
 			"tag":       datasourceschema.Int64Attribute{Computed: true},
+			"trunks":    datasourceschema.StringAttribute{Computed: true},
 			"firewall":  datasourceschema.BoolAttribute{Computed: true},
 			"link_down": datasourceschema.BoolAttribute{Computed: true},
 			"mtu":       datasourceschema.Int64Attribute{Computed: true},
@@ -280,6 +315,7 @@ func qemuVMNetworkResourceAttribute() schema.MapNestedAttribute {
 			"bridge":    schema.StringAttribute{Optional: true, Computed: true},
 			"macaddr":   schema.StringAttribute{Optional: true, Computed: true},
 			"tag":       schema.Int64Attribute{Optional: true, Computed: true},
+			"trunks":    schema.StringAttribute{Optional: true, Computed: true},
 			"firewall":  schema.BoolAttribute{Optional: true, Computed: true},
 			"link_down": schema.BoolAttribute{Optional: true, Computed: true},
 			"mtu":       schema.Int64Attribute{Optional: true, Computed: true},
@@ -294,15 +330,31 @@ func qemuVMDiskDataSourceAttribute() datasourceschema.MapNestedAttribute {
 		Computed:            true,
 		MarkdownDescription: "Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0` when fully covered by this provider version.",
 		NestedObject: datasourceschema.NestedAttributeObject{Attributes: map[string]datasourceschema.Attribute{
-			"storage":   datasourceschema.StringAttribute{Computed: true},
-			"volume":    datasourceschema.StringAttribute{Computed: true},
-			"size":      datasourceschema.StringAttribute{Computed: true},
-			"media":     datasourceschema.StringAttribute{Computed: true},
-			"cache":     datasourceschema.StringAttribute{Computed: true},
-			"discard":   datasourceschema.StringAttribute{Computed: true},
-			"iothread":  datasourceschema.BoolAttribute{Computed: true},
-			"ssd":       datasourceschema.BoolAttribute{Computed: true},
-			"replicate": datasourceschema.BoolAttribute{Computed: true},
+			"storage":     datasourceschema.StringAttribute{Computed: true},
+			"volume":      datasourceschema.StringAttribute{Computed: true},
+			"size":        datasourceschema.StringAttribute{Computed: true},
+			"media":       datasourceschema.StringAttribute{Computed: true},
+			"cache":       datasourceschema.StringAttribute{Computed: true},
+			"discard":     datasourceschema.StringAttribute{Computed: true},
+			"iothread":    datasourceschema.BoolAttribute{Computed: true},
+			"ssd":         datasourceschema.BoolAttribute{Computed: true},
+			"replicate":   datasourceschema.BoolAttribute{Computed: true},
+			"backup":      datasourceschema.BoolAttribute{Computed: true},
+			"shared":      datasourceschema.BoolAttribute{Computed: true},
+			"snapshot":    datasourceschema.BoolAttribute{Computed: true},
+			"serial":      datasourceschema.StringAttribute{Computed: true},
+			"iops":        datasourceschema.Int64Attribute{Computed: true},
+			"iops_max":    datasourceschema.Int64Attribute{Computed: true},
+			"iops_rd":     datasourceschema.Int64Attribute{Computed: true},
+			"iops_rd_max": datasourceschema.Int64Attribute{Computed: true},
+			"iops_wr":     datasourceschema.Int64Attribute{Computed: true},
+			"iops_wr_max": datasourceschema.Int64Attribute{Computed: true},
+			"mbps":        datasourceschema.Float64Attribute{Computed: true},
+			"mbps_max":    datasourceschema.Float64Attribute{Computed: true},
+			"mbps_rd":     datasourceschema.Float64Attribute{Computed: true},
+			"mbps_rd_max": datasourceschema.Float64Attribute{Computed: true},
+			"mbps_wr":     datasourceschema.Float64Attribute{Computed: true},
+			"mbps_wr_max": datasourceschema.Float64Attribute{Computed: true},
 		}},
 	}
 }
@@ -314,15 +366,31 @@ func qemuVMDiskResourceAttribute() schema.MapNestedAttribute {
 		PlanModifiers:       []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 		MarkdownDescription: "Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`.",
 		NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
-			"storage":   schema.StringAttribute{Optional: true, Computed: true},
-			"volume":    schema.StringAttribute{Optional: true, Computed: true},
-			"size":      schema.StringAttribute{Optional: true, Computed: true},
-			"media":     schema.StringAttribute{Optional: true, Computed: true},
-			"cache":     schema.StringAttribute{Optional: true, Computed: true},
-			"discard":   schema.StringAttribute{Optional: true, Computed: true},
-			"iothread":  schema.BoolAttribute{Optional: true, Computed: true},
-			"ssd":       schema.BoolAttribute{Optional: true, Computed: true},
-			"replicate": schema.BoolAttribute{Optional: true, Computed: true},
+			"storage":     schema.StringAttribute{Optional: true, Computed: true},
+			"volume":      schema.StringAttribute{Optional: true, Computed: true},
+			"size":        schema.StringAttribute{Optional: true, Computed: true},
+			"media":       schema.StringAttribute{Optional: true, Computed: true},
+			"cache":       schema.StringAttribute{Optional: true, Computed: true},
+			"discard":     schema.StringAttribute{Optional: true, Computed: true},
+			"iothread":    schema.BoolAttribute{Optional: true, Computed: true},
+			"ssd":         schema.BoolAttribute{Optional: true, Computed: true},
+			"replicate":   schema.BoolAttribute{Optional: true, Computed: true},
+			"backup":      schema.BoolAttribute{Optional: true, Computed: true},
+			"shared":      schema.BoolAttribute{Optional: true, Computed: true},
+			"snapshot":    schema.BoolAttribute{Optional: true, Computed: true},
+			"serial":      schema.StringAttribute{Optional: true, Computed: true},
+			"iops":        schema.Int64Attribute{Optional: true, Computed: true},
+			"iops_max":    schema.Int64Attribute{Optional: true, Computed: true},
+			"iops_rd":     schema.Int64Attribute{Optional: true, Computed: true},
+			"iops_rd_max": schema.Int64Attribute{Optional: true, Computed: true},
+			"iops_wr":     schema.Int64Attribute{Optional: true, Computed: true},
+			"iops_wr_max": schema.Int64Attribute{Optional: true, Computed: true},
+			"mbps":        schema.Float64Attribute{Optional: true, Computed: true},
+			"mbps_max":    schema.Float64Attribute{Optional: true, Computed: true},
+			"mbps_rd":     schema.Float64Attribute{Optional: true, Computed: true},
+			"mbps_rd_max": schema.Float64Attribute{Optional: true, Computed: true},
+			"mbps_wr":     schema.Float64Attribute{Optional: true, Computed: true},
+			"mbps_wr_max": schema.Float64Attribute{Optional: true, Computed: true},
 		}},
 	}
 }

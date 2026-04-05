@@ -551,6 +551,8 @@ func parseQemuVMNetwork(raw string) (qemuVMNetworkModel, bool) {
 				return qemuVMNetworkModel{}, false
 			}
 			item.Tag = types.Int64Value(parsed)
+		case "trunks":
+			item.Trunks = types.StringValue(value)
 		case "firewall":
 			parsed, ok := parseQemuVMConfigBool(value)
 			if !ok {
@@ -632,6 +634,98 @@ func parseQemuVMDisk(raw string) (qemuVMDiskModel, bool) {
 				return qemuVMDiskModel{}, false
 			}
 			item.Replicate = types.BoolValue(parsed)
+		case "backup":
+			parsed, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return qemuVMDiskModel{}, false
+			}
+			item.Backup = types.BoolValue(parsed)
+		case "shared":
+			parsed, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return qemuVMDiskModel{}, false
+			}
+			item.Shared = types.BoolValue(parsed)
+		case "snapshot":
+			parsed, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return qemuVMDiskModel{}, false
+			}
+			item.Snapshot = types.BoolValue(parsed)
+		case "serial":
+			item.Serial = types.StringValue(value)
+		case "iops":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.IOPS = types.Int64Value(parsed)
+		case "iops_max":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.IOPSMax = types.Int64Value(parsed)
+		case "iops_rd":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.IOPSRd = types.Int64Value(parsed)
+		case "iops_rd_max":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.IOPSRdMax = types.Int64Value(parsed)
+		case "iops_wr":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.IOPSWr = types.Int64Value(parsed)
+		case "iops_wr_max":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.IOPSWrMax = types.Int64Value(parsed)
+		case "mbps":
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.MBPS = types.Float64Value(parsed)
+		case "mbps_max":
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.MBPSMax = types.Float64Value(parsed)
+		case "mbps_rd":
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.MBPSRd = types.Float64Value(parsed)
+		case "mbps_rd_max":
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.MBPSRdMax = types.Float64Value(parsed)
+		case "mbps_wr":
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.MBPSWr = types.Float64Value(parsed)
+		case "mbps_wr_max":
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return qemuVMDiskModel{}, false
+			}
+			item.MBPSWrMax = types.Float64Value(parsed)
 		case "ssd":
 			parsed, ok := parseQemuVMConfigBool(value)
 			if !ok {
@@ -667,6 +761,7 @@ func encodeQemuVMNetwork(item qemuVMNetworkModel) string {
 	}
 	appendStringConfig(&segments, "bridge", item.Bridge)
 	appendInt64Config(&segments, "tag", item.Tag)
+	appendStringConfig(&segments, "trunks", item.Trunks)
 	appendBoolConfig(&segments, "firewall", item.Firewall)
 	appendBoolConfig(&segments, "link_down", item.LinkDown)
 	appendInt64Config(&segments, "mtu", item.MTU)
@@ -697,6 +792,22 @@ func encodeQemuVMDisk(item qemuVMDiskModel) string {
 	appendBoolConfig(&segments, "iothread", item.Iothread)
 	appendBoolConfig(&segments, "replicate", item.Replicate)
 	appendBoolConfig(&segments, "ssd", item.SSD)
+	appendBoolConfig(&segments, "backup", item.Backup)
+	appendBoolConfig(&segments, "shared", item.Shared)
+	appendBoolConfig(&segments, "snapshot", item.Snapshot)
+	appendStringConfig(&segments, "serial", item.Serial)
+	appendInt64Config(&segments, "iops", item.IOPS)
+	appendInt64Config(&segments, "iops_max", item.IOPSMax)
+	appendInt64Config(&segments, "iops_rd", item.IOPSRd)
+	appendInt64Config(&segments, "iops_rd_max", item.IOPSRdMax)
+	appendInt64Config(&segments, "iops_wr", item.IOPSWr)
+	appendInt64Config(&segments, "iops_wr_max", item.IOPSWrMax)
+	appendFloat64Config(&segments, "mbps", item.MBPS)
+	appendFloat64Config(&segments, "mbps_max", item.MBPSMax)
+	appendFloat64Config(&segments, "mbps_rd", item.MBPSRd)
+	appendFloat64Config(&segments, "mbps_rd_max", item.MBPSRdMax)
+	appendFloat64Config(&segments, "mbps_wr", item.MBPSWr)
+	appendFloat64Config(&segments, "mbps_wr_max", item.MBPSWrMax)
 	if stringValue(item.Volume) != "" {
 		appendStringConfig(&segments, "size", item.Size)
 	}
