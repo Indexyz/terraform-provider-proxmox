@@ -103,6 +103,7 @@ resource "proxmox_qemu_vm" "example" {
 - `cpu` (String) Configured CPU model managed through `/config`.
 - `description` (String) Optional VM description managed through clone mode and `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. (see [below for nested schema](#nestedatt--disk))
+- `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
 - `machine` (String) Configured machine type managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
 - `name` (String) Virtual machine name managed through `/nodes/{node}/qemu`, clone mode, and `/config`.
@@ -200,6 +201,20 @@ Optional:
 - `size` (String)
 - `snapshot` (Boolean)
 - `ssd` (Boolean)
+- `storage` (String)
+- `volume` (String)
+
+
+<a id="nestedatt--efi_disk"></a>
+### Nested Schema for `efi_disk`
+
+Optional:
+
+- `efitype` (String)
+- `format` (String)
+- `ms_cert` (String)
+- `pre_enrolled_keys` (Boolean)
+- `size` (String)
 - `storage` (String)
 - `volume` (String)
 

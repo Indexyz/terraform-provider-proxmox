@@ -227,6 +227,110 @@ func TestQemuVMStateFromAPIPreservesSlotKeyedAdvancedDomains(t *testing.T) {
 	}
 }
 
+func TestQemuVMStateFromAPITypesEFIDisk0(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		ExtraConfig: map[string]string{
+			"efidisk0": "local-lvm:vm-101-disk-0,efitype=4m,format=qcow2,ms-cert=2023,pre-enrolled-keys=1,size=528K",
+			"hostpci0": "0000:00:1f.0",
+		},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	efiDisk := decodeQemuVMEFIDisk(t, state.EFIDisk)
+	if efiDisk.Storage.ValueString() != "local-lvm" || efiDisk.Volume.ValueString() != "local-lvm:vm-101-disk-0" {
+		t.Fatalf("unexpected typed efi_disk volume/storage: %#v", efiDisk)
+	}
+	if efiDisk.EFIType.ValueString() != "4m" || efiDisk.Format.ValueString() != "qcow2" || efiDisk.MSCert.ValueString() != "2023" || !efiDisk.PreEnrolledKeys.ValueBool() || efiDisk.Size.ValueString() != "528K" {
+		t.Fatalf("unexpected typed efi_disk mapping: %#v", efiDisk)
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	wantRaw := map[string]string{"hostpci0": "0000:00:1f.0"}
+	if !reflect.DeepEqual(gotRaw, wantRaw) {
+		t.Fatalf("expected typed efidisk0 to be removed from raw.extra_config, got %#v want %#v", gotRaw, wantRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIPreservesUnsupportedEFIDisk0InRaw(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		ExtraConfig: map[string]string{
+			"efidisk0": "local-lvm:vm-101-disk-0,iothread=1",
+		},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.EFIDisk.IsNull() || state.EFIDisk.IsUnknown() {
+		t.Fatalf("expected unsupported efidisk0 grammar to remain untyped, got %#v", state.EFIDisk)
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	wantRaw := map[string]string{"efidisk0": "local-lvm:vm-101-disk-0,iothread=1"}
+	if !reflect.DeepEqual(gotRaw, wantRaw) {
+		t.Fatalf("expected unsupported efidisk0 grammar to remain in raw.extra_config, got %#v want %#v", gotRaw, wantRaw)
+	}
+}
+
+func TestQemuVMStateFromAPITypesTPMState0(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		ExtraConfig: map[string]string{
+			"tpmstate0": "local-lvm:vm-101-disk-9,format=raw,size=4M,version=v2.0",
+			"hostpci0":  "0000:00:1f.0",
+		},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	tpmState := decodeQemuVMTPMState(t, state.TPMState)
+	if tpmState.Storage.ValueString() != "local-lvm" || tpmState.Volume.ValueString() != "local-lvm:vm-101-disk-9" {
+		t.Fatalf("unexpected typed tpm_state volume/storage: %#v", tpmState)
+	}
+	if tpmState.Format.ValueString() != "raw" || tpmState.Size.ValueString() != "4M" || tpmState.Version.ValueString() != "v2.0" {
+		t.Fatalf("unexpected typed tpm_state mapping: %#v", tpmState)
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	wantRaw := map[string]string{"hostpci0": "0000:00:1f.0"}
+	if !reflect.DeepEqual(gotRaw, wantRaw) {
+		t.Fatalf("expected typed tpmstate0 to be removed from raw.extra_config, got %#v want %#v", gotRaw, wantRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIPreservesUnsupportedTPMState0InRaw(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		ExtraConfig: map[string]string{
+			"tpmstate0": "local-lvm:vm-101-disk-9,iothread=1",
+		},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.TPMState.IsNull() || state.TPMState.IsUnknown() {
+		t.Fatalf("expected unsupported tpmstate0 grammar to remain untyped, got %#v", state.TPMState)
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	wantRaw := map[string]string{"tpmstate0": "local-lvm:vm-101-disk-9,iothread=1"}
+	if !reflect.DeepEqual(gotRaw, wantRaw) {
+		t.Fatalf("expected unsupported tpmstate0 grammar to remain in raw.extra_config, got %#v want %#v", gotRaw, wantRaw)
+	}
+}
+
 func TestParseQemuVMImportID(t *testing.T) {
 	t.Parallel()
 
@@ -401,6 +505,58 @@ func TestValidateQemuVMRawConflicts(t *testing.T) {
 	}
 }
 
+func TestValidateQemuVMRawConflictsIncludesEFIDisk0(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		EFIDisk: mustQemuVMEFIDiskValue(t, qemuVMEFIDiskModel{
+			Storage:         types.StringValue("local-lvm"),
+			Size:            types.StringValue("4M"),
+			EFIType:         types.StringValue("4m"),
+			PreEnrolledKeys: types.BoolValue(true),
+		}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"efidisk0": "local-lvm:4M,efitype=4m,pre-enrolled-keys=1",
+			}),
+		}),
+	}
+
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics for efidisk0")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}
+
+func TestValidateQemuVMRawConflictsIncludesTPMState0(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		TPMState: mustQemuVMTPMStateValue(t, qemuVMTPMStateModel{
+			Storage: types.StringValue("local-lvm"),
+			Size:    types.StringValue("4M"),
+			Format:  types.StringValue("raw"),
+			Version: types.StringValue("v2.0"),
+		}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"tpmstate0": "local-lvm:4M,format=raw,version=v2.0",
+			}),
+		}),
+	}
+
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics for tpmstate0")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}
+
 func TestParseAndEncodeQemuVMNetworkTrunks(t *testing.T) {
 	t.Parallel()
 
@@ -510,6 +666,152 @@ func TestParseQemuVMDiskRejectsUnsupportedQoSBurstGrammar(t *testing.T) {
 			t.Fatalf("expected unsupported QoS grammar %q to remain untyped", raw)
 		}
 	}
+}
+
+func TestQemuVMRequestFromModelEncodesEFIDisk0(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		EFIDisk: mustQemuVMEFIDiskValue(t, qemuVMEFIDiskModel{
+			Storage:         types.StringValue("local-lvm"),
+			Size:            types.StringValue("4M"),
+			EFIType:         types.StringValue("4m"),
+			Format:          types.StringValue("qcow2"),
+			MSCert:          types.StringValue("2023"),
+			PreEnrolledKeys: types.BoolValue(true),
+		}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"hostpci0": "0000:00:1f.0",
+			}),
+		}),
+	}
+
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if got := createReq.ExtraConfig["efidisk0"]; got != "local-lvm:4M,efitype=4m,format=qcow2,ms-cert=2023,pre-enrolled-keys=1" {
+		t.Fatalf("unexpected efidisk0 encoding: %#v", createReq.ExtraConfig)
+	}
+	if got := createReq.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected raw.extra_config entries to remain merged with efidisk0, got %#v", createReq.ExtraConfig)
+	}
+}
+
+func TestQemuVMRequestFromModelEncodesTPMState0(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		TPMState: mustQemuVMTPMStateValue(t, qemuVMTPMStateModel{
+			Storage: types.StringValue("local-lvm"),
+			Size:    types.StringValue("4M"),
+			Format:  types.StringValue("raw"),
+			Version: types.StringValue("v2.0"),
+		}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"hostpci0": "0000:00:1f.0",
+			}),
+		}),
+	}
+
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if got := createReq.ExtraConfig["tpmstate0"]; got != "local-lvm:4M,format=raw,version=v2.0" {
+		t.Fatalf("unexpected tpmstate0 encoding: %#v", createReq.ExtraConfig)
+	}
+	if got := createReq.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected raw.extra_config entries to remain merged with tpmstate0, got %#v", createReq.ExtraConfig)
+	}
+}
+
+func TestParseAndEncodeQemuVMEFIDisk(t *testing.T) {
+	t.Parallel()
+
+	parsed, ok := parseQemuVMEFIDisk("local-lvm:vm-101-disk-0,efitype=4m,format=raw,ms-cert=2011,pre-enrolled-keys=0,size=528K")
+	if !ok {
+		t.Fatal("expected efidisk0 config to parse")
+	}
+	if parsed.Storage.ValueString() != "local-lvm" || parsed.Volume.ValueString() != "local-lvm:vm-101-disk-0" || parsed.EFIType.ValueString() != "4m" || parsed.Format.ValueString() != "raw" || parsed.MSCert.ValueString() != "2011" || parsed.PreEnrolledKeys.ValueBool() || parsed.Size.ValueString() != "528K" {
+		t.Fatalf("unexpected parsed efidisk0 config: %#v", parsed)
+	}
+	if encoded := encodeQemuVMEFIDisk(parsed); encoded != "local-lvm:vm-101-disk-0,efitype=4m,format=raw,ms-cert=2011,pre-enrolled-keys=0,size=528K" {
+		t.Fatalf("unexpected encoded efidisk0 config: %q", encoded)
+	}
+}
+
+func TestParseQemuVMEFIDiskRejectsUnsupportedGrammar(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"local-lvm:vm-101-disk-0,serial=efi",
+		"local-lvm:vm-101-disk-0,pre-enrolled-keys=maybe",
+	} {
+		if _, ok := parseQemuVMEFIDisk(raw); ok {
+			t.Fatalf("expected unsupported efidisk0 grammar %q to remain untyped", raw)
+		}
+	}
+}
+
+func TestParseAndEncodeQemuVMTPMState(t *testing.T) {
+	t.Parallel()
+
+	parsed, ok := parseQemuVMTPMState("local-lvm:vm-101-disk-9,format=raw,size=4M,version=v2.0")
+	if !ok {
+		t.Fatal("expected tpmstate0 config to parse")
+	}
+	if parsed.Storage.ValueString() != "local-lvm" || parsed.Volume.ValueString() != "local-lvm:vm-101-disk-9" || parsed.Format.ValueString() != "raw" || parsed.Size.ValueString() != "4M" || parsed.Version.ValueString() != "v2.0" {
+		t.Fatalf("unexpected parsed tpmstate0 config: %#v", parsed)
+	}
+	if encoded := encodeQemuVMTPMState(parsed); encoded != "local-lvm:vm-101-disk-9,format=raw,size=4M,version=v2.0" {
+		t.Fatalf("unexpected encoded tpmstate0 config: %q", encoded)
+	}
+}
+
+func TestParseQemuVMTPMStateRejectsUnsupportedGrammar(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"local-lvm:vm-101-disk-9,pre-enrolled-keys=1",
+		"local-lvm:vm-101-disk-9,version=",
+	} {
+		if _, ok := parseQemuVMTPMState(raw); ok {
+			t.Fatalf("expected unsupported tpmstate0 grammar %q to remain untyped", raw)
+		}
+	}
+}
+
+func decodeQemuVMTPMState(t *testing.T, value types.Object) qemuVMTPMStateModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known tpm_state object, got %#v", value)
+	}
+	var result qemuVMTPMStateModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func mustQemuVMTPMStateValue(t *testing.T, value qemuVMTPMStateModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMTPMStateAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func decodeQemuVMEFIDisk(t *testing.T, value types.Object) qemuVMEFIDiskModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known efi_disk object, got %#v", value)
+	}
+	var result qemuVMEFIDiskModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func mustQemuVMEFIDiskValue(t *testing.T, value qemuVMEFIDiskModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMEFIDiskAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
 }
 
 func decodeQemuVMCommon(t *testing.T, value types.Object) qemuVMCommonModel {
