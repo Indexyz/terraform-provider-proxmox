@@ -45,8 +45,11 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 			"net1": "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
 		},
 		Disk: map[string]string{
-			"scsi0": "local-lvm:vm-101-disk-0,cache=writeback,discard=on,iothread=1,media=disk,replicate=0,size=32G,ssd=1",
-			"scsi1": "local-lvm:vm-101-disk-1,serial=needs-raw",
+			"ide0":    "local-lvm:vm-101-disk-0,backup=1,shared=0,snapshot=1,serial=ide-disk,iops=100,mbps=1.5",
+			"sata0":   "local-lvm:vm-101-disk-1,backup=0,shared=1,snapshot=0,serial=sata-disk,iops_max=200,mbps_max=2.5",
+			"scsi0":   "local-lvm:vm-101-disk-2,cache=writeback,discard=on,iothread=1,media=disk,replicate=0,backup=1,shared=0,snapshot=1,serial=scsi-disk,size=32G,ssd=1,iops_rd=300,iops_rd_max=400,mbps_rd=3.5,mbps_rd_max=4.5",
+			"virtio0": "local-lvm:vm-101-disk-3,backup=1,shared=1,snapshot=0,serial=virtio-disk,iops_wr=500,iops_wr_max=600,mbps_wr=5.5,mbps_wr_max=6.5",
+			"scsi1":   "local-lvm:vm-101-disk-4,wwn=needs-raw",
 		},
 		ExtraConfig: map[string]string{
 			"hostpci0": "0000:00:1f.0",
@@ -84,13 +87,22 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 	if got := network["net0"]; got.Model.ValueString() != "virtio" || got.Bridge.ValueString() != "vmbr0" || got.Tag.ValueInt64() != 20 || !got.Firewall.ValueBool() || got.Rate.ValueFloat64() != 5 {
 		t.Fatalf("unexpected network mapping: %#v", network)
 	}
-	if _, ok := network["net1"]; ok {
-		t.Fatalf("expected unsupported net1 config to remain raw, got %#v", network["net1"])
+	if got := network["net1"]; got.Model.ValueString() != "e1000" || got.Bridge.ValueString() != "vmbr1" || got.Trunks.ValueString() != "10;20" {
+		t.Fatalf("unexpected network mapping for trunks support: %#v", network)
 	}
 
 	disks := decodeQemuVMDiskMap(t, state.Disk)
-	if got := disks["scsi0"]; got.Storage.ValueString() != "local-lvm" || got.Volume.ValueString() != "local-lvm:vm-101-disk-0" || got.Size.ValueString() != "32G" || !got.Iothread.ValueBool() || got.Replicate.ValueBool() {
+	if got := disks["ide0"]; got.Storage.ValueString() != "local-lvm" || got.Volume.ValueString() != "local-lvm:vm-101-disk-0" || !got.Backup.ValueBool() || got.Shared.ValueBool() || !got.Snapshot.ValueBool() || got.Serial.ValueString() != "ide-disk" || got.IOPS.ValueInt64() != 100 || got.MBPS.ValueFloat64() != 1.5 {
+		t.Fatalf("unexpected ide disk mapping: %#v", got)
+	}
+	if got := disks["sata0"]; got.Storage.ValueString() != "local-lvm" || got.Volume.ValueString() != "local-lvm:vm-101-disk-1" || got.Backup.ValueBool() || !got.Shared.ValueBool() || got.Snapshot.ValueBool() || got.Serial.ValueString() != "sata-disk" || got.IOPSMax.ValueInt64() != 200 || got.MBPSMax.ValueFloat64() != 2.5 {
+		t.Fatalf("unexpected sata disk mapping: %#v", got)
+	}
+	if got := disks["scsi0"]; got.Storage.ValueString() != "local-lvm" || got.Volume.ValueString() != "local-lvm:vm-101-disk-2" || got.Size.ValueString() != "32G" || !got.Iothread.ValueBool() || got.Replicate.ValueBool() || !got.Backup.ValueBool() || got.Shared.ValueBool() || !got.Snapshot.ValueBool() || got.Serial.ValueString() != "scsi-disk" || got.IOPSRd.ValueInt64() != 300 || got.IOPSRdMax.ValueInt64() != 400 || got.MBPSRd.ValueFloat64() != 3.5 || got.MBPSRdMax.ValueFloat64() != 4.5 {
 		t.Fatalf("unexpected disk mapping: %#v", disks)
+	}
+	if got := disks["virtio0"]; got.Storage.ValueString() != "local-lvm" || got.Volume.ValueString() != "local-lvm:vm-101-disk-3" || !got.Backup.ValueBool() || !got.Shared.ValueBool() || got.Snapshot.ValueBool() || got.Serial.ValueString() != "virtio-disk" || got.IOPSWr.ValueInt64() != 500 || got.IOPSWrMax.ValueInt64() != 600 || got.MBPSWr.ValueFloat64() != 5.5 || got.MBPSWrMax.ValueFloat64() != 6.5 {
+		t.Fatalf("unexpected virtio disk mapping: %#v", got)
 	}
 	if _, ok := disks["scsi1"]; ok {
 		t.Fatalf("expected unsupported scsi1 config to remain raw, got %#v", disks["scsi1"])
@@ -100,8 +112,7 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 	gotRaw := decodeStringMap(t, raw.ExtraConfig)
 	wantRaw := map[string]string{
 		"hostpci0": "0000:00:1f.0",
-		"net1":     "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
-		"scsi1":    "local-lvm:vm-101-disk-1,serial=needs-raw",
+		"scsi1":    "local-lvm:vm-101-disk-4,wwn=needs-raw",
 	}
 	if !reflect.DeepEqual(gotRaw, wantRaw) {
 		t.Fatalf("unexpected raw extra_config: got %#v want %#v", gotRaw, wantRaw)
@@ -167,8 +178,13 @@ func TestQemuVMStateFromAPIPreservesSlotKeyedAdvancedDomains(t *testing.T) {
 			"net0": "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=20,firewall=1,link_down=0,mtu=1400,queues=4,rate=5",
 		},
 		Disk: map[string]string{
-			"scsi1": "local-lvm:vm-101-disk-1,serial=needs-raw",
-			"scsi0": "local-lvm:vm-101-disk-0,cache=writeback,discard=on,iothread=1,media=disk,replicate=0,size=32G,ssd=1",
+			"ide0":    "local-lvm:vm-101-disk-0,backup=1,shared=0,snapshot=1,serial=ide-disk,iops=100,mbps=1.5",
+			"sata0":   "local-lvm:vm-101-disk-1,backup=0,shared=1,snapshot=0,serial=sata-disk,iops_max=200,mbps_max=2.5",
+			"scsi0":   "local-lvm:vm-101-disk-2,cache=writeback,discard=on,iothread=1,media=disk,replicate=0,backup=1,shared=0,snapshot=1,serial=scsi-disk,size=32G,ssd=1,iops_rd=300,iops_rd_max=400,mbps_rd=3.5,mbps_rd_max=4.5",
+			"virtio0": "local-lvm:vm-101-disk-3,backup=1,shared=1,snapshot=0,serial=virtio-disk,iops_wr=500,iops_wr_max=600,mbps_wr=5.5,mbps_wr_max=6.5",
+			"scsi1":   "local-lvm:vm-101-disk-4,wwn=needs-raw",
+			"scsi2":   "local-lvm:vm-101-disk-5,bps=1024",
+			"virtio1": "local-lvm:vm-101-disk-6,iops_wr_max_length=60",
 		},
 	}, QemuVMStatus{}, nil)
 	if diags.HasError() {
@@ -182,20 +198,29 @@ func TestQemuVMStateFromAPIPreservesSlotKeyedAdvancedDomains(t *testing.T) {
 	}
 
 	network := decodeQemuVMNetworkMap(t, state.Network)
-	if _, ok := network["net0"]; !ok || len(network) != 1 {
-		t.Fatalf("expected slot-keyed network map to preserve net0, got %#v", network)
+	if _, ok := network["net0"]; !ok || len(network) != 2 {
+		t.Fatalf("expected slot-keyed network map to preserve both typed network slots, got %#v", network)
+	}
+	if got := network["net1"]; got.Trunks.ValueString() != "10;20" {
+		t.Fatalf("expected typed trunks support to preserve net1, got %#v", network)
 	}
 
 	disks := decodeQemuVMDiskMap(t, state.Disk)
-	if _, ok := disks["scsi0"]; !ok || len(disks) != 1 {
-		t.Fatalf("expected slot-keyed disk map to preserve scsi0, got %#v", disks)
+	for _, key := range []string{"ide0", "sata0", "scsi0", "virtio0"} {
+		if _, ok := disks[key]; !ok {
+			t.Fatalf("expected slot-keyed disk map to preserve %s, got %#v", key, disks)
+		}
+	}
+	if len(disks) != 4 {
+		t.Fatalf("expected four typed disk slots, got %#v", disks)
 	}
 
 	raw := decodeQemuVMRaw(t, state.Raw)
 	gotRaw := decodeStringMap(t, raw.ExtraConfig)
 	wantRaw := map[string]string{
-		"net1":  "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20",
-		"scsi1": "local-lvm:vm-101-disk-1,serial=needs-raw",
+		"scsi1":   "local-lvm:vm-101-disk-4,wwn=needs-raw",
+		"scsi2":   "local-lvm:vm-101-disk-5,bps=1024",
+		"virtio1": "local-lvm:vm-101-disk-6,iops_wr_max_length=60",
 	}
 	if !reflect.DeepEqual(gotRaw, wantRaw) {
 		t.Fatalf("expected unsupported slot grammar to remain in raw.extra_config, got %#v want %#v", gotRaw, wantRaw)
@@ -261,6 +286,7 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 				Bridge:   types.StringValue("vmbr0"),
 				MACAddr:  types.StringValue("BC:24:11:AA:BB:CC"),
 				Tag:      types.Int64Value(20),
+				Trunks:   types.StringValue("10;20"),
 				Firewall: types.BoolValue(true),
 				LinkDown: types.BoolValue(false),
 				MTU:      types.Int64Value(1400),
@@ -278,6 +304,22 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 				Iothread:  types.BoolValue(true),
 				SSD:       types.BoolValue(true),
 				Replicate: types.BoolValue(false),
+				Backup:    types.BoolValue(true),
+				Shared:    types.BoolValue(false),
+				Snapshot:  types.BoolValue(true),
+				Serial:    types.StringValue("scsi-disk"),
+				IOPS:      types.Int64Value(100),
+				IOPSMax:   types.Int64Value(200),
+				IOPSRd:    types.Int64Value(300),
+				IOPSRdMax: types.Int64Value(400),
+				IOPSWr:    types.Int64Value(500),
+				IOPSWrMax: types.Int64Value(600),
+				MBPS:      types.Float64Value(1.5),
+				MBPSMax:   types.Float64Value(2.5),
+				MBPSRd:    types.Float64Value(3.5),
+				MBPSRdMax: types.Float64Value(4.5),
+				MBPSWr:    types.Float64Value(5.5),
+				MBPSWrMax: types.Float64Value(6.5),
 			},
 		}),
 		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
@@ -304,10 +346,10 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 	if got := createReq.IPConfig["ipconfig0"]; got != "ip=dhcp,ip6=auto" {
 		t.Fatalf("unexpected ipconfig encoding: %#v", createReq.IPConfig)
 	}
-	if got := createReq.Network["net0"]; got != "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=20,firewall=1,link_down=0,mtu=1400,queues=4,rate=5" {
+	if got := createReq.Network["net0"]; got != "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=20,trunks=10;20,firewall=1,link_down=0,mtu=1400,queues=4,rate=5" {
 		t.Fatalf("unexpected network encoding: %#v", createReq.Network)
 	}
-	if got := createReq.Disk["scsi0"]; got != "local-lvm:32G,media=disk,cache=writeback,discard=on,iothread=1,replicate=0,ssd=1" {
+	if got := createReq.Disk["scsi0"]; got != "local-lvm:32G,media=disk,cache=writeback,discard=on,iothread=1,replicate=0,ssd=1,backup=1,shared=0,snapshot=1,serial=scsi-disk,iops=100,iops_max=200,iops_rd=300,iops_rd_max=400,iops_wr=500,iops_wr_max=600,mbps=1.5,mbps_max=2.5,mbps_rd=3.5,mbps_rd_max=4.5,mbps_wr=5.5,mbps_wr_max=6.5" {
 		t.Fatalf("unexpected disk encoding: %#v", createReq.Disk)
 	}
 	if got := createReq.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
@@ -356,6 +398,117 @@ func TestValidateQemuVMRawConflicts(t *testing.T) {
 	}
 	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
 		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}
+
+func TestParseAndEncodeQemuVMNetworkTrunks(t *testing.T) {
+	t.Parallel()
+
+	parsed, ok := parseQemuVMNetwork("e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20")
+	if !ok {
+		t.Fatal("expected network config with trunks to parse")
+	}
+	if parsed.Model.ValueString() != "e1000" || parsed.Bridge.ValueString() != "vmbr1" || parsed.MACAddr.ValueString() != "BC:24:11:AA:BB:DD" || parsed.Trunks.ValueString() != "10;20" {
+		t.Fatalf("unexpected parsed network config: %#v", parsed)
+	}
+
+	encoded := encodeQemuVMNetwork(qemuVMNetworkModel{
+		Model:   types.StringValue("e1000"),
+		MACAddr: types.StringValue("BC:24:11:AA:BB:DD"),
+		Bridge:  types.StringValue("vmbr1"),
+		Trunks:  types.StringValue("10;20"),
+	})
+	if encoded != "e1000=BC:24:11:AA:BB:DD,bridge=vmbr1,trunks=10;20" {
+		t.Fatalf("unexpected encoded network config: %q", encoded)
+	}
+}
+
+func TestParseAndEncodeQemuVMDiskP1cQoSFields(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name            string
+		slot            string
+		raw             string
+		assertParsedQoS func(*testing.T, qemuVMDiskModel)
+	}{
+		{
+			name: "ide",
+			slot: "ide0",
+			raw:  "local-lvm:vm-101-disk-0,backup=1,shared=0,snapshot=1,serial=ide-disk,iops=100,mbps=1.5",
+			assertParsedQoS: func(t *testing.T, disk qemuVMDiskModel) {
+				t.Helper()
+				if disk.IOPS.ValueInt64() != 100 || disk.MBPS.ValueFloat64() != 1.5 {
+					t.Fatalf("expected ide QoS fields to parse, got %#v", disk)
+				}
+			},
+		},
+		{
+			name: "sata",
+			slot: "sata0",
+			raw:  "local-lvm:vm-101-disk-1,backup=0,shared=1,snapshot=0,serial=sata-disk,iops_max=200,mbps_max=2.5",
+			assertParsedQoS: func(t *testing.T, disk qemuVMDiskModel) {
+				t.Helper()
+				if disk.IOPSMax.ValueInt64() != 200 || disk.MBPSMax.ValueFloat64() != 2.5 {
+					t.Fatalf("expected sata QoS fields to parse, got %#v", disk)
+				}
+			},
+		},
+		{
+			name: "scsi",
+			slot: "scsi0",
+			raw:  "local-lvm:vm-101-disk-2,backup=1,shared=0,snapshot=1,serial=scsi-disk,iops_rd=300,iops_rd_max=400,mbps_rd=3.5,mbps_rd_max=4.5",
+			assertParsedQoS: func(t *testing.T, disk qemuVMDiskModel) {
+				t.Helper()
+				if disk.IOPSRd.ValueInt64() != 300 || disk.IOPSRdMax.ValueInt64() != 400 || disk.MBPSRd.ValueFloat64() != 3.5 || disk.MBPSRdMax.ValueFloat64() != 4.5 {
+					t.Fatalf("expected scsi QoS fields to parse, got %#v", disk)
+				}
+			},
+		},
+		{
+			name: "virtio",
+			slot: "virtio0",
+			raw:  "local-lvm:vm-101-disk-3,backup=1,shared=1,snapshot=0,serial=virtio-disk,iops_wr=500,iops_wr_max=600,mbps_wr=5.5,mbps_wr_max=6.5",
+			assertParsedQoS: func(t *testing.T, disk qemuVMDiskModel) {
+				t.Helper()
+				if disk.IOPSWr.ValueInt64() != 500 || disk.IOPSWrMax.ValueInt64() != 600 || disk.MBPSWr.ValueFloat64() != 5.5 || disk.MBPSWrMax.ValueFloat64() != 6.5 {
+					t.Fatalf("expected virtio QoS fields to parse, got %#v", disk)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, ok := parseQemuVMDisk(tc.raw)
+			if !ok {
+				t.Fatalf("expected %s config to parse", tc.slot)
+			}
+			if parsed.Volume.ValueString() == "" || parsed.Storage.ValueString() != "local-lvm" {
+				t.Fatalf("expected %s volume/storage to remain typed, got %#v", tc.slot, parsed)
+			}
+			if parsed.Serial.ValueString() == "" || parsed.Backup.IsNull() || parsed.Shared.IsNull() || parsed.Snapshot.IsNull() {
+				t.Fatalf("expected %s P1b fields to remain typed, got %#v", tc.slot, parsed)
+			}
+			tc.assertParsedQoS(t, parsed)
+
+			if encoded := encodeQemuVMDisk(parsed); encoded != tc.raw {
+				t.Fatalf("unexpected encoded %s config: got %q want %q", tc.slot, encoded, tc.raw)
+			}
+		})
+	}
+}
+
+func TestParseQemuVMDiskRejectsUnsupportedQoSBurstGrammar(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"local-lvm:vm-101-disk-4,bps=1024",
+		"local-lvm:vm-101-disk-5,iops_wr_max_length=60",
+	} {
+		if _, ok := parseQemuVMDisk(raw); ok {
+			t.Fatalf("expected unsupported QoS grammar %q to remain untyped", raw)
+		}
 	}
 }
 
