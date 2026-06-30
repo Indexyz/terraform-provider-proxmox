@@ -61,6 +61,7 @@ data "proxmox_qemu_vm" "example" {
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.
 - `tags` (String) Comma-separated Proxmox tags from `/config`.
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
+- `tpm_state` (Attributes) Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--tpm_state))
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
 
 <a id="nestedatt--clone"></a>
@@ -179,3 +180,15 @@ Read-Only:
 Read-Only:
 
 - `extra_config` (Map of String) Raw Proxmox config entries keyed by their exact `/config` key such as `hostpci0` or unsupported disk/network slots.
+
+
+<a id="nestedatt--tpm_state"></a>
+### Nested Schema for `tpm_state`
+
+Read-Only:
+
+- `format` (String)
+- `size` (String)
+- `storage` (String)
+- `version` (String)
+- `volume` (String)

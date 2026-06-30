@@ -115,6 +115,7 @@ resource "proxmox_qemu_vm" "example" {
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
+- `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
 
 ### Read-Only
 
@@ -242,3 +243,15 @@ Optional:
 Optional:
 
 - `extra_config` (Map of String) Raw Proxmox config entries keyed by their exact `/config` key such as `hostpci0` or unsupported disk/network slots.
+
+
+<a id="nestedatt--tpm_state"></a>
+### Nested Schema for `tpm_state`
+
+Optional:
+
+- `format` (String)
+- `size` (String)
+- `storage` (String)
+- `version` (String)
+- `volume` (String)
