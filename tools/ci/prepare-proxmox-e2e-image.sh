@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright IBM Corp. 2021, 2026
+# SPDX-License-Identifier: MPL-2.0
+
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -71,9 +74,10 @@ cat > "$ANSWER_PATH" <<EOF_ANSWER
 country = "us"
 fqdn = "pve-e2e.local"
 mailto = "root@localhost"
+keyboard = "en-us"
 timezone = "UTC"
-root-password = "$ROOT_PASSWORD"
-reboot-mode = "power-off"
+root_password = "$ROOT_PASSWORD"
+reboot_on_error = false
 
 [network]
 source = "from-dhcp"
@@ -82,7 +86,7 @@ source = "from-dhcp"
 filesystem = "ext4"
 lvm.swapsize = 0
 lvm.maxvz = 0
-disk-list = ['vda']
+disk_list = ['vda']
 EOF_ANSWER
 
 proxmox-auto-install-assistant validate-answer "$ANSWER_PATH"
@@ -105,6 +109,7 @@ timeout "$INSTALL_TIMEOUT_SECONDS" qemu-system-x86_64 \
   -drive file="$DISK_PATH",format=qcow2,if=virtio \
   -cdrom "$PREPARED_ISO_PATH" \
   -boot d \
+  -no-reboot \
   -netdev user,id=net0 \
   -device virtio-net-pci,netdev=net0
 status=$?

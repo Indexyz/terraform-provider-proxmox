@@ -21,4 +21,5 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: 'Remove waiting-response on comment'
+        if: contains(github.event.issue.labels.*.name, 'waiting-response')
         run: gh ${{ env.COMMAND }} edit ${{ github.event.issue.html_url }} --remove-label waiting-response
