@@ -14,6 +14,7 @@ POLL_INTERVAL_SECONDS="${PROXMOX_E2E_POLL_INTERVAL_SECONDS:-10}"
 HOST_PORT="${PROXMOX_E2E_HOST_PORT:-8006}"
 BOOT_LOG="$WORK_DIR/boot.log"
 POLL_LOG="$WORK_DIR/api-poll.log"
+API_RESPONSE_PATH="$WORK_DIR/api-response.json"
 PID_FILE="$WORK_DIR/qemu.pid"
 API_URL="https://127.0.0.1:${HOST_PORT}/api2/json/version"
 
@@ -77,11 +78,17 @@ fi
 log "waiting for Proxmox API at $API_URL"
 deadline=$((SECONDS + BOOT_TIMEOUT_SECONDS))
 while (( SECONDS < deadline )); do
-  if curl --insecure --silent --show-error --fail --max-time 10 "$API_URL" | tee -a "$POLL_LOG" >/dev/null; then
-    log "Proxmox API is ready"
+  rm -f "$API_RESPONSE_PATH"
+  http_code="$(curl --insecure --silent --show-error --max-time 10 --output "$API_RESPONSE_PATH" --write-out '%{http_code}' "$API_URL" || true)"
+  if [[ "$http_code" == "200" || "$http_code" == "401" ]]; then
+    if [[ -s "$API_RESPONSE_PATH" ]]; then
+      cat "$API_RESPONSE_PATH" >> "$POLL_LOG"
+      printf '\n' >> "$POLL_LOG"
+    fi
+    log "Proxmox API is ready (HTTP $http_code)"
     exit 0
   fi
-  printf '[%(%Y-%m-%dT%H:%M:%SZ)T] API not ready yet\n' -1 | tee -a "$POLL_LOG" >/dev/null
+  printf '[%(%Y-%m-%dT%H:%M:%SZ)T] API not ready yet (HTTP %s)\n' -1 "$http_code" | tee -a "$POLL_LOG" >/dev/null
   sleep "$POLL_INTERVAL_SECONDS"
 done
 
