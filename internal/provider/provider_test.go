@@ -4,6 +4,7 @@
 package provider
 
 import (
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -23,7 +24,15 @@ var (
 )
 
 func testAccPreCheck(t *testing.T) {
-	// You can add code here to run prior to any test case execution, for example assertions
-	// about the appropriate environment variables being set are common to see in a pre-check
-	// function.
+	t.Helper()
+
+	if os.Getenv(envEndpoint) == "" {
+		t.Fatalf("%s must be set for acceptance tests", envEndpoint)
+	}
+
+	passwordAuthConfigured := os.Getenv(envUsername) != "" && os.Getenv(envPassword) != ""
+	tokenAuthConfigured := os.Getenv(envAPITokenID) != "" && os.Getenv(envAPITokenSecret) != ""
+	if !passwordAuthConfigured && !tokenAuthConfigured {
+		t.Fatalf("set either %s/%s or %s/%s for acceptance tests", envUsername, envPassword, envAPITokenID, envAPITokenSecret)
+	}
 }

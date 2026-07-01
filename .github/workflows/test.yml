@@ -55,9 +55,9 @@ jobs:
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'make generate' command and commit."; exit 1)
 
-  # Run acceptance tests in a matrix with Terraform CLI versions
+  # Run unit tests in a matrix with Terraform CLI versions
   test:
-    name: 'Acceptance Tests: Terraform ${{ matrix.terraform }}'
+    name: 'Unit Tests: Terraform ${{ matrix.terraform }}'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -79,7 +79,78 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - env:
-          TF_ACC: "1"
-        run: go test -v -cover ./internal/provider/
+      - run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
+
+  e2e:
+    name: Proxmox E2E Smoke
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PROXMOX_E2E_WORK_DIR: .e2e/proxmox
+      PROXMOX_E2E_ISO_VERSION: '8.4-1'
+      PROXMOX_E2E_ISO_SHA256: d237d70ca48a9f6eb47f95fd4fd337722c3f69f8106393844d027d28c26523d8
+      PROXMOX_E2E_ASSISTANT_VERSION: '8.2.5'
+      PROXMOX_E2E_ASSISTANT_SHA256: 47028ea31ef4463b6534e18aef3f296a29400ccc75d0d82cb296893864b09f15
+      PROXMOX_E2E_ROOT_PASSWORD: proxmox-e2e-password
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.15.*'
+          terraform_wrapper: false
+      - name: Install QEMU dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils curl jq xorriso ca-certificates
+      - name: Install Proxmox auto-install assistant
+        run: |
+          assistant_deb="proxmox-auto-install-assistant_${PROXMOX_E2E_ASSISTANT_VERSION}_amd64.deb"
+          curl --fail --location --retry 3 --output "$assistant_deb" \
+            "http://download.proxmox.com/debian/pve/dists/bookworm/pve-no-subscription/binary-amd64/$assistant_deb"
+          printf '%s  %s\n' "$PROXMOX_E2E_ASSISTANT_SHA256" "$assistant_deb" | sha256sum --check --status
+          sudo apt-get install -y "./$assistant_deb"
+      - name: Restore Proxmox disk cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: .e2e/proxmox/proxmox-e2e.qcow2
+          key: proxmox-e2e-${{ runner.os }}-${{ env.PROXMOX_E2E_ISO_VERSION }}-${{ env.PROXMOX_E2E_ISO_SHA256 }}-${{ env.PROXMOX_E2E_ASSISTANT_VERSION }}-${{ env.PROXMOX_E2E_ASSISTANT_SHA256 }}-${{ hashFiles('tools/ci/prepare-proxmox-e2e-image.sh', 'tools/ci/start-proxmox-e2e.sh') }}
+      - name: Prepare Proxmox disk image
+        run: tools/ci/prepare-proxmox-e2e-image.sh
+        timeout-minutes: 75
+      - name: Start Proxmox
+        run: tools/ci/start-proxmox-e2e.sh
+        timeout-minutes: 25
+      - name: Run Proxmox e2e smoke test
+        env:
+          TF_ACC: "1"
+          PROXMOX_VE_ENDPOINT: https://127.0.0.1:8006
+          PROXMOX_VE_USERNAME: root@pam
+          PROXMOX_VE_PASSWORD: proxmox-e2e-password
+          PROXMOX_VE_INSECURE: "true"
+          PROXMOX_VE_TIMEOUT: "60"
+        run: go test -v -cover -timeout 120m -run '^TestAccProxmoxE2ESmoke$' ./internal/provider/
+      - name: Print Proxmox e2e diagnostics
+        if: always()
+        run: |
+          set +e
+          echo "== /dev/kvm =="
+          ls -l /dev/kvm || true
+          test -r /dev/kvm && test -w /dev/kvm && echo "/dev/kvm is readable and writable" || true
+          echo "== qemu version =="
+          qemu-system-x86_64 --version || true
+          echo "== qemu processes =="
+          ps aux | grep '[q]emu-system-x86_64' || true
+          echo "== disk info =="
+          qemu-img info .e2e/proxmox/proxmox-e2e.qcow2 || true
+          echo "== api poll log =="
+          tail -200 .e2e/proxmox/api-poll.log || true
+          echo "== install log =="
+          tail -200 .e2e/proxmox/install.log || true
+          echo "== boot log =="
+          tail -200 .e2e/proxmox/boot.log || true
