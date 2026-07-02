@@ -38,6 +38,11 @@ resource "proxmox_qemu_vm" "example" {
   boot        = "order=scsi0;net0"
   scsihw      = "virtio-scsi-pci"
 
+  vga = {
+    type   = "std"
+    memory = 16
+  }
+
   clone = {
     source_vmid = 9000
     full        = true
@@ -122,6 +127,7 @@ resource "proxmox_qemu_vm" "example" {
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
+- `vga` (Attributes) Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
 
 ### Read-Only
 
@@ -261,3 +267,12 @@ Optional:
 - `storage` (String)
 - `version` (String)
 - `volume` (String)
+
+<a id="nestedatt--vga"></a>
+### Nested Schema for `vga`
+
+Optional:
+
+- `clipboard` (String) Clipboard selection such as `vnc` managed through `/config`.
+- `memory` (Number) VGA memory in MiB managed through `/config`.
+- `type` (String) VGA hardware type such as `std`, `virtio`, `qxl`, or `serial0`. The primary positional part of the Proxmox `vga` value; the block is emitted only when `type` is set.

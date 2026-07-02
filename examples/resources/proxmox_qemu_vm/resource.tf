@@ -23,6 +23,11 @@ resource "proxmox_qemu_vm" "example" {
   boot        = "order=scsi0;net0"
   scsihw      = "virtio-scsi-pci"
 
+  vga = {
+    type   = "std"
+    memory = 16
+  }
+
   clone = {
     source_vmid = 9000
     full        = true

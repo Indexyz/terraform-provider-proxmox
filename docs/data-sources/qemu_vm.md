@@ -65,6 +65,7 @@ data "proxmox_qemu_vm" "example" {
 - `tags` (String) Comma-separated Proxmox tags from `/config`.
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--tpm_state))
+- `vga` (Attributes) Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
 
 <a id="nestedatt--clone"></a>
@@ -195,3 +196,12 @@ Read-Only:
 - `storage` (String)
 - `version` (String)
 - `volume` (String)
+
+<a id="nestedatt--vga"></a>
+### Nested Schema for `vga`
+
+Read-Only:
+
+- `clipboard` (String) Clipboard selection such as `vnc` from `/config`.
+- `memory` (Number) VGA memory in MiB from `/config`.
+- `type` (String) VGA hardware type such as `std`, `virtio`, `qxl`, or `serial0` from `/config`.
