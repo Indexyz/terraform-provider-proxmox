@@ -57,6 +57,7 @@ data "proxmox_qemu_vm" "example" {
 - `pool` (String) Pool assignment from `/config`.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
+- `scsihw` (String) SCSI controller hardware type from `/config`.
 - `sockets` (Number) Configured CPU sockets from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.

@@ -31,6 +31,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"pool":        "platform",
 				"onboot":      1,
 				"protection":  true,
+				"scsihw":      "virtio-scsi-pci",
 				"startup":     "order=2",
 				"bios":        "ovmf",
 				"machine":     "q35",
@@ -56,6 +57,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"pool":        {"platform"},
 				"onboot":      {"1"},
 				"protection":  {"1"},
+				"scsihw":      {"virtio-scsi-pci"},
 				"startup":     {"order=2"},
 				"bios":        {"ovmf"},
 				"machine":     {"q35"},
@@ -73,6 +75,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"name":       {"api-vm"},
 				"onboot":     {"0"},
 				"protection": {"0"},
+				"scsihw":     {"megasas"},
 				"memory":     {"4096"},
 			})
 			writeEnvelope(t, w, nil)
@@ -107,6 +110,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if config.Protection.Ptr() == nil || !*config.Protection.Ptr() {
 		t.Fatalf("expected protection=true, got %#v", config.Protection)
 	}
+	if config.SCSIHW != "virtio-scsi-pci" {
+		t.Fatalf("expected scsihw=virtio-scsi-pci, got %q", config.SCSIHW)
+	}
 
 	status, err := client.GetQemuVMStatus(ctx, "pve-1", 101)
 	if err != nil {
@@ -125,6 +131,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 			Pool:        stringPtr("platform"),
 			OnBoot:      boolPtr(true),
 			Protection:  boolPtr(true),
+			SCSIHW:      stringPtr("virtio-scsi-pci"),
 			Startup:     stringPtr("order=2"),
 			Bios:        stringPtr("ovmf"),
 			Machine:     stringPtr("q35"),
@@ -145,6 +152,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 			Name:       stringPtr("api-vm"),
 			OnBoot:     boolPtr(false),
 			Protection: boolPtr(false),
+			SCSIHW:     stringPtr("megasas"),
 			Memory:     intPtr64(4096),
 		},
 	}); err != nil {
@@ -189,6 +197,27 @@ func TestDecodeQemuVMConfigProtectionBoolVariants(t *testing.T) {
 				t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 			}
 		})
+	}
+}
+
+func TestDecodeQemuVMConfigSCSIHWIsTyped(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeQemuVMConfig(map[string]json.RawMessage{
+		"scsihw":   json.RawMessage(`"virtio-scsi-single"`),
+		"hostpci0": json.RawMessage(`"0000:00:1f.0"`),
+	})
+	if err != nil {
+		t.Fatalf("decodeQemuVMConfig() unexpected error: %v", err)
+	}
+	if config.SCSIHW != "virtio-scsi-single" {
+		t.Fatalf("expected typed scsihw, got %q", config.SCSIHW)
+	}
+	if _, ok := config.ExtraConfig["scsihw"]; ok {
+		t.Fatalf("expected scsihw to be decoded as typed field, got extra config %#v", config.ExtraConfig)
+	}
+	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 	}
 }
 

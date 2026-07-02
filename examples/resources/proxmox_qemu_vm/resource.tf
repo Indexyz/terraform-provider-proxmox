@@ -20,6 +20,7 @@ resource "proxmox_qemu_vm" "example" {
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"
+  scsihw      = "virtio-scsi-pci"
 
   clone = {
     source_vmid = 9000

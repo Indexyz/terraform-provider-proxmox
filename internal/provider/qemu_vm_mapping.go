@@ -56,6 +56,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Pool:        stringOrNull(config.Pool),
 		OnBoot:      boolOrNull(config.OnBoot.Ptr()),
 		Protection:  types.BoolValue(protection),
+		SCSIHW:      stringOrNull(config.SCSIHW),
 		Startup:     stringOrNull(config.Startup),
 		Bios:        stringOrNull(config.Bios),
 		Machine:     stringOrNull(config.Machine),
@@ -228,6 +229,7 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		Pool:        stringPointerValue(model.Pool),
 		OnBoot:      boolPointerValue(model.OnBoot),
 		Protection:  boolPointerValue(model.Protection),
+		SCSIHW:      stringPointerValue(model.SCSIHW),
 		Startup:     stringPointerValue(model.Startup),
 		Bios:        stringPointerValue(model.Bios),
 		Machine:     stringPointerValue(model.Machine),
@@ -454,7 +456,7 @@ func qemuVMTPMStateValue(ctx context.Context, base map[string]string) (types.Obj
 }
 
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
-	keys := []string{"protection"}
+	keys := []string{"protection", "scsihw"}
 
 	common, commonDiags := expandQemuVMCommonModel(ctx, model.Common)
 	diags.Append(commonDiags...)

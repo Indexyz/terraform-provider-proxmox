@@ -35,6 +35,7 @@ resource "proxmox_qemu_vm" "example" {
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"
+  scsihw      = "virtio-scsi-pci"
 
   clone = {
     source_vmid = 9000
@@ -114,6 +115,7 @@ resource "proxmox_qemu_vm" "example" {
 - `pool` (String) Pool assignment managed through clone mode and `/config`.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
+- `scsihw` (String) SCSI controller hardware type managed through `/config`.
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
