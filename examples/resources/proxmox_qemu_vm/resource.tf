@@ -9,6 +9,7 @@ resource "proxmox_qemu_vm" "example" {
   tags        = "terraform,example"
   pool        = "workloads"
   onboot      = true
+  protection  = true
   startup     = "order=1"
   bios        = "ovmf"
   machine     = "q35"

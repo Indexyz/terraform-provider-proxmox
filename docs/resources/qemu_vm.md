@@ -24,6 +24,7 @@ resource "proxmox_qemu_vm" "example" {
   tags        = "terraform,example"
   pool        = "workloads"
   onboot      = true
+  protection  = true
   startup     = "order=1"
   bios        = "ovmf"
   machine     = "q35"
@@ -111,6 +112,7 @@ resource "proxmox_qemu_vm" "example" {
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type managed through `/config`.
 - `pool` (String) Pool assignment managed through clone mode and `/config`.
+- `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.

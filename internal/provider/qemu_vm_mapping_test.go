@@ -22,6 +22,7 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 		Template:    proxmoxOptionalBool{value: boolPtr(false)},
 		Pool:        "platform",
 		OnBoot:      proxmoxOptionalBool{value: boolPtr(true)},
+		Protection:  proxmoxOptionalBool{value: boolPtr(true)},
 		Startup:     "order=2",
 		Bios:        "ovmf",
 		Machine:     "q35",
@@ -62,7 +63,7 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 	if state.ID.ValueString() != "pve-1/101" || state.Node.ValueString() != "pve-1" || state.VMID.ValueInt64() != 101 {
 		t.Fatalf("unexpected identity state: %#v", state)
 	}
-	if !state.OnBoot.ValueBool() || state.Template.ValueBool() {
+	if !state.OnBoot.ValueBool() || !state.Protection.ValueBool() || state.Template.ValueBool() {
 		t.Fatalf("unexpected bool mapping: %#v", state)
 	}
 	if state.Cores.ValueInt64() != 4 || state.Uptime.ValueInt64() != 300 {
@@ -116,6 +117,18 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 	}
 	if !reflect.DeepEqual(gotRaw, wantRaw) {
 		t.Fatalf("unexpected raw extra_config: got %#v want %#v", gotRaw, wantRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIDefaultsOmittedProtectionToFalse(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if state.Protection.IsNull() || state.Protection.IsUnknown() || state.Protection.ValueBool() {
+		t.Fatalf("expected omitted protection to read as false, got %#v", state.Protection)
 	}
 }
 
@@ -357,6 +370,7 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 		Tags:        types.StringValue("prod,terraform"),
 		Pool:        types.StringValue("platform"),
 		OnBoot:      types.BoolValue(true),
+		Protection:  types.BoolValue(false),
 		Startup:     types.StringValue("order=2"),
 		Bios:        types.StringValue("ovmf"),
 		Machine:     types.StringValue("q35"),
@@ -447,6 +461,9 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 	if createReq.Hotplug == nil || *createReq.Hotplug != "network,disk,usb,cloudinit" {
 		t.Fatalf("expected hotplug in create request, got %#v", createReq)
 	}
+	if createReq.Protection == nil || *createReq.Protection {
+		t.Fatalf("expected protection=false in create request, got %#v", createReq.Protection)
+	}
 	if got := createReq.IPConfig["ipconfig0"]; got != "ip=dhcp,ip6=auto" {
 		t.Fatalf("unexpected ipconfig encoding: %#v", createReq.IPConfig)
 	}
@@ -471,11 +488,32 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 
 	updateReq, diags := qemuVMUpdateRequestFromModel(context.Background(), model)
 	assertNoDiags(t, diags)
-	if updateReq.OnBoot == nil || !*updateReq.OnBoot || updateReq.Memory == nil || *updateReq.Memory != 8192 {
+	if updateReq.OnBoot == nil || !*updateReq.OnBoot || updateReq.Protection == nil || *updateReq.Protection || updateReq.Memory == nil || *updateReq.Memory != 8192 {
 		t.Fatalf("unexpected update request: %#v", updateReq)
 	}
 	if got, want := reflect.ValueOf(updateReq).NumField(), reflect.ValueOf(UpdateQemuVMRequest{}).NumField(); got != want {
 		t.Fatalf("unexpected update request field count: got %d want %d", got, want)
+	}
+}
+
+func TestQemuVMRequestFromModelMapsProtectionTrue(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID:       types.Int64Value(101),
+		Protection: types.BoolValue(true),
+	}
+
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if createReq.Protection == nil || !*createReq.Protection {
+		t.Fatalf("expected protection=true in create request, got %#v", createReq.Protection)
+	}
+
+	updateReq, diags := qemuVMUpdateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if updateReq.Protection == nil || !*updateReq.Protection {
+		t.Fatalf("expected protection=true in update request, got %#v", updateReq.Protection)
 	}
 }
 
@@ -551,6 +589,26 @@ func TestValidateQemuVMRawConflictsIncludesTPMState0(t *testing.T) {
 	diags := validateQemuVMRawConflicts(context.Background(), model)
 	if !diags.HasError() {
 		t.Fatal("expected raw-vs-typed conflict diagnostics for tpmstate0")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}
+
+func TestValidateQemuVMRawConflictsReservesProtection(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"protection": "1",
+			}),
+		}),
+	}
+
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics for protection")
 	}
 	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
 		t.Fatalf("unexpected diagnostic summary: %q", got)

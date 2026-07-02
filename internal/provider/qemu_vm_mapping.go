@@ -40,6 +40,10 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	rawValue, rawDiags := qemuVMRawStateValue(ctx, extraConfigRaw, networkRaw, diskRaw)
 	diags.Append(rawDiags...)
 	cloneValue := qemuVMCloneStateValue(prior)
+	protection := false
+	if value := config.Protection.Ptr(); value != nil {
+		protection = *value
+	}
 
 	return qemuVMModel{
 		ID:          types.StringValue(qemuVMID(node, vmID)),
@@ -51,6 +55,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Template:    boolOrNull(config.Template.Ptr()),
 		Pool:        stringOrNull(config.Pool),
 		OnBoot:      boolOrNull(config.OnBoot.Ptr()),
+		Protection:  types.BoolValue(protection),
 		Startup:     stringOrNull(config.Startup),
 		Bios:        stringOrNull(config.Bios),
 		Machine:     stringOrNull(config.Machine),
@@ -222,6 +227,7 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		Tags:        stringPointerValue(model.Tags),
 		Pool:        stringPointerValue(model.Pool),
 		OnBoot:      boolPointerValue(model.OnBoot),
+		Protection:  boolPointerValue(model.Protection),
 		Startup:     stringPointerValue(model.Startup),
 		Bios:        stringPointerValue(model.Bios),
 		Machine:     stringPointerValue(model.Machine),
@@ -448,7 +454,7 @@ func qemuVMTPMStateValue(ctx context.Context, base map[string]string) (types.Obj
 }
 
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
-	keys := make([]string, 0)
+	keys := []string{"protection"}
 
 	common, commonDiags := expandQemuVMCommonModel(ctx, model.Common)
 	diags.Append(commonDiags...)

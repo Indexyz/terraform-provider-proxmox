@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"template":    0,
 				"pool":        "platform",
 				"onboot":      1,
+				"protection":  true,
 				"startup":     "order=2",
 				"bios":        "ovmf",
 				"machine":     "q35",
@@ -53,6 +55,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"tags":        {"prod,terraform"},
 				"pool":        {"platform"},
 				"onboot":      {"1"},
+				"protection":  {"1"},
 				"startup":     {"order=2"},
 				"bios":        {"ovmf"},
 				"machine":     {"q35"},
@@ -67,9 +70,10 @@ func TestClientQemuVMMethods(t *testing.T) {
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/config" && r.Method == http.MethodPut:
 			assertFormValues(t, r, url.Values{
-				"name":   {"api-vm"},
-				"onboot": {"0"},
-				"memory": {"4096"},
+				"name":       {"api-vm"},
+				"onboot":     {"0"},
+				"protection": {"0"},
+				"memory":     {"4096"},
 			})
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101" && r.Method == http.MethodDelete:
@@ -100,6 +104,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if config.OnBoot.Ptr() == nil || !*config.OnBoot.Ptr() {
 		t.Fatalf("expected onboot=true, got %#v", config.OnBoot)
 	}
+	if config.Protection.Ptr() == nil || !*config.Protection.Ptr() {
+		t.Fatalf("expected protection=true, got %#v", config.Protection)
+	}
 
 	status, err := client.GetQemuVMStatus(ctx, "pve-1", 101)
 	if err != nil {
@@ -117,6 +124,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 			Tags:        stringPtr("prod,terraform"),
 			Pool:        stringPtr("platform"),
 			OnBoot:      boolPtr(true),
+			Protection:  boolPtr(true),
 			Startup:     stringPtr("order=2"),
 			Bios:        stringPtr("ovmf"),
 			Machine:     stringPtr("q35"),
@@ -134,9 +142,10 @@ func TestClientQemuVMMethods(t *testing.T) {
 
 	if err := client.UpdateQemuVM(ctx, "pve-1", 101, UpdateQemuVMRequest{
 		qemuVMConfigRequest: qemuVMConfigRequest{
-			Name:   stringPtr("api-vm"),
-			OnBoot: boolPtr(false),
-			Memory: intPtr64(4096),
+			Name:       stringPtr("api-vm"),
+			OnBoot:     boolPtr(false),
+			Protection: boolPtr(false),
+			Memory:     intPtr64(4096),
 		},
 	}); err != nil {
 		t.Fatalf("UpdateQemuVM() unexpected error: %v", err)
@@ -144,6 +153,42 @@ func TestClientQemuVMMethods(t *testing.T) {
 
 	if err := client.DeleteQemuVM(ctx, "pve-1", 101); err != nil {
 		t.Fatalf("DeleteQemuVM() unexpected error: %v", err)
+	}
+}
+
+func TestDecodeQemuVMConfigProtectionBoolVariants(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		raw  json.RawMessage
+		want bool
+	}{
+		{name: "json bool true", raw: json.RawMessage(`true`), want: true},
+		{name: "json integer one", raw: json.RawMessage(`1`), want: true},
+		{name: "json string false", raw: json.RawMessage(`"false"`), want: false},
+		{name: "json string zero", raw: json.RawMessage(`"0"`), want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			config, err := decodeQemuVMConfig(map[string]json.RawMessage{
+				"protection": tc.raw,
+				"hostpci0":   json.RawMessage(`"0000:00:1f.0"`),
+			})
+			if err != nil {
+				t.Fatalf("decodeQemuVMConfig() unexpected error: %v", err)
+			}
+			if config.Protection.Ptr() == nil || *config.Protection.Ptr() != tc.want {
+				t.Fatalf("unexpected protection value: got %#v want %v", config.Protection, tc.want)
+			}
+			if _, ok := config.ExtraConfig["protection"]; ok {
+				t.Fatalf("expected protection to be decoded as typed field, got extra config %#v", config.ExtraConfig)
+			}
+			if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+				t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
+			}
+		})
 	}
 }
 

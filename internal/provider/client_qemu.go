@@ -106,6 +106,7 @@ type QemuVMConfig struct {
 	Template    proxmoxOptionalBool
 	Pool        string
 	OnBoot      proxmoxOptionalBool
+	Protection  proxmoxOptionalBool
 	Startup     string
 	Bios        string
 	Machine     string
@@ -136,6 +137,7 @@ type qemuVMConfigKnown struct {
 	Template    proxmoxOptionalBool  `json:"template"`
 	Pool        string               `json:"pool"`
 	OnBoot      proxmoxOptionalBool  `json:"onboot"`
+	Protection  proxmoxOptionalBool  `json:"protection"`
 	Startup     string               `json:"startup"`
 	Bios        string               `json:"bios"`
 	Machine     string               `json:"machine"`
@@ -166,6 +168,7 @@ type qemuVMConfigRequest struct {
 	Tags        *string
 	Pool        *string
 	OnBoot      *bool
+	Protection  *bool
 	Startup     *string
 	Bios        *string
 	Machine     *string
@@ -219,6 +222,7 @@ func (r UpdateQemuVMRequest) IsEmpty() bool {
 		r.Tags == nil &&
 		r.Pool == nil &&
 		r.OnBoot == nil &&
+		r.Protection == nil &&
 		r.Startup == nil &&
 		r.Bios == nil &&
 		r.Machine == nil &&
@@ -307,6 +311,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 		Template:    known.Template,
 		Pool:        known.Pool,
 		OnBoot:      known.OnBoot,
+		Protection:  known.Protection,
 		Startup:     known.Startup,
 		Bios:        known.Bios,
 		Machine:     known.Machine,
@@ -331,7 +336,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 	}
 
 	knownKeys := map[string]struct{}{
-		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "startup": {},
+		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "protection": {}, "startup": {},
 		"bios": {}, "machine": {}, "agent": {}, "cores": {}, "sockets": {}, "memory": {}, "cpu": {},
 		"ostype": {}, "boot": {}, "hotplug": {}, "cicustom": {}, "cipassword": {}, "citype": {},
 		"ciupgrade": {}, "ciuser": {}, "sshkeys": {},
@@ -381,6 +386,7 @@ func encodeQemuVMFields(form url.Values, req qemuVMConfigRequest) {
 	setOptionalString(form, "tags", req.Tags)
 	setOptionalString(form, "pool", req.Pool)
 	setOptionalBool(form, "onboot", req.OnBoot)
+	setOptionalBool(form, "protection", req.Protection)
 	setOptionalString(form, "startup", req.Startup)
 	setOptionalString(form, "bios", req.Bios)
 	setOptionalString(form, "machine", req.Machine)

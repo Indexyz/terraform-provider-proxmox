@@ -25,6 +25,7 @@ type qemuVMModel struct {
 	Template    types.Bool   `tfsdk:"template"`
 	Pool        types.String `tfsdk:"pool"`
 	OnBoot      types.Bool   `tfsdk:"onboot"`
+	Protection  types.Bool   `tfsdk:"protection"`
 	Startup     types.String `tfsdk:"startup"`
 	Bios        types.String `tfsdk:"bios"`
 	Machine     types.String `tfsdk:"machine"`
@@ -573,6 +574,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"template":    datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the guest is a template, as reported by `/config`."},
 		"pool":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Pool assignment from `/config`."},
 		"onboot":      datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the guest should start automatically on boot."},
+		"protection":  datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations."},
 		"startup":     datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Startup ordering string from `/config`."},
 		"bios":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured BIOS type from `/config`."},
 		"machine":     datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured machine type from `/config`."},
@@ -625,6 +627,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"template":    schema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the guest is a template, as observed from `/config`. Terraform does not manage template conversion."},
 		"pool":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Pool assignment managed through clone mode and `/config`."},
 		"onboot":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether the guest should start automatically on boot."},
+		"protection":  schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations."},
 		"startup":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Startup ordering string managed through `/config`."},
 		"bios":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured BIOS type managed through `/config`."},
 		"machine":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured machine type managed through `/config`."},
