@@ -973,6 +973,23 @@ func mustQemuVMEFIDiskValue(t *testing.T, value qemuVMEFIDiskModel) types.Object
 	return result
 }
 
+func decodeQemuVMVGA(t *testing.T, value types.Object) qemuVMVGAModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known vga object, got %#v", value)
+	}
+	var result qemuVMVGAModel
+	assertNoDiags(t, value.As(context.Background(), &result, qemuObjectAsOptions()))
+	return result
+}
+
+func mustQemuVMVGAValue(t *testing.T, value qemuVMVGAModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), qemuVMVGAAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
 func decodeQemuVMCommon(t *testing.T, value types.Object) qemuVMCommonModel {
 	t.Helper()
 	if value.IsNull() || value.IsUnknown() {
@@ -1101,5 +1118,169 @@ func assertNoDiags(t *testing.T, diags diag.Diagnostics) {
 	t.Helper()
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+}
+
+func TestParseAndEncodeQemuVMVGA(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		raw    string
+		parsed qemuVMVGAModel
+	}{
+		{name: "type only", raw: "std", parsed: qemuVMVGAModel{Type: types.StringValue("std")}},
+		{name: "type and memory", raw: "std,memory=128", parsed: qemuVMVGAModel{Type: types.StringValue("std"), Memory: types.Int64Value(128)}},
+		{name: "type memory clipboard", raw: "qxl,memory=256,clipboard=vnc", parsed: qemuVMVGAModel{Type: types.StringValue("qxl"), Memory: types.Int64Value(256), Clipboard: types.StringValue("vnc")}},
+		{name: "serial terminal", raw: "serial0", parsed: qemuVMVGAModel{Type: types.StringValue("serial0")}},
+		{name: "type and clipboard", raw: "virtio,clipboard=vnc", parsed: qemuVMVGAModel{Type: types.StringValue("virtio"), Clipboard: types.StringValue("vnc")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := parseQemuVMVGA(tc.raw)
+			if !ok {
+				t.Fatalf("parseQemuVMVGA(%q) expected ok, got false", tc.raw)
+			}
+			if got.Type != tc.parsed.Type || got.Memory != tc.parsed.Memory || got.Clipboard != tc.parsed.Clipboard {
+				t.Fatalf("parseQemuVMVGA(%q) = %#v, want %#v", tc.raw, got, tc.parsed)
+			}
+			encoded := encodeQemuVMVGA(got)
+			if encoded != tc.raw {
+				t.Fatalf("encodeQemuVMVGA round-trip = %q, want %q", encoded, tc.raw)
+			}
+		})
+	}
+}
+
+func TestParseQemuVMVGARejectsKeyedFirstSegment(t *testing.T) {
+	t.Parallel()
+	if _, ok := parseQemuVMVGA("memory=128"); ok {
+		t.Fatal("expected keyed-only vga value (no positional type) to be unparseable so it stays raw")
+	}
+}
+
+func TestParseQemuVMVGARejectsBadMemory(t *testing.T) {
+	t.Parallel()
+	if _, ok := parseQemuVMVGA("std,memory=big"); ok {
+		t.Fatal("expected non-integer memory to be unparseable so it stays raw")
+	}
+}
+
+func TestParseQemuVMVGARejectsUnknownKey(t *testing.T) {
+	t.Parallel()
+	if _, ok := parseQemuVMVGA("std,resolution=1024"); ok {
+		t.Fatal("expected unknown vga key to be unparseable so it stays raw")
+	}
+}
+
+func TestEncodeQemuVMVGARequiresType(t *testing.T) {
+	t.Parallel()
+	if encoded := encodeQemuVMVGA(qemuVMVGAModel{Memory: types.Int64Value(128)}); encoded != "" {
+		t.Fatalf("expected empty vga encoding when type is null, got %q", encoded)
+	}
+}
+
+func TestQemuVMStateFromAPIParsesVGA(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		Name: "api-vm",
+		ExtraConfig: map[string]string{
+			"vga":      "std,memory=128,clipboard=vnc",
+			"hostpci0": "0000:00:1f.0",
+		},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	vga := decodeQemuVMVGA(t, state.VGA)
+	if vga.Type.ValueString() != "std" || vga.Memory.ValueInt64() != 128 || vga.Clipboard.ValueString() != "vnc" {
+		t.Fatalf("unexpected vga state: %#v", vga)
+	}
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	if _, ok := gotRaw["vga"]; ok {
+		t.Fatalf("expected typed vga to be removed from raw.extra_config, got %#v", gotRaw)
+	}
+	if gotRaw["hostpci0"] != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key preserved, got %#v", gotRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIUnparseableVGASaysRaw(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		Name:        "api-vm",
+		ExtraConfig: map[string]string{"vga": "std,resolution=1024"},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.VGA.IsNull() {
+		t.Fatalf("expected vga block null for unparseable value, got %#v", state.VGA)
+	}
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	if gotRaw["vga"] != "std,resolution=1024" {
+		t.Fatalf("expected unparseable vga preserved in raw, got %#v", gotRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIAbsentVGANull(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.VGA.IsNull() {
+		t.Fatalf("expected absent vga block null, got %#v", state.VGA)
+	}
+}
+
+func TestQemuVMRequestFromModelEncodesVGA(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID: types.Int64Value(101),
+		VGA:  mustQemuVMVGAValue(t, qemuVMVGAModel{Type: types.StringValue("virtio"), Memory: types.Int64Value(256)}),
+	}
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if got := createReq.ExtraConfig["vga"]; got != "virtio,memory=256" {
+		t.Fatalf("expected vga encoded into extra_config, got %#v", createReq.ExtraConfig)
+	}
+}
+
+func TestQemuVMRequestFromModelOmitsVGAWhenTypeNull(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID: types.Int64Value(101),
+		VGA:  mustQemuVMVGAValue(t, qemuVMVGAModel{Memory: types.Int64Value(128)}),
+	}
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if _, ok := createReq.ExtraConfig["vga"]; ok {
+		t.Fatalf("expected no vga in extra_config when type null, got %#v", createReq.ExtraConfig)
+	}
+}
+
+func TestValidateQemuVMRawConflictsReservesVGA(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VGA: mustQemuVMVGAValue(t, qemuVMVGAModel{Type: types.StringValue("std")}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{"vga": "std"}),
+		}),
+	}
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics for vga")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
 	}
 }

@@ -37,6 +37,8 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	diags.Append(tpmStateDiags...)
 	efiDiskValue, extraConfigRaw, efiDiskDiags := qemuVMEFIDiskStateValue(ctx, extraConfigRaw)
 	diags.Append(efiDiskDiags...)
+	vgaValue, extraConfigRaw, vgaDiags := qemuVMVGAStateValue(ctx, extraConfigRaw)
+	diags.Append(vgaDiags...)
 	rawValue, rawDiags := qemuVMRawStateValue(ctx, extraConfigRaw, networkRaw, diskRaw)
 	diags.Append(rawDiags...)
 	cloneValue := qemuVMCloneStateValue(prior)
@@ -78,6 +80,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Disk:        diskValue,
 		EFIDisk:     efiDiskValue,
 		TPMState:    tpmStateValue,
+		VGA:         vgaValue,
 		Raw:         rawValue,
 		Clone:       cloneValue,
 		Status:      stringOrNull(status.Status),
@@ -191,6 +194,8 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 	diags.Append(diskDiags...)
 	efiDisk, efiDiskDiags := expandQemuVMEFIDiskModel(ctx, model.EFIDisk)
 	diags.Append(efiDiskDiags...)
+	vga, vgaDiags := expandQemuVMVGAModel(ctx, model.VGA)
+	diags.Append(vgaDiags...)
 	tpmState, tpmStateDiags := expandQemuVMTPMStateModel(ctx, model.TPMState)
 	diags.Append(tpmStateDiags...)
 	raw, rawDiags := expandQemuVMRawModel(ctx, model.Raw)
@@ -222,6 +227,12 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 			extraConfig = map[string]string{}
 		}
 		extraConfig["efidisk0"] = encodeQemuVMEFIDisk(efiDisk)
+	}
+	if encoded := encodeQemuVMVGA(vga); encoded != "" {
+		if extraConfig == nil {
+			extraConfig = map[string]string{}
+		}
+		extraConfig["vga"] = encoded
 	}
 	if diags.HasError() {
 		return qemuVMConfigRequest{}, diags
@@ -461,6 +472,43 @@ func qemuVMTPMStateValue(ctx context.Context, base map[string]string) (types.Obj
 	return value, extra, diags
 }
 
+func qemuVMVGAStateValue(ctx context.Context, base map[string]string) (types.Object, map[string]string, diag.Diagnostics) {
+	if len(base) == 0 {
+		return types.ObjectNull(qemuVMVGAAttrTypes()), nil, nil
+	}
+
+	extra := make(map[string]string, len(base))
+	for key, value := range base {
+		if key == "vga" {
+			continue
+		}
+		extra[key] = value
+	}
+
+	raw, ok := base["vga"]
+	if !ok {
+		if len(extra) == 0 {
+			extra = nil
+		}
+		return types.ObjectNull(qemuVMVGAAttrTypes()), extra, nil
+	}
+
+	parsed, ok := parseQemuVMVGA(raw)
+	if !ok {
+		extra["vga"] = raw
+		return types.ObjectNull(qemuVMVGAAttrTypes()), extra, nil
+	}
+
+	value, diags := types.ObjectValueFrom(ctx, qemuVMVGAAttrTypes(), parsed)
+	if diags.HasError() {
+		return types.Object{}, nil, diags
+	}
+	if len(extra) == 0 {
+		extra = nil
+	}
+	return value, extra, diags
+}
+
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
 	keys := []string{"protection", "scsihw", "tablet"}
 
@@ -523,6 +571,12 @@ func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.D
 	diags.Append(tpmStateDiags...)
 	if !qemuVMTPMStateModelIsEmpty(tpmState) {
 		keys = append(keys, "tpmstate0")
+	}
+
+	vga, vgaDiags := expandQemuVMVGAModel(ctx, model.VGA)
+	diags.Append(vgaDiags...)
+	if !qemuVMVGAModelIsEmpty(vga) {
+		keys = append(keys, "vga")
 	}
 
 	sort.Strings(keys)
@@ -1089,6 +1143,67 @@ func encodeQemuVMTPMState(item qemuVMTPMStateModel) string {
 	}
 	appendStringConfig(&segments, "version", item.Version)
 	return strings.Join(segments, ",")
+}
+
+func parseQemuVMVGA(raw string) (qemuVMVGAModel, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return qemuVMVGAModel{}, false
+	}
+	parts := splitQemuConfigSegments(raw)
+	item := qemuVMVGAModel{}
+	for index, segment := range parts {
+		key, value, ok := splitQemuConfigKeyValue(segment)
+		if !ok {
+			if index != 0 {
+				return qemuVMVGAModel{}, false
+			}
+			trimmed := strings.TrimSpace(segment)
+			if trimmed == "" {
+				return qemuVMVGAModel{}, false
+			}
+			item.Type = types.StringValue(trimmed)
+			continue
+		}
+		if strings.TrimSpace(value) == "" {
+			return qemuVMVGAModel{}, false
+		}
+		switch key {
+		case "memory":
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return qemuVMVGAModel{}, false
+			}
+			item.Memory = types.Int64Value(n)
+		case "clipboard":
+			item.Clipboard = types.StringValue(value)
+		default:
+			return qemuVMVGAModel{}, false
+		}
+	}
+	return item, !item.Type.IsNull() && !item.Type.IsUnknown()
+}
+
+func encodeQemuVMVGA(item qemuVMVGAModel) string {
+	if item.Type.IsNull() || item.Type.IsUnknown() {
+		return ""
+	}
+	segments := []string{item.Type.ValueString()}
+	appendInt64Config(&segments, "memory", item.Memory)
+	appendStringConfig(&segments, "clipboard", item.Clipboard)
+	return strings.Join(segments, ",")
+}
+
+func qemuVMVGAModelIsEmpty(model qemuVMVGAModel) bool {
+	return (model.Type.IsNull() || model.Type.IsUnknown()) && model.Memory.IsNull() && model.Clipboard.IsNull()
+}
+
+func expandQemuVMVGAModel(ctx context.Context, value types.Object) (qemuVMVGAModel, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return qemuVMVGAModel{}, nil
+	}
+	var result qemuVMVGAModel
+	diags := value.As(ctx, &result, qemuObjectAsOptions())
+	return result, diags
 }
 
 func splitQemuConfigSegments(raw string) []string {
