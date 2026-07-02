@@ -111,7 +111,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		resourceNames = append(resourceNames, resp.TypeName)
 	}
 	sort.Strings(resourceNames)
-	if want := []string{"proxmox_group", "proxmox_pool", "proxmox_qemu_vm"}; !reflect.DeepEqual(resourceNames, want) {
+	if want := []string{"proxmox_group", "proxmox_lxc_container", "proxmox_pool", "proxmox_qemu_vm"}; !reflect.DeepEqual(resourceNames, want) {
 		t.Fatalf("unexpected resources: got %v want %v", resourceNames, want)
 	}
 
@@ -128,6 +128,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_cluster_resources",
 		"proxmox_group",
 		"proxmox_groups",
+		"proxmox_lxc_container",
 		"proxmox_node",
 		"proxmox_node_dns",
 		"proxmox_node_time",
