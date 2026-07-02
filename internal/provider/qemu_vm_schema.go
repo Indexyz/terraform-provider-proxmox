@@ -44,6 +44,7 @@ type qemuVMModel struct {
 	Disk        types.Map    `tfsdk:"disk"`
 	EFIDisk     types.Object `tfsdk:"efi_disk"`
 	TPMState    types.Object `tfsdk:"tpm_state"`
+	VGA         types.Object `tfsdk:"vga"`
 	Raw         types.Object `tfsdk:"raw"`
 	Clone       types.Object `tfsdk:"clone"`
 	Status      types.String `tfsdk:"status"`
@@ -128,6 +129,12 @@ type qemuVMTPMStateModel struct {
 	Size    types.String `tfsdk:"size"`
 	Format  types.String `tfsdk:"format"`
 	Version types.String `tfsdk:"version"`
+}
+
+type qemuVMVGAModel struct {
+	Type      types.String `tfsdk:"type"`
+	Memory    types.Int64  `tfsdk:"memory"`
+	Clipboard types.String `tfsdk:"clipboard"`
 }
 
 type qemuVMRawModel struct {
@@ -235,6 +242,14 @@ func qemuVMTPMStateAttrTypes() map[string]attr.Type {
 		"size":    types.StringType,
 		"format":  types.StringType,
 		"version": types.StringType,
+	}
+}
+
+func qemuVMVGAAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":      types.StringType,
+		"memory":    types.Int64Type,
+		"clipboard": types.StringType,
 	}
 }
 
@@ -502,6 +517,31 @@ func qemuVMTPMStateResourceAttribute() schema.SingleNestedAttribute {
 	}
 }
 
+func qemuVMVGADataSourceAttribute() datasourceschema.SingleNestedAttribute {
+	return datasourceschema.SingleNestedAttribute{
+		Computed:            true,
+		MarkdownDescription: "Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config[\"vga\"]`.",
+		Attributes: map[string]datasourceschema.Attribute{
+			"type":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "VGA hardware type such as `std`, `virtio`, `qxl`, or `serial0` from `/config`."},
+			"memory":    datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "VGA memory in MiB from `/config`."},
+			"clipboard": datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Clipboard selection such as `vnc` from `/config`."},
+		},
+	}
+}
+
+func qemuVMVGAResourceAttribute() schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		Computed:            true,
+		MarkdownDescription: "Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config[\"vga\"]`.",
+		Attributes: map[string]schema.Attribute{
+			"type":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "VGA hardware type such as `std`, `virtio`, `qxl`, or `serial0`. The primary positional part of the Proxmox `vga` value; the block is emitted only when `type` is set."},
+			"memory":    schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "VGA memory in MiB managed through `/config`."},
+			"clipboard": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Clipboard selection such as `vnc` managed through `/config`."},
+		},
+	}
+}
+
 func qemuVMRawDataSourceAttribute() datasourceschema.SingleNestedAttribute {
 	return datasourceschema.SingleNestedAttribute{
 		Computed:            true,
@@ -595,6 +635,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"disk":        qemuVMDiskDataSourceAttribute(),
 		"efi_disk":    qemuVMEFIDiskDataSourceAttribute(),
 		"tpm_state":   qemuVMTPMStateDataSourceAttribute(),
+		"vga":         qemuVMVGADataSourceAttribute(),
 		"raw":         qemuVMRawDataSourceAttribute(),
 		"clone":       qemuVMCloneDataSourceAttribute(),
 		"status":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`."},
@@ -650,6 +691,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"disk":        qemuVMDiskResourceAttribute(),
 		"efi_disk":    qemuVMEFIDiskResourceAttribute(),
 		"tpm_state":   qemuVMTPMStateResourceAttribute(),
+		"vga":         qemuVMVGAResourceAttribute(),
 		"raw":         qemuVMRawResourceAttribute(),
 		"clone":       qemuVMCloneResourceAttribute(),
 		"status":      schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state."},
