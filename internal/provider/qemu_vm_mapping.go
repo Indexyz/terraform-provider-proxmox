@@ -44,6 +44,10 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	if value := config.Protection.Ptr(); value != nil {
 		protection = *value
 	}
+	tablet := false
+	if value := config.Tablet.Ptr(); value != nil {
+		tablet = *value
+	}
 
 	return qemuVMModel{
 		ID:          types.StringValue(qemuVMID(node, vmID)),
@@ -57,6 +61,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		OnBoot:      boolOrNull(config.OnBoot.Ptr()),
 		Protection:  types.BoolValue(protection),
 		SCSIHW:      stringOrNull(config.SCSIHW),
+		Tablet:      types.BoolValue(tablet),
 		Startup:     stringOrNull(config.Startup),
 		Bios:        stringOrNull(config.Bios),
 		Machine:     stringOrNull(config.Machine),
@@ -230,6 +235,7 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		OnBoot:      boolPointerValue(model.OnBoot),
 		Protection:  boolPointerValue(model.Protection),
 		SCSIHW:      stringPointerValue(model.SCSIHW),
+		Tablet:      boolPointerValue(model.Tablet),
 		Startup:     stringPointerValue(model.Startup),
 		Bios:        stringPointerValue(model.Bios),
 		Machine:     stringPointerValue(model.Machine),
@@ -456,7 +462,7 @@ func qemuVMTPMStateValue(ctx context.Context, base map[string]string) (types.Obj
 }
 
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
-	keys := []string{"protection", "scsihw"}
+	keys := []string{"protection", "scsihw", "tablet"}
 
 	common, commonDiags := expandQemuVMCommonModel(ctx, model.Common)
 	diags.Append(commonDiags...)

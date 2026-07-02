@@ -25,6 +25,7 @@ resource "proxmox_qemu_vm" "example" {
   pool        = "workloads"
   onboot      = true
   protection  = true
+  tablet      = true
   startup     = "order=1"
   bios        = "ovmf"
   machine     = "q35"
@@ -118,6 +119,7 @@ resource "proxmox_qemu_vm" "example" {
 - `scsihw` (String) SCSI controller hardware type managed through `/config`.
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.
+- `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
 

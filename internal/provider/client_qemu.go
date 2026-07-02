@@ -108,6 +108,7 @@ type QemuVMConfig struct {
 	OnBoot      proxmoxOptionalBool
 	Protection  proxmoxOptionalBool
 	SCSIHW      string
+	Tablet      proxmoxOptionalBool
 	Startup     string
 	Bios        string
 	Machine     string
@@ -140,6 +141,7 @@ type qemuVMConfigKnown struct {
 	OnBoot      proxmoxOptionalBool  `json:"onboot"`
 	Protection  proxmoxOptionalBool  `json:"protection"`
 	SCSIHW      string               `json:"scsihw"`
+	Tablet      proxmoxOptionalBool  `json:"tablet"`
 	Startup     string               `json:"startup"`
 	Bios        string               `json:"bios"`
 	Machine     string               `json:"machine"`
@@ -172,6 +174,7 @@ type qemuVMConfigRequest struct {
 	OnBoot      *bool
 	Protection  *bool
 	SCSIHW      *string
+	Tablet      *bool
 	Startup     *string
 	Bios        *string
 	Machine     *string
@@ -227,6 +230,7 @@ func (r UpdateQemuVMRequest) IsEmpty() bool {
 		r.OnBoot == nil &&
 		r.Protection == nil &&
 		r.SCSIHW == nil &&
+		r.Tablet == nil &&
 		r.Startup == nil &&
 		r.Bios == nil &&
 		r.Machine == nil &&
@@ -317,6 +321,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 		OnBoot:      known.OnBoot,
 		Protection:  known.Protection,
 		SCSIHW:      known.SCSIHW,
+		Tablet:      known.Tablet,
 		Startup:     known.Startup,
 		Bios:        known.Bios,
 		Machine:     known.Machine,
@@ -341,7 +346,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 	}
 
 	knownKeys := map[string]struct{}{
-		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "protection": {}, "scsihw": {}, "startup": {},
+		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "protection": {}, "scsihw": {}, "tablet": {}, "startup": {},
 		"bios": {}, "machine": {}, "agent": {}, "cores": {}, "sockets": {}, "memory": {}, "cpu": {},
 		"ostype": {}, "boot": {}, "hotplug": {}, "cicustom": {}, "cipassword": {}, "citype": {},
 		"ciupgrade": {}, "ciuser": {}, "sshkeys": {},
@@ -393,6 +398,7 @@ func encodeQemuVMFields(form url.Values, req qemuVMConfigRequest) {
 	setOptionalBool(form, "onboot", req.OnBoot)
 	setOptionalBool(form, "protection", req.Protection)
 	setOptionalString(form, "scsihw", req.SCSIHW)
+	setOptionalBool(form, "tablet", req.Tablet)
 	setOptionalString(form, "startup", req.Startup)
 	setOptionalString(form, "bios", req.Bios)
 	setOptionalString(form, "machine", req.Machine)

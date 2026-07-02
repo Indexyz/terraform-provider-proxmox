@@ -61,6 +61,7 @@ data "proxmox_qemu_vm" "example" {
 - `sockets` (Number) Configured CPU sockets from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.
+- `tablet` (Boolean) Whether the USB tablet device is enabled for this VM from `/config`.
 - `tags` (String) Comma-separated Proxmox tags from `/config`.
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--tpm_state))

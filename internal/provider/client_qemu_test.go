@@ -32,6 +32,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"onboot":      1,
 				"protection":  true,
 				"scsihw":      "virtio-scsi-pci",
+				"tablet":      true,
 				"startup":     "order=2",
 				"bios":        "ovmf",
 				"machine":     "q35",
@@ -58,6 +59,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"onboot":      {"1"},
 				"protection":  {"1"},
 				"scsihw":      {"virtio-scsi-pci"},
+				"tablet":      {"1"},
 				"startup":     {"order=2"},
 				"bios":        {"ovmf"},
 				"machine":     {"q35"},
@@ -76,6 +78,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"onboot":     {"0"},
 				"protection": {"0"},
 				"scsihw":     {"megasas"},
+				"tablet":     {"0"},
 				"memory":     {"4096"},
 			})
 			writeEnvelope(t, w, nil)
@@ -113,6 +116,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if config.SCSIHW != "virtio-scsi-pci" {
 		t.Fatalf("expected scsihw=virtio-scsi-pci, got %q", config.SCSIHW)
 	}
+	if config.Tablet.Ptr() == nil || !*config.Tablet.Ptr() {
+		t.Fatalf("expected tablet=true, got %#v", config.Tablet)
+	}
 
 	status, err := client.GetQemuVMStatus(ctx, "pve-1", 101)
 	if err != nil {
@@ -132,6 +138,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 			OnBoot:      boolPtr(true),
 			Protection:  boolPtr(true),
 			SCSIHW:      stringPtr("virtio-scsi-pci"),
+			Tablet:      boolPtr(true),
 			Startup:     stringPtr("order=2"),
 			Bios:        stringPtr("ovmf"),
 			Machine:     stringPtr("q35"),
@@ -153,6 +160,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 			OnBoot:     boolPtr(false),
 			Protection: boolPtr(false),
 			SCSIHW:     stringPtr("megasas"),
+			Tablet:     boolPtr(false),
 			Memory:     intPtr64(4096),
 		},
 	}); err != nil {
@@ -215,6 +223,27 @@ func TestDecodeQemuVMConfigSCSIHWIsTyped(t *testing.T) {
 	}
 	if _, ok := config.ExtraConfig["scsihw"]; ok {
 		t.Fatalf("expected scsihw to be decoded as typed field, got extra config %#v", config.ExtraConfig)
+	}
+	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
+	}
+}
+
+func TestDecodeQemuVMConfigTabletIsTyped(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeQemuVMConfig(map[string]json.RawMessage{
+		"tablet":   json.RawMessage(`true`),
+		"hostpci0": json.RawMessage(`"0000:00:1f.0"`),
+	})
+	if err != nil {
+		t.Fatalf("decodeQemuVMConfig() unexpected error: %v", err)
+	}
+	if config.Tablet.Ptr() == nil || !*config.Tablet.Ptr() {
+		t.Fatalf("expected typed tablet=true, got %#v", config.Tablet)
+	}
+	if _, ok := config.ExtraConfig["tablet"]; ok {
+		t.Fatalf("expected tablet to be decoded as typed field, got extra config %#v", config.ExtraConfig)
 	}
 	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)

@@ -10,6 +10,7 @@ resource "proxmox_qemu_vm" "example" {
   pool        = "workloads"
   onboot      = true
   protection  = true
+  tablet      = true
   startup     = "order=1"
   bios        = "ovmf"
   machine     = "q35"

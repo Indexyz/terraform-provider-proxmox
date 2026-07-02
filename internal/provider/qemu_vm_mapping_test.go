@@ -24,6 +24,7 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 		OnBoot:      proxmoxOptionalBool{value: boolPtr(true)},
 		Protection:  proxmoxOptionalBool{value: boolPtr(true)},
 		SCSIHW:      "virtio-scsi-pci",
+		Tablet:      proxmoxOptionalBool{value: boolPtr(true)},
 		Startup:     "order=2",
 		Bios:        "ovmf",
 		Machine:     "q35",
@@ -66,6 +67,9 @@ func TestQemuVMStateFromAPI(t *testing.T) {
 	}
 	if !state.OnBoot.ValueBool() || !state.Protection.ValueBool() || state.Template.ValueBool() {
 		t.Fatalf("unexpected bool mapping: %#v", state)
+	}
+	if !state.Tablet.ValueBool() {
+		t.Fatalf("expected tablet=true state, got %#v", state.Tablet)
 	}
 	if state.Cores.ValueInt64() != 4 || state.Uptime.ValueInt64() != 300 {
 		t.Fatalf("unexpected integer mapping: %#v", state)
@@ -133,6 +137,18 @@ func TestQemuVMStateFromAPIDefaultsOmittedProtectionToFalse(t *testing.T) {
 	}
 	if state.Protection.IsNull() || state.Protection.IsUnknown() || state.Protection.ValueBool() {
 		t.Fatalf("expected omitted protection to read as false, got %#v", state.Protection)
+	}
+}
+
+func TestQemuVMStateFromAPIDefaultsOmittedTabletToFalse(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if state.Tablet.IsNull() || state.Tablet.IsUnknown() || state.Tablet.ValueBool() {
+		t.Fatalf("expected omitted tablet to read as false, got %#v", state.Tablet)
 	}
 }
 
@@ -388,6 +404,7 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 		OnBoot:      types.BoolValue(true),
 		Protection:  types.BoolValue(false),
 		SCSIHW:      types.StringValue("virtio-scsi-pci"),
+		Tablet:      types.BoolValue(false),
 		Startup:     types.StringValue("order=2"),
 		Bios:        types.StringValue("ovmf"),
 		Machine:     types.StringValue("q35"),
@@ -484,6 +501,9 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 	if createReq.SCSIHW == nil || *createReq.SCSIHW != "virtio-scsi-pci" {
 		t.Fatalf("expected scsihw in create request, got %#v", createReq.SCSIHW)
 	}
+	if createReq.Tablet == nil || *createReq.Tablet {
+		t.Fatalf("expected tablet=false in create request, got %#v", createReq.Tablet)
+	}
 	if got := createReq.IPConfig["ipconfig0"]; got != "ip=dhcp,ip6=auto" {
 		t.Fatalf("unexpected ipconfig encoding: %#v", createReq.IPConfig)
 	}
@@ -508,7 +528,7 @@ func TestQemuVMRequestFromModel(t *testing.T) {
 
 	updateReq, diags := qemuVMUpdateRequestFromModel(context.Background(), model)
 	assertNoDiags(t, diags)
-	if updateReq.OnBoot == nil || !*updateReq.OnBoot || updateReq.Protection == nil || *updateReq.Protection || updateReq.SCSIHW == nil || *updateReq.SCSIHW != "virtio-scsi-pci" || updateReq.Memory == nil || *updateReq.Memory != 8192 {
+	if updateReq.OnBoot == nil || !*updateReq.OnBoot || updateReq.Protection == nil || *updateReq.Protection || updateReq.SCSIHW == nil || *updateReq.SCSIHW != "virtio-scsi-pci" || updateReq.Tablet == nil || *updateReq.Tablet || updateReq.Memory == nil || *updateReq.Memory != 8192 {
 		t.Fatalf("unexpected update request: %#v", updateReq)
 	}
 	if got, want := reflect.ValueOf(updateReq).NumField(), reflect.ValueOf(UpdateQemuVMRequest{}).NumField(); got != want {
@@ -534,6 +554,27 @@ func TestQemuVMRequestFromModelMapsProtectionTrue(t *testing.T) {
 	assertNoDiags(t, diags)
 	if updateReq.Protection == nil || !*updateReq.Protection {
 		t.Fatalf("expected protection=true in update request, got %#v", updateReq.Protection)
+	}
+}
+
+func TestQemuVMRequestFromModelMapsTabletTrue(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID:   types.Int64Value(101),
+		Tablet: types.BoolValue(true),
+	}
+
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if createReq.Tablet == nil || !*createReq.Tablet {
+		t.Fatalf("expected tablet=true in create request, got %#v", createReq.Tablet)
+	}
+
+	updateReq, diags := qemuVMUpdateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if updateReq.Tablet == nil || !*updateReq.Tablet {
+		t.Fatalf("expected tablet=true in update request, got %#v", updateReq.Tablet)
 	}
 }
 
@@ -649,6 +690,26 @@ func TestValidateQemuVMRawConflictsReservesSCSIHW(t *testing.T) {
 	diags := validateQemuVMRawConflicts(context.Background(), model)
 	if !diags.HasError() {
 		t.Fatal("expected raw-vs-typed conflict diagnostics for scsihw")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}
+
+func TestValidateQemuVMRawConflictsReservesTablet(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{
+				"tablet": "1",
+			}),
+		}),
+	}
+
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics for tablet")
 	}
 	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
 		t.Fatalf("unexpected diagnostic summary: %q", got)

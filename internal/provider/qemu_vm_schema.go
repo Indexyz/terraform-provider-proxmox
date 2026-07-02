@@ -27,6 +27,7 @@ type qemuVMModel struct {
 	OnBoot      types.Bool   `tfsdk:"onboot"`
 	Protection  types.Bool   `tfsdk:"protection"`
 	SCSIHW      types.String `tfsdk:"scsihw"`
+	Tablet      types.Bool   `tfsdk:"tablet"`
 	Startup     types.String `tfsdk:"startup"`
 	Bios        types.String `tfsdk:"bios"`
 	Machine     types.String `tfsdk:"machine"`
@@ -577,6 +578,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"onboot":      datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the guest should start automatically on boot."},
 		"protection":  datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations."},
 		"scsihw":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "SCSI controller hardware type from `/config`."},
+		"tablet":      datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the USB tablet device is enabled for this VM from `/config`."},
 		"startup":     datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Startup ordering string from `/config`."},
 		"bios":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured BIOS type from `/config`."},
 		"machine":     datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured machine type from `/config`."},
@@ -631,6 +633,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"onboot":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether the guest should start automatically on boot."},
 		"protection":  schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations."},
 		"scsihw":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "SCSI controller hardware type managed through `/config`."},
+		"tablet":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC."},
 		"startup":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Startup ordering string managed through `/config`."},
 		"bios":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured BIOS type managed through `/config`."},
 		"machine":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured machine type managed through `/config`."},
