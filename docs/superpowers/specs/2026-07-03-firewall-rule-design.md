@@ -14,8 +14,8 @@ Based on the Proxmox API (`/cluster/firewall/rules` POST/GET):
 
 | Field | Type | TF Schema | Identity? | Notes |
 |---|---|---|---|---|
-| `type` | string | Required, RequiresReplace | Yes | Rule direction (in/out/forward/group) |
-| `action` | string | Required, RequiresReplace | Yes | Rule action (ACCEPT/DROP/REJECT) |
+| `type` | string | Required, RequiresReplaceIfConfigured | Yes | Rule direction (in/out/forward/group) |
+| `action` | string | Required, RequiresReplaceIfConfigured | Yes | Rule action (ACCEPT/DROP/REJECT) |
 | `source` | string | Optional+Computed, RequiresReplaceIfConfigured | Yes | Source CIDR/address |
 | `dest` | string | Optional+Computed, RequiresReplaceIfConfigured | Yes | Destination CIDR/address |
 | `proto` | string | Optional+Computed, RequiresReplaceIfConfigured | Yes | Protocol (tcp/udp/icmp) |
@@ -39,7 +39,7 @@ Absent (null) and empty-string values are normalized to `""` for matching. A fie
 
 The Terraform resource identity is **content-based**. Fields are split into two categories:
 
-### Identity fields (used for content matching, all RequiresReplace)
+### Identity fields (used for content matching, all RequiresReplaceIfConfigured)
 `type`, `action`, `source`, `dest`, `proto`, `dport`, `sport`, `icmp_type`, `iface`, `macro`, `log`
 
 ### Updatable fields (not used for matching, Optional+Computed)
@@ -81,39 +81,52 @@ All fields are `types.String` in the Go model, except:
 
 ## Client Method Signatures
 
+The GET response for `/cluster/firewall/rules` returns rule objects with `pos` but **no `digest`** (confirmed via API viewer: props are action/comment/dest/dport/enable/icmp-type/iface/ipversion/log/macro/pos/proto/source/sport/type). The PUT/DELETE `digest` parameter is therefore optional and **omitted** in this implementation (no optimistic locking). This means concurrent rule modifications between our GET and PUT/DELETE could target a shifted `pos`; we accept this risk and document it, since the content-match approach is robust against it (we re-resolve pos on every operation).
+
 ```go
-// digest is obtained internally from the GET list before PUT/DELETE.
 func (c *Client) GetFirewallRules(ctx context.Context) ([]FirewallRule, error)
 func (c *Client) CreateFirewallRule(ctx context.Context, req FirewallRuleRequest) error
-func (c *Client) UpdateFirewallRule(ctx context.Context, pos int, digest string, req FirewallRuleRequest) error
-func (c *Client) DeleteFirewallRule(ctx context.Context, pos int, digest string) error
+func (c *Client) UpdateFirewallRule(ctx context.Context, pos int, req FirewallRuleRequest) error
+func (c *Client) DeleteFirewallRule(ctx context.Context, pos int) error
 ```
 
-`GetFirewallRules` returns rules with their `pos` and `digest` (from the GET response, which includes a per-list digest or per-rule digest). The resource resolves pos+digest via content match before calling Update/Delete.
+### PUT Request Body Semantics
+
+`UpdateFirewallRule` sends the **full resolved rule payload** (all identity fields + `enable` + `comment`) in the PUT form. This ensures the rule at `pos` is set to exactly the desired state. Identity fields are included because Proxmox PUT replaces the rule at that position.
+
+### Create Pre-Check Behavior
+
+Before POST, the resource calls `GetFirewallRules` and checks for content matches:
+- **0 matches**: proceed with POST (normal create).
+- **1 match**: return a diagnostic error ("a firewall rule with identical content already exists at pos N; remove the existing rule or modify your config"). This prevents creating duplicates that would make the resource ambiguous.
+- **≥2 matches**: return a diagnostic error (same as Read/Update/Delete ambiguous-match error).
 
 ## Non-Atomic Operations
 
-Proxmox firewall operations are non-atomic against a shared API. If another actor modifies rules between our GET and our PUT/DELETE, the operation may target the wrong `pos`. The `digest` (optimistic lock) mitigates this for Update/Delete — Proxmox rejects the operation if the list has changed since our GET, and the resource re-reads and retries once.
+Proxmox firewall operations are non-atomic against a shared API. The GET response does not include a digest, so PUT/DELETE are sent without optimistic locking. If another actor modifies rules between our GET and our PUT/DELETE, the operation may target a shifted `pos`. The content-match re-resolution on every operation mitigates this in practice, but cannot fully prevent it. This is a documented limitation.
 
 ## Requirements
 
 - Resource `proxmox_firewall_rule` with schema per the field table above.
-- `type` and `action` are Required + RequiresReplace.
-- All other fields are Optional + Computed.
+- `type` and `action` are Required + RequiresReplaceIfConfigured.
+- All other identity fields (`source`/`dest`/`proto`/`dport`/`sport`/`icmp_type`/`iface`/`macro`/`log`) are Optional + Computed + RequiresReplaceIfConfigured.
+- `enable` and `comment` are Optional + Computed (mutable, no replace).
 - `pos` is Computed only (not user-settable).
-- Create: POST to `/cluster/firewall/rules`.
-- Read: GET `/cluster/firewall/rules`, match by content, return pos.
-- Update: find rule by identity, PUT `/cluster/firewall/rules/{pos}` with changed fields.
-- Delete: find rule by identity, DELETE `/cluster/firewall/rules/{pos}` (with digest from GET).
-- Import: by content signature is impractical; import by `pos` is fragile. **Import is not supported** in this increment (documented limitation).
+- Create: pre-check for duplicate content (error on ≥1 match); POST to `/cluster/firewall/rules`.
+- Read: GET `/cluster/firewall/rules`, match by identity content, return pos. Error on ≥2 matches. Remove from state on 0 matches.
+- Update: find rule by identity, PUT `/cluster/firewall/rules/{pos}` with the full resolved payload (all identity + updatable fields).
+- Delete: find rule by identity, DELETE `/cluster/firewall/rules/{pos}` (no digest; see Non-Atomic Operations).
+- Import: not supported (content-based identity makes import impractical; documented limitation).
 - Client: `CreateFirewallRule`, `GetFirewallRules` (list), `UpdateFirewallRule`, `DeleteFirewallRule`.
-- No `digest` exposed in schema; the client fetches the current digest from the GET list before PUT/DELETE.
+- No `digest` is sent on PUT/DELETE (GET does not return one); see Non-Atomic Operations for the concurrency tradeoff.
 
 ## Acceptance Criteria
 
-- Focused client tests: create returns correct form, GET list parsing, update by pos+digest, delete by pos+digest.
+- Focused client tests: create returns correct form, GET list parsing, update by pos (full payload), delete by pos.
 - Resource test: schema attribute presence.
 - Duplicate-content error path test: if ≥2 rules match identity fields, Read returns a diagnostic error.
+- Create pre-check test: if 1 identical rule already exists, Create returns a diagnostic error.
+- Missing remote rule: Read removes from state; Update/Delete no-op success.
 - `go build`/`go vet`/`go test ./...` all pass.
 - Provider exports test updated with `proxmox_firewall_rule`.
 - Example, docs, roadmap updated.
