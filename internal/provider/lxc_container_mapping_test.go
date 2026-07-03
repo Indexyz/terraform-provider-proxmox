@@ -70,8 +70,14 @@ func TestLXCContainerStateFromAPI(t *testing.T) {
 	if state.Nameserver.ValueString() != "1.1.1.1" || state.Searchdomain.ValueString() != "example.internal" || state.Timezone.ValueString() != "host" {
 		t.Fatalf("unexpected dns/time fields: %#v", state)
 	}
-	assertStringMapValue(t, state.Network, map[string]string{"net0": "name=eth0,bridge=vmbr0,ip=dhcp"})
-	assertStringMapValue(t, state.MountPoint, map[string]string{"mp0": "local-lvm:1,mp=/data"})
+	network := decodeLXCContainerNetworkMap(t, state.Network)
+	if got := network["net0"]; got.Name.ValueString() != "eth0" || got.Bridge.ValueString() != "vmbr0" || got.IP.ValueString() != "dhcp" {
+		t.Fatalf("unexpected network mapping: %#v", network)
+	}
+	mountPoint := decodeLXCContainerMountPointMap(t, state.MountPoint)
+	if got := mountPoint["mp0"]; got.Volume.ValueString() != "local-lvm:1" || got.MountPoint.ValueString() != "/data" {
+		t.Fatalf("unexpected mount_point mapping: %#v", mountPoint)
+	}
 	raw := decodeLXCContainerRaw(t, state.Raw)
 	assertStringMapValue(t, raw.ExtraConfig, map[string]string{"lxc.apparmor.profile": "unconfined"})
 	if state.Status.ValueString() != "running" || state.Uptime.ValueInt64() != 300 {
@@ -110,8 +116,8 @@ func TestLXCContainerRequestFromModel(t *testing.T) {
 		Nameserver:   types.StringValue("1.1.1.1"),
 		Searchdomain: types.StringValue("example.internal"),
 		Timezone:     types.StringValue("host"),
-		Network:      mustStringMapValue(t, map[string]string{"net0": "name=eth0,bridge=vmbr0,ip=dhcp"}),
-		MountPoint:   mustStringMapValue(t, map[string]string{"mp0": "local-lvm:1,mp=/data"}),
+		Network:      mustLXCContainerNetworkMapValue(t, map[string]lxcContainerNetworkModel{"net0": {Name: types.StringValue("eth0"), Bridge: types.StringValue("vmbr0"), IP: types.StringValue("dhcp")}}),
+		MountPoint:   mustLXCContainerMountPointMapValue(t, map[string]lxcContainerMountPointModel{"mp0": {Volume: types.StringValue("local-lvm:1"), MountPoint: types.StringValue("/data")}}),
 		Raw:          mustLXCContainerRawValue(t, lxcContainerRawModel{ExtraConfig: mustStringMapValue(t, map[string]string{"lxc.apparmor.profile": "unconfined"})}),
 	}
 
@@ -160,8 +166,8 @@ func TestLXCContainerUpdateRequestDeletesRemovedKeys(t *testing.T) {
 	prior := lxcContainerModel{
 		Hostname:   types.StringValue("ct-101"),
 		Tags:       types.StringValue("prod,terraform"),
-		Network:    mustStringMapValue(t, map[string]string{"net0": "name=eth0,bridge=vmbr0,ip=dhcp", "net1": "name=eth1,bridge=vmbr1,ip=dhcp"}),
-		MountPoint: mustStringMapValue(t, map[string]string{"mp0": "local-lvm:1,mp=/data"}),
+		Network:    mustLXCContainerNetworkMapValue(t, map[string]lxcContainerNetworkModel{"net0": {Name: types.StringValue("eth0"), Bridge: types.StringValue("vmbr0"), IP: types.StringValue("dhcp")}, "net1": {Name: types.StringValue("eth1"), Bridge: types.StringValue("vmbr1"), IP: types.StringValue("dhcp")}}),
+		MountPoint: mustLXCContainerMountPointMapValue(t, map[string]lxcContainerMountPointModel{"mp0": {Volume: types.StringValue("local-lvm:1"), MountPoint: types.StringValue("/data")}}),
 		Raw: mustLXCContainerRawValue(t, lxcContainerRawModel{ExtraConfig: mustStringMapValue(t, map[string]string{
 			"lxc.apparmor.profile": "unconfined",
 			"lxc.keep":             "1",
@@ -170,8 +176,8 @@ func TestLXCContainerUpdateRequestDeletesRemovedKeys(t *testing.T) {
 	plan := lxcContainerModel{
 		Hostname:   types.StringNull(),
 		Tags:       types.StringNull(),
-		Network:    mustStringMapValue(t, map[string]string{"net1": "name=eth1,bridge=vmbr1,ip=dhcp"}),
-		MountPoint: types.MapNull(types.StringType),
+		Network:    mustLXCContainerNetworkMapValue(t, map[string]lxcContainerNetworkModel{"net1": {Name: types.StringValue("eth1"), Bridge: types.StringValue("vmbr1"), IP: types.StringValue("dhcp")}}),
+		MountPoint: types.MapNull(types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}),
 		Raw:        mustLXCContainerRawValue(t, lxcContainerRawModel{ExtraConfig: mustStringMapValue(t, map[string]string{"lxc.keep": "1"})}),
 	}
 
@@ -331,5 +337,82 @@ func TestLXCContainerCloneRequestDefaultsSourceNode(t *testing.T) {
 	assertNoDiags(t, diags)
 	if cloneReq.SourceNode != "pve-2" {
 		t.Fatalf("expected source_node to default to managed node pve-2, got %q", cloneReq.SourceNode)
+	}
+}
+
+func mustLXCContainerNetworkMapValue(t *testing.T, items map[string]lxcContainerNetworkModel) types.Map {
+	t.Helper()
+	if len(items) == 0 {
+		return types.MapNull(types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()})
+	}
+	result, diags := types.MapValueFrom(context.Background(), types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()}, items)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func mustLXCContainerMountPointMapValue(t *testing.T, items map[string]lxcContainerMountPointModel) types.Map {
+	t.Helper()
+	if len(items) == 0 {
+		return types.MapNull(types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()})
+	}
+	result, diags := types.MapValueFrom(context.Background(), types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}, items)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func decodeLXCContainerNetworkMap(t *testing.T, value types.Map) map[string]lxcContainerNetworkModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known network map, got %#v", value)
+	}
+	var result map[string]lxcContainerNetworkModel
+	assertNoDiags(t, value.ElementsAs(context.Background(), &result, false))
+	return result
+}
+
+func decodeLXCContainerMountPointMap(t *testing.T, value types.Map) map[string]lxcContainerMountPointModel {
+	t.Helper()
+	if value.IsNull() || value.IsUnknown() {
+		t.Fatalf("expected known mount_point map, got %#v", value)
+	}
+	var result map[string]lxcContainerMountPointModel
+	assertNoDiags(t, value.ElementsAs(context.Background(), &result, false))
+	return result
+}
+
+func TestParseAndEncodeLXCContainerNetwork(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		raw    string
+		parsed lxcContainerNetworkModel
+	}{
+		{name: "name bridge ip", raw: "name=eth0,bridge=vmbr0,ip=dhcp", parsed: lxcContainerNetworkModel{Name: types.StringValue("eth0"), Bridge: types.StringValue("vmbr0"), IP: types.StringValue("dhcp")}},
+		{name: "with firewall and mtu", raw: "name=eth0,bridge=vmbr0,mtu=1400,firewall=1", parsed: lxcContainerNetworkModel{Name: types.StringValue("eth0"), Bridge: types.StringValue("vmbr0"), Firewall: types.BoolValue(true), MTU: types.Int64Value(1400)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parsed, ok := parseLXCContainerNetwork(tc.raw)
+			if !ok {
+				t.Fatalf("parseLXCContainerNetwork(%q) expected ok", tc.raw)
+			}
+			encoded := encodeLXCContainerNetwork(parsed)
+			if encoded != tc.raw {
+				t.Fatalf("encode round-trip = %q, want %q", encoded, tc.raw)
+			}
+		})
+	}
+}
+
+func TestParseLXCContainerMountPointRequiresVolumeAndPath(t *testing.T) {
+	t.Parallel()
+	if _, ok := parseLXCContainerMountPoint("local-lvm:1"); ok {
+		t.Fatal("expected mount point without mp= to be unparseable so it stays raw")
+	}
+	if _, ok := parseLXCContainerMountPoint("local-lvm:1,mp=/data"); ok {
+		// ok expected
+	} else {
+		t.Fatal("expected mount point with volume + mp to parse")
 	}
 }

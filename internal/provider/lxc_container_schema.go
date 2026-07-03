@@ -61,6 +61,68 @@ func lxcContainerRawAttrTypes() map[string]attr.Type {
 	}
 }
 
+type lxcContainerNetworkModel struct {
+	Name     types.String  `tfsdk:"name"`
+	Bridge   types.String  `tfsdk:"bridge"`
+	IP       types.String  `tfsdk:"ip"`
+	Gateway  types.String  `tfsdk:"gateway"`
+	IPv6     types.String  `tfsdk:"ip6"`
+	Gateway6 types.String  `tfsdk:"gateway6"`
+	HWAddr   types.String  `tfsdk:"hwaddr"`
+	Type     types.String  `tfsdk:"type"`
+	Tag      types.Int64   `tfsdk:"tag"`
+	Trunks   types.String  `tfsdk:"trunks"`
+	Rate     types.Float64 `tfsdk:"rate"`
+	MTU      types.Int64   `tfsdk:"mtu"`
+	Firewall types.Bool    `tfsdk:"firewall"`
+	LinkDown types.Bool    `tfsdk:"link_down"`
+}
+
+func lxcContainerNetworkAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":      types.StringType,
+		"bridge":    types.StringType,
+		"ip":        types.StringType,
+		"gateway":   types.StringType,
+		"ip6":       types.StringType,
+		"gateway6":  types.StringType,
+		"hwaddr":    types.StringType,
+		"type":      types.StringType,
+		"tag":       types.Int64Type,
+		"trunks":    types.StringType,
+		"rate":      types.Float64Type,
+		"mtu":       types.Int64Type,
+		"firewall":  types.BoolType,
+		"link_down": types.BoolType,
+	}
+}
+
+type lxcContainerMountPointModel struct {
+	Volume     types.String `tfsdk:"volume"`
+	MountPoint types.String `tfsdk:"mountpoint"`
+	Size       types.String `tfsdk:"size"`
+	Backup     types.Bool   `tfsdk:"backup"`
+	ReadOnly   types.Bool   `tfsdk:"read_only"`
+	Quota      types.Bool   `tfsdk:"quota"`
+	Replicate  types.Bool   `tfsdk:"replicate"`
+	Shared     types.Bool   `tfsdk:"shared"`
+	ACL        types.Bool   `tfsdk:"acl"`
+}
+
+func lxcContainerMountPointAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"volume":     types.StringType,
+		"mountpoint": types.StringType,
+		"size":       types.StringType,
+		"backup":     types.BoolType,
+		"read_only":  types.BoolType,
+		"quota":      types.BoolType,
+		"replicate":  types.BoolType,
+		"shared":     types.BoolType,
+		"acl":        types.BoolType,
+	}
+}
+
 type lxcContainerCloneModel struct {
 	SourceNode   types.String `tfsdk:"source_node"`
 	SourceVMID   types.Int64  `tfsdk:"source_vmid"`
@@ -162,8 +224,8 @@ func lxcContainerDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"nameserver":   datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "DNS nameserver configuration from `/config`."},
 		"searchdomain": datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "DNS search domain configuration from `/config`."},
 		"timezone":     datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Timezone configuration from `/config`."},
-		"network":      datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC network entries keyed by Proxmox slot name such as `net0`."},
-		"mount_point":  datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC mount-point entries keyed by Proxmox slot name such as `mp0`."},
+		"network":      datasourceschema.MapAttribute{Computed: true, ElementType: types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()}, MarkdownDescription: "Typed LXC network devices keyed by Proxmox slot name such as `net0`. Unsupported grammar remains available through `raw.extra_config[\"netN\"]`."},
+		"mount_point":  datasourceschema.MapAttribute{Computed: true, ElementType: types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}, MarkdownDescription: "Typed LXC mount points keyed by Proxmox slot name such as `mp0`. Unsupported grammar remains available through `raw.extra_config[\"mpN\"]`."},
 		"raw":          lxcContainerRawDataSourceAttribute(),
 		"clone":        lxcContainerCloneDataSourceAttribute(),
 		"status":       datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`."},
@@ -217,8 +279,8 @@ func lxcContainerResourceAttributes() map[string]schema.Attribute {
 		"nameserver":   schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "DNS nameserver configuration managed through `/config`."},
 		"searchdomain": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "DNS search domain configuration managed through `/config`."},
 		"timezone":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Timezone configuration managed through `/config`."},
-		"network":      schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC network entries keyed by Proxmox slot name such as `net0`."},
-		"mount_point":  schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC mount-point entries keyed by Proxmox slot name such as `mp0`."},
+		"network":      schema.MapAttribute{Optional: true, Computed: true, ElementType: types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()}, MarkdownDescription: "Typed LXC network devices keyed by Proxmox slot name such as `net0`. Unsupported grammar remains available through `raw.extra_config[\"netN\"]`."},
+		"mount_point":  schema.MapAttribute{Optional: true, Computed: true, ElementType: types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}, MarkdownDescription: "Typed LXC mount points keyed by Proxmox slot name such as `mp0`. Unsupported grammar remains available through `raw.extra_config[\"mpN\"]`."},
 		"raw":          lxcContainerRawResourceAttribute(),
 		"clone":        lxcContainerCloneResourceAttribute(),
 		"status":       schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`. Terraform does not manage power state."},

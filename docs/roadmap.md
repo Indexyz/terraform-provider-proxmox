@@ -18,11 +18,11 @@
 - 为 `proxmox_lxc_container` 资源新增 LXC clone 创建路径（`clone` create-time 嵌套块：`source_node`/`source_vmid`/`full`/`snapshot_name`/`storage`/`bwlimit`），覆盖 client `CloneLXCContainer`（`POST /nodes/{node}/lxc/{vmid}/clone` + task wait）、create 路径分支（clone vs ostemplate）、state 映射、测试、示例和生成文档；clone provenance 不可从 Proxmox 反查，导入/无 prior state 的 refresh 读回为 null。
 - 新增 `proxmox_lxc_snapshot` 资源，覆盖 LXC 容器快照 CRUD（`POST/GET/PUT/DELETE /nodes/{node}/lxc/{vmid}/snapshot[/{snapname}]` + task wait）、schema（`node`/`vm_id`/`name` required、`description`、只读 `parent`/`snaptime`）、import（`node/vm_id/name`）、provider 注册、测试、示例和 reference 文档。
 - 新增 `proxmox_qemu_snapshot` 资源，覆盖 QEMU VM 快照 CRUD（`POST/GET/PUT/DELETE /nodes/{node}/qemu/{vmid}/snapshot[/{snapname}]` + task wait）；提取共享 `client_snapshot.go`（QEMU/LXC 通用 snapshot 操作），schema、import、provider 注册、测试、示例和 reference 文档与 LXC snapshot 对齐。
+- 将 `proxmox_lxc_container` 资源和数据源的 `network`（`netN`）与 `mount_point`（`mpN`）从 `map[string]string` 升级为 typed 嵌套块（类比 QEMU network/disk 的 parse/encode + raw 回退），覆盖 network 的 `name`/`bridge`/`ip`/`gw`/`ip6`/`gw6`/`hwaddr`/`type`/`tag`/`trunks`/`rate`/`mtu`/`firewall`/`link_down` 与 mount_point 的 `volume`/`mp`/`size`/`backup`/`ro`/`quota`/`replicate`/`shared`/`acl`；无法解析的语法仍回退到 `raw.extra_config`，保持单一 source of truth。
 - 新增 `proxmox_lxc_container` 资源和数据源支持，覆盖 LXC client、task wait、schema、mapping、raw 冲突校验、provider 注册、示例和 reference 文档。
 
 ## 接下来
 
-- LXC `network`/`mount_point` 结构化解析：当前为 `map[string]string`（raw Proxmox 语法），可升级为 typed 嵌套块（类比 QEMU network/disk 的 parse/encode + raw 回退）。这是 schema 破坏性变更（用户配置需迁移），需结合版本策略评估；当前 raw 形式已完整支持所有 Proxmox network/mount_point 语法。
 - 后续新增或修改 Provider schema 时，继续运行 `make generate` 更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 - 如需要面向用户的叙事型指南，可在现有 reference 文档之外补充认证方式选择、权限要求、常见 API 错误和本地 e2e 排障说明。
 - 扩展 `proxmox_qemu_vm` typed 字段时，同步更新 schema、mapping、client 分类、测试和生成文档，并保持 typed 与 `raw.extra_config` 单一 source of truth。

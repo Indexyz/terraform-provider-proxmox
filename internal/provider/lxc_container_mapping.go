@@ -19,11 +19,12 @@ import (
 func lxcContainerStateFromAPI(ctx context.Context, node string, vmID int64, config LXCContainerConfig, status LXCContainerStatus, prior *lxcContainerModel) (lxcContainerModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	networkValue, networkDiags := stringMapStateValue(ctx, config.Network)
+	networkValue, networkRaw, networkDiags := lxcContainerNetworkStateValue(ctx, config.Network)
 	diags.Append(networkDiags...)
-	mountPointValue, mountPointDiags := stringMapStateValue(ctx, config.MountPoint)
+	mountPointValue, mountPointRaw, mountPointDiags := lxcContainerMountPointStateValue(ctx, config.MountPoint)
 	diags.Append(mountPointDiags...)
-	rawValue, rawDiags := lxcContainerRawStateValue(ctx, config.ExtraConfig)
+	extraConfig := mergeLXCContainerExtraConfig(config.ExtraConfig, networkRaw, mountPointRaw)
+	rawValue, rawDiags := lxcContainerRawStateValue(ctx, extraConfig)
 	diags.Append(rawDiags...)
 
 	ostemplate := types.StringNull()
@@ -202,9 +203,9 @@ func validateLXCContainerRawConflicts(ctx context.Context, model lxcContainerMod
 func lxcContainerConfigRequestFromModel(ctx context.Context, model lxcContainerModel) (lxcContainerConfigRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	network, networkDiags := expandStringMap(ctx, model.Network)
+	network, networkDiags := expandLXCContainerNetworkMap(ctx, model.Network)
 	diags.Append(networkDiags...)
-	mountPoint, mountPointDiags := expandStringMap(ctx, model.MountPoint)
+	mountPoint, mountPointDiags := expandLXCContainerMountPointMap(ctx, model.MountPoint)
 	diags.Append(mountPointDiags...)
 	diags.Append(validateLXCContainerMapKeys(ctx, model)...)
 	raw, rawDiags := expandLXCContainerRawModel(ctx, model.Raw)
@@ -259,12 +260,10 @@ func validateLXCContainerMapKeys(ctx context.Context, model lxcContainerModel) d
 }
 
 func validateLXCContainerMapKeySet(ctx context.Context, diags *diag.Diagnostics, value types.Map, base path.Path, valid func(string) bool, summary string, detail string) {
-	items, mapDiags := expandStringMap(ctx, value)
-	diags.Append(mapDiags...)
-	if mapDiags.HasError() {
+	if value.IsNull() || value.IsUnknown() {
 		return
 	}
-	for key := range items {
+	for key := range value.Elements() {
 		if !valid(key) {
 			diags.AddAttributeError(base.AtMapKey(key), summary, detail)
 		}
@@ -283,11 +282,259 @@ func lxcContainerRawStateValue(ctx context.Context, extraConfig map[string]strin
 	return types.ObjectValueFrom(ctx, lxcContainerRawAttrTypes(), lxcContainerRawModel{ExtraConfig: mapValue})
 }
 
-func stringMapStateValue(ctx context.Context, source map[string]string) (types.Map, diag.Diagnostics) {
+func lxcContainerNetworkStateValue(ctx context.Context, source map[string]string) (types.Map, map[string]string, diag.Diagnostics) {
+	unsupported := map[string]string{}
 	if len(source) == 0 {
-		return types.MapNull(types.StringType), nil
+		return types.MapNull(types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()}), nil, nil
 	}
-	return types.MapValueFrom(ctx, types.StringType, source)
+	items := make(map[string]lxcContainerNetworkModel)
+	for key, raw := range source {
+		parsed, ok := parseLXCContainerNetwork(raw)
+		if ok {
+			items[key] = parsed
+		} else {
+			unsupported[key] = raw
+		}
+	}
+	if len(items) == 0 {
+		return types.MapNull(types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()}), unsupported, nil
+	}
+	value, diags := types.MapValueFrom(ctx, types.ObjectType{AttrTypes: lxcContainerNetworkAttrTypes()}, items)
+	return value, unsupported, diags
+}
+
+func lxcContainerMountPointStateValue(ctx context.Context, source map[string]string) (types.Map, map[string]string, diag.Diagnostics) {
+	unsupported := map[string]string{}
+	if len(source) == 0 {
+		return types.MapNull(types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}), nil, nil
+	}
+	items := make(map[string]lxcContainerMountPointModel)
+	for key, raw := range source {
+		parsed, ok := parseLXCContainerMountPoint(raw)
+		if ok {
+			items[key] = parsed
+		} else {
+			unsupported[key] = raw
+		}
+	}
+	if len(items) == 0 {
+		return types.MapNull(types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}), unsupported, nil
+	}
+	value, diags := types.MapValueFrom(ctx, types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}, items)
+	return value, unsupported, diags
+}
+
+func parseLXCContainerNetwork(raw string) (lxcContainerNetworkModel, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return lxcContainerNetworkModel{}, false
+	}
+	parts := splitQemuConfigSegments(raw)
+	item := lxcContainerNetworkModel{}
+	for _, segment := range parts {
+		key, value, ok := splitQemuConfigKeyValue(segment)
+		if !ok {
+			return lxcContainerNetworkModel{}, false
+		}
+		switch key {
+		case "name":
+			item.Name = types.StringValue(value)
+		case "bridge":
+			item.Bridge = types.StringValue(value)
+		case "ip":
+			item.IP = types.StringValue(value)
+		case "gw":
+			item.Gateway = types.StringValue(value)
+		case "ip6":
+			item.IPv6 = types.StringValue(value)
+		case "gw6":
+			item.Gateway6 = types.StringValue(value)
+		case "hwaddr":
+			item.HWAddr = types.StringValue(value)
+		case "type":
+			item.Type = types.StringValue(value)
+		case "tag":
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return lxcContainerNetworkModel{}, false
+			}
+			item.Tag = types.Int64Value(n)
+		case "trunks":
+			item.Trunks = types.StringValue(value)
+		case "rate":
+			n, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return lxcContainerNetworkModel{}, false
+			}
+			item.Rate = types.Float64Value(n)
+		case "mtu":
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return lxcContainerNetworkModel{}, false
+			}
+			item.MTU = types.Int64Value(n)
+		case "firewall":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerNetworkModel{}, false
+			}
+			item.Firewall = types.BoolValue(b)
+		case "link_down":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerNetworkModel{}, false
+			}
+			item.LinkDown = types.BoolValue(b)
+		default:
+			return lxcContainerNetworkModel{}, false
+		}
+	}
+	return item, true
+}
+
+func encodeLXCContainerNetwork(item lxcContainerNetworkModel) string {
+	segments := make([]string, 0, 12)
+	appendStringConfig(&segments, "name", item.Name)
+	appendStringConfig(&segments, "bridge", item.Bridge)
+	appendStringConfig(&segments, "ip", item.IP)
+	appendStringConfig(&segments, "gw", item.Gateway)
+	appendStringConfig(&segments, "ip6", item.IPv6)
+	appendStringConfig(&segments, "gw6", item.Gateway6)
+	appendStringConfig(&segments, "hwaddr", item.HWAddr)
+	appendStringConfig(&segments, "type", item.Type)
+	appendInt64Config(&segments, "tag", item.Tag)
+	appendStringConfig(&segments, "trunks", item.Trunks)
+	appendFloat64Config(&segments, "rate", item.Rate)
+	appendInt64Config(&segments, "mtu", item.MTU)
+	appendBoolConfig(&segments, "firewall", item.Firewall)
+	appendBoolConfig(&segments, "link_down", item.LinkDown)
+	return strings.Join(segments, ",")
+}
+
+func parseLXCContainerMountPoint(raw string) (lxcContainerMountPointModel, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return lxcContainerMountPointModel{}, false
+	}
+	parts := splitQemuConfigSegments(raw)
+	item := lxcContainerMountPointModel{}
+	for index, segment := range parts {
+		key, value, ok := splitQemuConfigKeyValue(segment)
+		if !ok {
+			if index != 0 {
+				return lxcContainerMountPointModel{}, false
+			}
+			trimmed := strings.TrimSpace(segment)
+			if trimmed == "" {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.Volume = types.StringValue(trimmed)
+			continue
+		}
+		switch key {
+		case "volume":
+			item.Volume = types.StringValue(value)
+		case "mp":
+			item.MountPoint = types.StringValue(value)
+		case "size":
+			item.Size = types.StringValue(value)
+		case "backup":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.Backup = types.BoolValue(b)
+		case "ro":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.ReadOnly = types.BoolValue(b)
+		case "quota":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.Quota = types.BoolValue(b)
+		case "replicate":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.Replicate = types.BoolValue(b)
+		case "shared":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.Shared = types.BoolValue(b)
+		case "acl":
+			b, ok := parseQemuVMConfigBool(value)
+			if !ok {
+				return lxcContainerMountPointModel{}, false
+			}
+			item.ACL = types.BoolValue(b)
+		default:
+			return lxcContainerMountPointModel{}, false
+		}
+	}
+	return item, !item.Volume.IsNull() && !item.Volume.IsUnknown() && !item.MountPoint.IsNull() && !item.MountPoint.IsUnknown()
+}
+
+func encodeLXCContainerMountPoint(item lxcContainerMountPointModel) string {
+	segments := make([]string, 0, 9)
+	if volume := stringValue(item.Volume); volume != "" {
+		segments = append(segments, volume)
+	}
+	appendStringConfig(&segments, "mp", item.MountPoint)
+	appendStringConfig(&segments, "size", item.Size)
+	appendBoolConfig(&segments, "backup", item.Backup)
+	appendBoolConfig(&segments, "ro", item.ReadOnly)
+	appendBoolConfig(&segments, "quota", item.Quota)
+	appendBoolConfig(&segments, "replicate", item.Replicate)
+	appendBoolConfig(&segments, "shared", item.Shared)
+	appendBoolConfig(&segments, "acl", item.ACL)
+	return strings.Join(segments, ",")
+}
+
+func expandLXCContainerNetworkMap(ctx context.Context, value types.Map) (map[string]string, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return nil, nil
+	}
+	var items map[string]lxcContainerNetworkModel
+	diags := value.ElementsAs(ctx, &items, false)
+	result := make(map[string]string, len(items))
+	for key, item := range items {
+		result[key] = encodeLXCContainerNetwork(item)
+	}
+	return result, diags
+}
+
+func expandLXCContainerMountPointMap(ctx context.Context, value types.Map) (map[string]string, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return nil, nil
+	}
+	var items map[string]lxcContainerMountPointModel
+	diags := value.ElementsAs(ctx, &items, false)
+	result := make(map[string]string, len(items))
+	for key, item := range items {
+		result[key] = encodeLXCContainerMountPoint(item)
+	}
+	return result, diags
+}
+
+func mergeLXCContainerExtraConfig(base map[string]string, extras ...map[string]string) map[string]string {
+	merged := map[string]string{}
+	for k, v := range base {
+		merged[k] = v
+	}
+	for _, extra := range extras {
+		for k, v := range extra {
+			merged[k] = v
+		}
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
 }
 
 func expandLXCContainerRawModel(ctx context.Context, value types.Object) (lxcContainerRawModel, diag.Diagnostics) {
@@ -296,15 +543,6 @@ func expandLXCContainerRawModel(ctx context.Context, value types.Object) (lxcCon
 	}
 	var result lxcContainerRawModel
 	diags := value.As(ctx, &result, qemuObjectAsOptions())
-	return result, diags
-}
-
-func expandStringMap(ctx context.Context, value types.Map) (map[string]string, diag.Diagnostics) {
-	if value.IsNull() || value.IsUnknown() {
-		return nil, nil
-	}
-	result := map[string]string{}
-	diags := value.ElementsAs(ctx, &result, false)
 	return result, diags
 }
 
@@ -356,19 +594,18 @@ func appendDeletedBool(keys []string, key string, plan types.Bool, prior types.B
 }
 
 func appendDeletedMapKeys(ctx context.Context, keys []string, plan types.Map, prior types.Map, diags *diag.Diagnostics) []string {
-	priorMap, priorDiags := expandStringMap(ctx, prior)
-	diags.Append(priorDiags...)
-	if len(priorMap) == 0 {
+	if prior.IsNull() || prior.IsUnknown() {
 		return keys
 	}
-	planMap, planDiags := expandStringMap(ctx, plan)
-	diags.Append(planDiags...)
-	if diags.HasError() {
-		return keys
+	priorElements := prior.Elements()
+	planElements := map[string]bool{}
+	if !plan.IsNull() && !plan.IsUnknown() {
+		for key := range plan.Elements() {
+			planElements[key] = true
+		}
 	}
-
-	for key := range priorMap {
-		if _, ok := planMap[key]; !ok {
+	for key := range priorElements {
+		if !planElements[key] {
 			keys = append(keys, key)
 		}
 	}

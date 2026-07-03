@@ -14,7 +14,12 @@ resource "proxmox_lxc_container" "example" {
   protection = true
 
   network = {
-    net0 = "name=eth0,bridge=vmbr0,ip=dhcp,type=veth"
+    net0 = {
+      name   = "eth0"
+      bridge = "vmbr0"
+      ip     = "dhcp"
+      type   = "veth"
+    }
   }
 
   raw = {

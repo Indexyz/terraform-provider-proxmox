@@ -29,7 +29,12 @@ resource "proxmox_lxc_container" "example" {
   protection = true
 
   network = {
-    net0 = "name=eth0,bridge=vmbr0,ip=dhcp,type=veth"
+    net0 = {
+      name   = "eth0"
+      bridge = "vmbr0"
+      ip     = "dhcp"
+      type   = "veth"
+    }
   }
 
   raw = {
@@ -62,9 +67,9 @@ resource "proxmox_lxc_container" "example" {
 - `hookscript` (String) Hookscript path managed through `/config`.
 - `hostname` (String) Container hostname managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
-- `mount_point` (Map of String) Raw LXC mount-point entries keyed by Proxmox slot name such as `mp0`.
+- `mount_point` (Map of Object) Typed LXC mount points keyed by Proxmox slot name such as `mp0`. Unsupported grammar remains available through `raw.extra_config["mpN"]`. (see [below for nested schema](#nestedatt--mount_point))
 - `nameserver` (String) DNS nameserver configuration managed through `/config`.
-- `network` (Map of String) Raw LXC network entries keyed by Proxmox slot name such as `net0`.
+- `network` (Map of Object) Typed LXC network devices keyed by Proxmox slot name such as `net0`. Unsupported grammar remains available through `raw.extra_config["netN"]`. (see [below for nested schema](#nestedatt--network))
 - `onboot` (Boolean) Whether the container should start automatically on boot.
 - `ostemplate` (String) Create-time OS template such as `local:vztmpl/debian-12-standard.tar.zst`. Changes require replacement.
 - `ostype` (String) Configured container operating system type managed through `/config`.
@@ -103,3 +108,38 @@ Optional:
 - `source_node` (String) Source node that owns `source_vmid`. Defaults to the managed `node` when omitted.
 - `source_vmid` (Number) Source VMID to clone from.
 - `storage` (String) Optional target storage override for full clones.
+
+<a id="nestedatt--network"></a>
+### Nested Schema for `network`
+
+Optional:
+
+- `bridge` (String)
+- `firewall` (Boolean)
+- `gateway` (String)
+- `gateway6` (String)
+- `hwaddr` (String)
+- `ip` (String)
+- `ip6` (String)
+- `link_down` (Boolean)
+- `mtu` (Number)
+- `name` (String)
+- `rate` (Number)
+- `tag` (Number)
+- `trunks` (String)
+- `type` (String)
+
+<a id="nestedatt--mount_point"></a>
+### Nested Schema for `mount_point`
+
+Optional:
+
+- `acl` (Boolean)
+- `backup` (Boolean)
+- `mountpoint` (String)
+- `quota` (Boolean)
+- `read_only` (Boolean)
+- `replicate` (Boolean)
+- `shared` (Boolean)
+- `size` (String)
+- `volume` (String)
