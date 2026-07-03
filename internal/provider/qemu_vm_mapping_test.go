@@ -1422,3 +1422,65 @@ func TestValidateQemuVMRawConflictsReservesCPUFields(t *testing.T) {
 		})
 	}
 }
+
+func TestQemuVMStateFromAPIDefaultsMemoryFieldsOmitted(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.Balloon.IsNull() {
+		t.Fatalf("expected omitted balloon to read as null, got %#v", state.Balloon)
+	}
+	if !state.Shares.IsNull() {
+		t.Fatalf("expected omitted shares to read as null, got %#v", state.Shares)
+	}
+	if !state.Hugepages.IsNull() {
+		t.Fatalf("expected omitted hugepages to read as null, got %#v", state.Hugepages)
+	}
+}
+
+func TestQemuVMRequestFromModelMapsMemoryFields(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID:      types.Int64Value(101),
+		Balloon:   types.Int64Value(1024),
+		Shares:    types.Int64Value(500),
+		Hugepages: types.StringValue("1024"),
+	}
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if createReq.Balloon == nil || *createReq.Balloon != 1024 {
+		t.Fatalf("expected balloon=1024 in create request, got %#v", createReq.Balloon)
+	}
+	if createReq.Shares == nil || *createReq.Shares != 500 {
+		t.Fatalf("expected shares=500 in create request, got %#v", createReq.Shares)
+	}
+	if createReq.Hugepages == nil || *createReq.Hugepages != "1024" {
+		t.Fatalf("expected hugepages=1024 in create request, got %#v", createReq.Hugepages)
+	}
+}
+
+func TestValidateQemuVMRawConflictsReservesMemoryFields(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{"balloon", "shares", "hugepages"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			model := qemuVMModel{
+				Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+					ExtraConfig: mustStringMapValue(t, map[string]string{key: "2"}),
+				}),
+			}
+			diags := validateQemuVMRawConflicts(context.Background(), model)
+			if !diags.HasError() {
+				t.Fatalf("expected raw-vs-typed conflict diagnostics for %s", key)
+			}
+			if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+				t.Fatalf("unexpected diagnostic summary: %q", got)
+			}
+		})
+	}
+}

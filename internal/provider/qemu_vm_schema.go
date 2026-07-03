@@ -39,6 +39,9 @@ type qemuVMModel struct {
 	VCPUs       types.Int64   `tfsdk:"vcpus"`
 	CPUUnits    types.Int64   `tfsdk:"cpuunits"`
 	CPULimit    types.Float64 `tfsdk:"cpulimit"`
+	Balloon     types.Int64   `tfsdk:"balloon"`
+	Shares      types.Int64   `tfsdk:"shares"`
+	Hugepages   types.String  `tfsdk:"hugepages"`
 	CPU         types.String  `tfsdk:"cpu"`
 	OSType      types.String  `tfsdk:"ostype"`
 	Boot        types.String  `tfsdk:"boot"`
@@ -635,6 +638,9 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"vcpus":       datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Number of hotplugged vCPUs from `/config`."},
 		"cpuunits":    datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "CPU weight for this VM from `/config`."},
 		"cpulimit":    datasourceschema.Float64Attribute{Computed: true, MarkdownDescription: "CPU usage limit from `/config`. Value 0 indicates no limit."},
+		"balloon":     datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Target balloon memory in MiB from `/config`. 0 disables ballooning."},
+		"shares":      datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Memory shares for auto-ballooning from `/config`."},
+		"hugepages":   datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Hugepages size in MiB (`2`, `1024`, or `any`) from `/config`."},
 		"cpu":         datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured CPU model from `/config`."},
 		"ostype":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured guest operating system type from `/config`."},
 		"boot":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Boot order string from `/config`."},
@@ -696,6 +702,9 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"vcpus":       schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Number of hotplugged vCPUs managed through `/config`."},
 		"cpuunits":    schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "CPU weight for this VM managed through `/config`."},
 		"cpulimit":    schema.Float64Attribute{Optional: true, Computed: true, MarkdownDescription: "CPU usage limit managed through `/config`. Value 0 indicates no limit."},
+		"balloon":     schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Target balloon memory in MiB managed through `/config`. 0 disables ballooning."},
+		"shares":      schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Memory shares for auto-ballooning managed through `/config`."},
+		"hugepages":   schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`."},
 		"cpu":         schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured CPU model managed through `/config`."},
 		"ostype":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured guest operating system type managed through `/config`."},
 		"boot":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Boot order string managed through `/config`."},

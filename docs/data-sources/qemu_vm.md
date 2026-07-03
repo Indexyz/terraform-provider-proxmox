@@ -37,6 +37,7 @@ data "proxmox_qemu_vm" "example" {
 ### Read-Only
 
 - `agent` (String) Raw QEMU guest agent configuration string from `/config`.
+- `balloon` (Number) Target balloon memory in MiB from `/config`. 0 disables ballooning.
 - `bios` (String) Configured BIOS type from `/config`.
 - `boot` (String) Boot order string from `/config`.
 - `clone` (Attributes) Create-time clone inputs. This provider cannot infer clone provenance for existing VMs, so this remains null for imported or data source reads. (see [below for nested schema](#nestedatt--clone))
@@ -62,6 +63,7 @@ data "proxmox_qemu_vm" "example" {
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type from `/config`.
 - `sockets` (Number) Configured CPU sockets from `/config`.
+- `shares` (Number) Memory shares for auto-ballooning from `/config`.
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0` from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.
@@ -117,6 +119,7 @@ Read-Only:
 
 Read-Only:
 
+- `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) from `/config`.
 - `hotplug` (String) Hotplug feature set from `/config`.
 
 

@@ -22,6 +22,9 @@ resource "proxmox_qemu_vm" "example" {
   vcpus       = 2
   cpuunits    = 1024
   cpulimit    = 0
+  balloon     = 0
+  shares      = 1000
+  hugepages   = "any"
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"

@@ -160,6 +160,9 @@ type QemuVMConfig struct {
 	VCPUs       proxmoxOptionalInt64
 	CPUUnits    proxmoxOptionalInt64
 	CPULimit    proxmoxOptionalFloat64
+	Balloon     proxmoxOptionalInt64
+	Shares      proxmoxOptionalInt64
+	Hugepages   string
 	CPU         string
 	OSType      string
 	Boot        string
@@ -198,6 +201,9 @@ type qemuVMConfigKnown struct {
 	VCPUs       proxmoxOptionalInt64   `json:"vcpus"`
 	CPUUnits    proxmoxOptionalInt64   `json:"cpuunits"`
 	CPULimit    proxmoxOptionalFloat64 `json:"cpulimit"`
+	Balloon     proxmoxOptionalInt64   `json:"balloon"`
+	Shares      proxmoxOptionalInt64   `json:"shares"`
+	Hugepages   string                 `json:"hugepages"`
 	CPU         string                 `json:"cpu"`
 	OSType      string                 `json:"ostype"`
 	Boot        string                 `json:"boot"`
@@ -235,6 +241,9 @@ type qemuVMConfigRequest struct {
 	VCPUs       *int64
 	CPUUnits    *int64
 	CPULimit    *float64
+	Balloon     *int64
+	Shares      *int64
+	Hugepages   *string
 	CPU         *string
 	OSType      *string
 	Boot        *string
@@ -296,6 +305,9 @@ func (r UpdateQemuVMRequest) IsEmpty() bool {
 		r.VCPUs == nil &&
 		r.CPUUnits == nil &&
 		r.CPULimit == nil &&
+		r.Balloon == nil &&
+		r.Shares == nil &&
+		r.Hugepages == nil &&
 		r.CPU == nil &&
 		r.OSType == nil &&
 		r.Boot == nil &&
@@ -392,6 +404,9 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 		VCPUs:       known.VCPUs,
 		CPUUnits:    known.CPUUnits,
 		CPULimit:    known.CPULimit,
+		Balloon:     known.Balloon,
+		Shares:      known.Shares,
+		Hugepages:   known.Hugepages,
 		CPU:         known.CPU,
 		OSType:      known.OSType,
 		Boot:        known.Boot,
@@ -411,7 +426,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 
 	knownKeys := map[string]struct{}{
 		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "protection": {}, "scsihw": {}, "tablet": {}, "startup": {},
-		"bios": {}, "machine": {}, "agent": {}, "cores": {}, "sockets": {}, "memory": {}, "numa": {}, "vcpus": {}, "cpuunits": {}, "cpulimit": {}, "cpu": {},
+		"bios": {}, "machine": {}, "agent": {}, "cores": {}, "sockets": {}, "memory": {}, "numa": {}, "vcpus": {}, "cpuunits": {}, "cpulimit": {}, "balloon": {}, "shares": {}, "hugepages": {}, "cpu": {},
 		"ostype": {}, "boot": {}, "hotplug": {}, "cicustom": {}, "cipassword": {}, "citype": {},
 		"ciupgrade": {}, "ciuser": {}, "sshkeys": {},
 	}
@@ -479,6 +494,9 @@ func encodeQemuVMFields(form url.Values, req qemuVMConfigRequest) {
 	setOptionalInt64(form, "vcpus", req.VCPUs)
 	setOptionalInt64(form, "cpuunits", req.CPUUnits)
 	setOptionalFloat64(form, "cpulimit", req.CPULimit)
+	setOptionalInt64(form, "balloon", req.Balloon)
+	setOptionalInt64(form, "shares", req.Shares)
+	setOptionalString(form, "hugepages", req.Hugepages)
 	setOptionalString(form, "cpu", req.CPU)
 	setOptionalString(form, "ostype", req.OSType)
 	setOptionalString(form, "boot", req.Boot)

@@ -77,6 +77,9 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		VCPUs:       int64OrNull(config.VCPUs.Ptr()),
 		CPUUnits:    int64OrNull(config.CPUUnits.Ptr()),
 		CPULimit:    float64OrNull(config.CPULimit.Ptr()),
+		Balloon:     int64OrNull(config.Balloon.Ptr()),
+		Shares:      int64OrNull(config.Shares.Ptr()),
+		Hugepages:   stringOrNull(config.Hugepages),
 		CPU:         stringOrNull(config.CPU),
 		OSType:      stringOrNull(config.OSType),
 		Boot:        stringOrNull(config.Boot),
@@ -269,6 +272,9 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		VCPUs:       int64PointerValue(model.VCPUs),
 		CPUUnits:    int64PointerValue(model.CPUUnits),
 		CPULimit:    float64PointerValue(model.CPULimit),
+		Balloon:     int64PointerValue(model.Balloon),
+		Shares:      int64PointerValue(model.Shares),
+		Hugepages:   stringPointerValue(model.Hugepages),
 		CPU:         stringPointerValue(model.CPU),
 		OSType:      stringPointerValue(model.OSType),
 		Boot:        stringPointerValue(model.Boot),
@@ -533,7 +539,7 @@ func qemuVMVGAStateValue(ctx context.Context, base map[string]string) (types.Obj
 }
 
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
-	keys := []string{"protection", "scsihw", "tablet", "numa", "vcpus", "cpuunits", "cpulimit"}
+	keys := []string{"protection", "scsihw", "tablet", "numa", "vcpus", "cpuunits", "cpulimit", "balloon", "shares", "hugepages"}
 
 	common, commonDiags := expandQemuVMCommonModel(ctx, model.Common)
 	diags.Append(commonDiags...)

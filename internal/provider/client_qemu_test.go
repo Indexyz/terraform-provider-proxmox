@@ -46,6 +46,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"vcpus":       2,
 				"cpuunits":    1024,
 				"cpulimit":    1.5,
+				"balloon":     2048,
+				"shares":      2000,
+				"hugepages":   "2",
 				"ostype":      "l26",
 				"boot":        "order=scsi0;net0",
 			})
@@ -80,6 +83,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"vcpus":       {"2"},
 				"cpuunits":    {"1024"},
 				"cpulimit":    {"1.5"},
+				"balloon":     {"2048"},
+				"shares":      {"2000"},
+				"hugepages":   {"2"},
 			})
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/config" && r.Method == http.MethodPut:
@@ -144,6 +150,15 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if config.CPULimit.Ptr() == nil || *config.CPULimit.Ptr() != 1.5 {
 		t.Fatalf("expected cpulimit=1.5, got %#v", config.CPULimit)
 	}
+	if config.Balloon.Ptr() == nil || *config.Balloon.Ptr() != 2048 {
+		t.Fatalf("expected balloon=2048, got %#v", config.Balloon)
+	}
+	if config.Shares.Ptr() == nil || *config.Shares.Ptr() != 2000 {
+		t.Fatalf("expected shares=2000, got %#v", config.Shares)
+	}
+	if config.Hugepages != "2" {
+		t.Fatalf("expected hugepages=2, got %#v", config.Hugepages)
+	}
 
 	status, err := client.GetQemuVMStatus(ctx, "pve-1", 101)
 	if err != nil {
@@ -179,6 +194,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 			VCPUs:       intPtr64(2),
 			CPUUnits:    intPtr64(1024),
 			CPULimit:    float64Ptr(1.5),
+			Balloon:     intPtr64(2048),
+			Shares:      intPtr64(2000),
+			Hugepages:   stringPtr("2"),
 		},
 	}); err != nil {
 		t.Fatalf("CreateQemuVM() unexpected error: %v", err)
@@ -334,6 +352,37 @@ func TestDecodeQemuVMConfigCPUFieldsAreTyped(t *testing.T) {
 		t.Fatalf("expected typed cpulimit=1.5, got %#v", config.CPULimit)
 	}
 	for _, key := range []string{"numa", "vcpus", "cpuunits", "cpulimit"} {
+		if _, ok := config.ExtraConfig[key]; ok {
+			t.Fatalf("expected %s to be decoded as typed field, got extra config %#v", key, config.ExtraConfig)
+		}
+	}
+	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
+	}
+}
+
+func TestDecodeQemuVMConfigMemoryFieldsAreTyped(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeQemuVMConfig(map[string]json.RawMessage{
+		"balloon":   json.RawMessage(`2048`),
+		"shares":    json.RawMessage(`"2000"`),
+		"hugepages": json.RawMessage(`"2"`),
+		"hostpci0":  json.RawMessage(`"0000:00:1f.0"`),
+	})
+	if err != nil {
+		t.Fatalf("decodeQemuVMConfig() unexpected error: %v", err)
+	}
+	if config.Balloon.Ptr() == nil || *config.Balloon.Ptr() != 2048 {
+		t.Fatalf("expected typed balloon=2048, got %#v", config.Balloon)
+	}
+	if config.Shares.Ptr() == nil || *config.Shares.Ptr() != 2000 {
+		t.Fatalf("expected typed shares=2000, got %#v", config.Shares)
+	}
+	if config.Hugepages != "2" {
+		t.Fatalf("expected typed hugepages=2, got %#v", config.Hugepages)
+	}
+	for _, key := range []string{"balloon", "shares", "hugepages"} {
 		if _, ok := config.ExtraConfig[key]; ok {
 			t.Fatalf("expected %s to be decoded as typed field, got extra config %#v", key, config.ExtraConfig)
 		}

@@ -37,6 +37,9 @@ resource "proxmox_qemu_vm" "example" {
   vcpus       = 2
   cpuunits    = 1024
   cpulimit    = 0
+  balloon     = 0
+  shares      = 1000
+  hugepages   = "any"
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"
@@ -112,6 +115,7 @@ resource "proxmox_qemu_vm" "example" {
 - `agent` (String) Raw QEMU guest agent configuration string managed through `/config`.
 - `bios` (String) Configured BIOS type managed through `/config`.
 - `boot` (String) Boot order string managed through `/config`.
+- `balloon` (Number) Target balloon memory in MiB managed through `/config`. 0 disables ballooning.
 - `clone` (Attributes) Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases. (see [below for nested schema](#nestedatt--clone))
 - `cloud_init` (Attributes) Typed cloud-init configuration managed through `/config`. (see [below for nested schema](#nestedatt--cloud_init))
 - `common` (Attributes) Common advanced QEMU configuration managed through `/config`. (see [below for nested schema](#nestedatt--common))
@@ -134,6 +138,7 @@ resource "proxmox_qemu_vm" "example" {
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type managed through `/config`.
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
+- `shares` (Number) Memory shares for auto-ballooning managed through `/config`.
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough).
 - `startup` (String) Startup ordering string managed through `/config`.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
@@ -197,6 +202,7 @@ Optional:
 Optional:
 
 - `hotplug` (String) Hotplug feature set managed through `/config`.
+- `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 
 
 <a id="nestedatt--disk"></a>
