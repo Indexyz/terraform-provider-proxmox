@@ -136,6 +136,8 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_pool",
 		"proxmox_pools",
 		"proxmox_qemu_vm",
+		"proxmox_storage",
+		"proxmox_storages",
 		"proxmox_version",
 	}
 	if !reflect.DeepEqual(dataSourceNames, want) {

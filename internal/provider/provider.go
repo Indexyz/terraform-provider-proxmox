@@ -155,6 +155,8 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewQemuVMDataSource,
 		NewNodeDNSDataSource,
 		NewNodeTimeDataSource,
+		NewStorageDataSource,
+		NewStoragesDataSource,
 		NewVersionDataSource,
 		NewNodesDataSource,
 		NewNodeDataSource,

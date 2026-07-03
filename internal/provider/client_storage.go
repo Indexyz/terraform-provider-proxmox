@@ -135,6 +135,22 @@ func (c *Client) GetStorage(ctx context.Context, id string) (Storage, error) {
 	return decodeStorageConfig(raw)
 }
 
+func (c *Client) Storages(ctx context.Context) ([]Storage, error) {
+	var rawList []map[string]json.RawMessage
+	if err := c.do(ctx, http.MethodGet, "/storage", nil, nil, &rawList); err != nil {
+		return nil, err
+	}
+	result := make([]Storage, 0, len(rawList))
+	for _, raw := range rawList {
+		config, err := decodeStorageConfig(raw)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, config)
+	}
+	return result, nil
+}
+
 func (c *Client) CreateStorage(ctx context.Context, req StorageRequest) error {
 	form := url.Values{}
 	form.Set("storage", req.Storage)

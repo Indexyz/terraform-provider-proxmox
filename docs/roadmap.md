@@ -22,6 +22,7 @@
 - 新增 `proxmox_storage` 资源，覆盖 Proxmox VE 存储池管理（`POST/GET/PUT/DELETE /storage`），typed 常用字段（`storage`/`type` required + `content`/`nodes`/`disable`/`shared`/`path`/`pool`/`vg_name`/`thin_pool`/`server`/`export`/`share`/`username`/`password`/`monhost`/`datastore`/`namespace`/`fingerprint`/`smb_version`/`options`/`format`/`mkdir`/`sparse`/`nocow`/`krbd`/`blocksize`/`fs_name` + `raw.extra_config` 回退）、`storage`/`type` RequiresReplace、delete-key diff、import（`storage`）、provider 注册、测试、示例和 reference 文档。
 - 新增 `proxmox_role` 资源（`/access/roles` CRUD，`role_id` required + `privs` 权限字符串）和 `proxmox_user` 资源（`/access/users` CRUD，`user_id` required + `comment`/`email`/`enable`/`expire`/`firstname`/`lastname`/`groups`/`keys`/`password`），覆盖 client、schema、import、provider 注册、测试、示例和 reference 文档；补全 access 管理 RBAC 三件套（group/role/user）。
 - 新增 `proxmox_acl` 资源，覆盖 Proxmox VE 权限绑定（`GET/PUT /access/acl`），管理给定 `path` 下的 role×user/group 绑定（`path` required + `roles`/`users`/`groups` 列表 + `propagate`），支持 update diff（移除已删除绑定）、import（`path`）、provider 注册、测试、示例和 reference 文档；配合 group/role/user 形成完整 RBAC 工作流。
+- 新增 `proxmox_storage` 和 `proxmox_storages` 数据源，覆盖存储池查询（`GET /storage/{storage}` 单个、`GET /storage` 列表），provider 注册、示例和 reference 文档。
 - 新增 `proxmox_lxc_container` 资源和数据源支持，覆盖 LXC client、task wait、schema、mapping、raw 冲突校验、provider 注册、示例和 reference 文档。
 
 ## 接下来
