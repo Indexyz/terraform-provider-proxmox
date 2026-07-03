@@ -42,6 +42,7 @@ type qemuVMModel struct {
 	CloudInit   types.Object `tfsdk:"cloud_init"`
 	Network     types.Map    `tfsdk:"network"`
 	Disk        types.Map    `tfsdk:"disk"`
+	Serial      types.Map    `tfsdk:"serial"`
 	EFIDisk     types.Object `tfsdk:"efi_disk"`
 	TPMState    types.Object `tfsdk:"tpm_state"`
 	VGA         types.Object `tfsdk:"vga"`
@@ -633,6 +634,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"cloud_init":  qemuVMCloudInitDataSourceAttribute(),
 		"network":     qemuVMNetworkDataSourceAttribute(),
 		"disk":        qemuVMDiskDataSourceAttribute(),
+		"serial":      datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0`."},
 		"efi_disk":    qemuVMEFIDiskDataSourceAttribute(),
 		"tpm_state":   qemuVMTPMStateDataSourceAttribute(),
 		"vga":         qemuVMVGADataSourceAttribute(),
@@ -689,6 +691,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"cloud_init":  qemuVMCloudInitResourceAttribute(),
 		"network":     qemuVMNetworkResourceAttribute(),
 		"disk":        qemuVMDiskResourceAttribute(),
+		"serial":      schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough)."},
 		"efi_disk":    qemuVMEFIDiskResourceAttribute(),
 		"tpm_state":   qemuVMTPMStateResourceAttribute(),
 		"vga":         qemuVMVGAResourceAttribute(),

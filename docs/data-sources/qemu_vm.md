@@ -59,6 +59,7 @@ data "proxmox_qemu_vm" "example" {
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type from `/config`.
 - `sockets` (Number) Configured CPU sockets from `/config`.
+- `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0` from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM from `/config`.

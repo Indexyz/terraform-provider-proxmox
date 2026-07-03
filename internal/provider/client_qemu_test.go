@@ -33,6 +33,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"protection":  true,
 				"scsihw":      "virtio-scsi-pci",
 				"tablet":      true,
+				"serial0":     "socket",
 				"startup":     "order=2",
 				"bios":        "ovmf",
 				"machine":     "q35",
@@ -70,6 +71,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"cpu":         {"host"},
 				"ostype":      {"l26"},
 				"boot":        {"order=scsi0;net0"},
+				"serial0":     {"socket"},
 			})
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/config" && r.Method == http.MethodPut:
@@ -119,6 +121,9 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if config.Tablet.Ptr() == nil || !*config.Tablet.Ptr() {
 		t.Fatalf("expected tablet=true, got %#v", config.Tablet)
 	}
+	if got := config.Serial["serial0"]; got != "socket" {
+		t.Fatalf("expected serial0=socket, got %#v", config.Serial)
+	}
 
 	status, err := client.GetQemuVMStatus(ctx, "pve-1", 101)
 	if err != nil {
@@ -149,6 +154,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 			CPU:         stringPtr("host"),
 			OSType:      stringPtr("l26"),
 			Boot:        stringPtr("order=scsi0;net0"),
+			Serial:      map[string]string{"serial0": "socket"},
 		},
 	}); err != nil {
 		t.Fatalf("CreateQemuVM() unexpected error: %v", err)
@@ -244,6 +250,34 @@ func TestDecodeQemuVMConfigTabletIsTyped(t *testing.T) {
 	}
 	if _, ok := config.ExtraConfig["tablet"]; ok {
 		t.Fatalf("expected tablet to be decoded as typed field, got extra config %#v", config.ExtraConfig)
+	}
+	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
+	}
+}
+
+func TestDecodeQemuVMConfigSerialSlotsAreTyped(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeQemuVMConfig(map[string]json.RawMessage{
+		"serial0":  json.RawMessage(`"socket"`),
+		"serial1":  json.RawMessage(`"/dev/ttyS0"`),
+		"hostpci0": json.RawMessage(`"0000:00:1f.0"`),
+	})
+	if err != nil {
+		t.Fatalf("decodeQemuVMConfig() unexpected error: %v", err)
+	}
+	if got := config.Serial["serial0"]; got != "socket" {
+		t.Fatalf("expected serial0=socket typed, got %#v", config.Serial)
+	}
+	if got := config.Serial["serial1"]; got != "/dev/ttyS0" {
+		t.Fatalf("expected serial1=/dev/ttyS0 typed, got %#v", config.Serial)
+	}
+	if _, ok := config.ExtraConfig["serial0"]; ok {
+		t.Fatalf("expected serial0 to be decoded as typed slot, got extra config %#v", config.ExtraConfig)
+	}
+	if _, ok := config.ExtraConfig["serial1"]; ok {
+		t.Fatalf("expected serial1 to be decoded as typed slot, got extra config %#v", config.ExtraConfig)
 	}
 	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)

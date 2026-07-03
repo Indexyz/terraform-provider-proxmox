@@ -1284,3 +1284,72 @@ func TestValidateQemuVMRawConflictsReservesVGA(t *testing.T) {
 		t.Fatalf("unexpected diagnostic summary: %q", got)
 	}
 }
+
+func TestQemuVMStateFromAPIParsesSerial(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{
+		Name: "api-vm",
+		Serial: map[string]string{
+			"serial0": "socket",
+			"serial1": "/dev/ttyS0",
+		},
+		ExtraConfig: map[string]string{"hostpci0": "0000:00:1f.0"},
+	}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	serial := decodeStringMap(t, state.Serial)
+	if serial["serial0"] != "socket" || serial["serial1"] != "/dev/ttyS0" {
+		t.Fatalf("unexpected serial state: %#v", serial)
+	}
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	if gotRaw["hostpci0"] != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key preserved, got %#v", gotRaw)
+	}
+}
+
+func TestQemuVMStateFromAPIAbsentSerialNull(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.Serial.IsNull() {
+		t.Fatalf("expected absent serial map null, got %#v", state.Serial)
+	}
+}
+
+func TestQemuVMRequestFromModelEncodesSerial(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID:   types.Int64Value(101),
+		Serial: mustStringMapValue(t, map[string]string{"serial0": "socket"}),
+	}
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if got := createReq.Serial["serial0"]; got != "socket" {
+		t.Fatalf("expected serial0 in create request, got %#v", createReq.Serial)
+	}
+}
+
+func TestValidateQemuVMRawConflictsReservesSerial(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		Serial: mustStringMapValue(t, map[string]string{"serial0": "socket"}),
+		Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+			ExtraConfig: mustStringMapValue(t, map[string]string{"serial0": "socket"}),
+		}),
+	}
+	diags := validateQemuVMRawConflicts(context.Background(), model)
+	if !diags.HasError() {
+		t.Fatal("expected raw-vs-typed conflict diagnostics for serial0")
+	}
+	if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+		t.Fatalf("unexpected diagnostic summary: %q", got)
+	}
+}

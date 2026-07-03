@@ -33,6 +33,8 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	diags.Append(networkDiags...)
 	diskValue, diskRaw, diskDiags := qemuVMDiskStateValue(ctx, config.Disk)
 	diags.Append(diskDiags...)
+	serialValue, serialDiags := qemuVMSerialStateValue(ctx, config.Serial)
+	diags.Append(serialDiags...)
 	tpmStateValue, extraConfigRaw, tpmStateDiags := qemuVMTPMStateValue(ctx, config.ExtraConfig)
 	diags.Append(tpmStateDiags...)
 	efiDiskValue, extraConfigRaw, efiDiskDiags := qemuVMEFIDiskStateValue(ctx, extraConfigRaw)
@@ -78,6 +80,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		CloudInit:   cloudInitValue,
 		Network:     networkValue,
 		Disk:        diskValue,
+		Serial:      serialValue,
 		EFIDisk:     efiDiskValue,
 		TPMState:    tpmStateValue,
 		VGA:         vgaValue,
@@ -192,6 +195,10 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 	diags.Append(networkDiags...)
 	disk, diskDiags := expandQemuVMDiskModelMap(ctx, model.Disk)
 	diags.Append(diskDiags...)
+	var serialValues map[string]string
+	if !model.Serial.IsNull() && !model.Serial.IsUnknown() {
+		diags.Append(model.Serial.ElementsAs(ctx, &serialValues, false)...)
+	}
 	efiDisk, efiDiskDiags := expandQemuVMEFIDiskModel(ctx, model.EFIDisk)
 	diags.Append(efiDiskDiags...)
 	vga, vgaDiags := expandQemuVMVGAModel(ctx, model.VGA)
@@ -267,6 +274,7 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		IPConfig:    ipConfigValues,
 		Network:     networkValues,
 		Disk:        diskValues,
+		Serial:      serialValues,
 		ExtraConfig: extraConfig,
 	}, diags
 }
@@ -324,6 +332,13 @@ func qemuVMIPConfigStateValue(ctx context.Context, source map[string]string) (ty
 		return types.MapNull(types.ObjectType{AttrTypes: qemuVMIPConfigAttrTypes()}), nil
 	}
 	return types.MapValueFrom(ctx, types.ObjectType{AttrTypes: qemuVMIPConfigAttrTypes()}, items)
+}
+
+func qemuVMSerialStateValue(ctx context.Context, source map[string]string) (types.Map, diag.Diagnostics) {
+	if len(source) == 0 {
+		return types.MapNull(types.StringType), nil
+	}
+	return types.MapValueFrom(ctx, types.StringType, source)
 }
 
 func qemuVMNetworkStateValue(ctx context.Context, source map[string]string) (types.Map, map[string]string, diag.Diagnostics) {
@@ -557,6 +572,14 @@ func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.D
 		var disk map[string]qemuVMDiskModel
 		diags.Append(model.Disk.ElementsAs(ctx, &disk, false)...)
 		for key := range disk {
+			keys = append(keys, key)
+		}
+	}
+
+	if !model.Serial.IsNull() && !model.Serial.IsUnknown() {
+		var serial map[string]string
+		diags.Append(model.Serial.ElementsAs(ctx, &serial, false)...)
+		for key := range serial {
 			keys = append(keys, key)
 		}
 	}
@@ -1300,6 +1323,10 @@ func isQemuVMDiskKey(key string) bool {
 		}
 	}
 	return false
+}
+
+func isQemuVMSerialKey(key string) bool {
+	return strings.HasPrefix(key, "serial") && len(key) > len("serial") && isDecimalString(key[len("serial"):])
 }
 
 func isDecimalString(value string) bool {

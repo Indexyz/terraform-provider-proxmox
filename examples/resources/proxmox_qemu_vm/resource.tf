@@ -68,9 +68,13 @@ resource "proxmox_qemu_vm" "example" {
     }
   }
 
+  serial = {
+    serial0 = "socket"
+  }
+
   raw = {
     extra_config = {
-      serial0 = "socket"
+      rng0 = "/dev/urandom"
     }
   }
 }

@@ -83,9 +83,13 @@ resource "proxmox_qemu_vm" "example" {
     }
   }
 
+  serial = {
+    serial0 = "socket"
+  }
+
   raw = {
     extra_config = {
-      serial0 = "socket"
+      rng0 = "/dev/urandom"
     }
   }
 }
@@ -123,6 +127,7 @@ resource "proxmox_qemu_vm" "example" {
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type managed through `/config`.
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
+- `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough).
 - `startup` (String) Startup ordering string managed through `/config`.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.

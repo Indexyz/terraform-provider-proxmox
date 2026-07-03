@@ -129,6 +129,7 @@ type QemuVMConfig struct {
 	IPConfig    map[string]string
 	Network     map[string]string
 	Disk        map[string]string
+	Serial      map[string]string
 	ExtraConfig map[string]string
 }
 
@@ -195,6 +196,7 @@ type qemuVMConfigRequest struct {
 	IPConfig    map[string]string
 	Network     map[string]string
 	Disk        map[string]string
+	Serial      map[string]string
 	ExtraConfig map[string]string
 }
 
@@ -251,6 +253,7 @@ func (r UpdateQemuVMRequest) IsEmpty() bool {
 		len(r.IPConfig) == 0 &&
 		len(r.Network) == 0 &&
 		len(r.Disk) == 0 &&
+		len(r.Serial) == 0 &&
 		len(r.ExtraConfig) == 0
 }
 
@@ -342,6 +345,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 		IPConfig:    map[string]string{},
 		Network:     map[string]string{},
 		Disk:        map[string]string{},
+		Serial:      map[string]string{},
 		ExtraConfig: map[string]string{},
 	}
 
@@ -369,6 +373,8 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 			config.Network[key] = decoded
 		case isQemuVMDiskKey(key):
 			config.Disk[key] = decoded
+		case isQemuVMSerialKey(key):
+			config.Serial[key] = decoded
 		default:
 			config.ExtraConfig[key] = decoded
 		}
@@ -382,6 +388,9 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 	}
 	if len(config.Disk) == 0 {
 		config.Disk = nil
+	}
+	if len(config.Serial) == 0 {
+		config.Serial = nil
 	}
 	if len(config.ExtraConfig) == 0 {
 		config.ExtraConfig = nil
@@ -419,6 +428,7 @@ func encodeQemuVMFields(form url.Values, req qemuVMConfigRequest) {
 	setSortedStringMap(form, req.IPConfig)
 	setSortedStringMap(form, req.Network)
 	setSortedStringMap(form, req.Disk)
+	setSortedStringMap(form, req.Serial)
 	setSortedStringMap(form, req.ExtraConfig)
 }
 
