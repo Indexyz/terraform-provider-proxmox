@@ -71,21 +71,45 @@ func (r *LXCContainerResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	validateRequiredLXCContainerCreateAttribute(&resp.Diagnostics, path.Root("ostemplate"), plan.OSTemplate, "ostemplate")
-	validateRequiredLXCContainerCreateAttribute(&resp.Diagnostics, path.Root("rootfs"), plan.RootFS, "rootfs")
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	if !plan.Clone.IsNull() && !plan.Clone.IsUnknown() {
+		cloneReq, diags := lxcContainerCloneRequestFromModel(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if err := r.client.CloneLXCContainer(ctx, cloneReq); err != nil {
+			resp.Diagnostics.AddError("Unable to Clone Proxmox LXC Container", err.Error())
+			return
+		}
 
-	createReq, diags := lxcContainerCreateRequestFromModel(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+		updateReq, diags := lxcContainerUpdateRequestFromModel(ctx, plan, lxcContainerModel{})
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if !updateReq.IsEmpty() {
+			if err := r.client.UpdateLXCContainer(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), updateReq); err != nil {
+				resp.Diagnostics.AddError("Unable to Update Cloned Proxmox LXC Container", err.Error())
+				return
+			}
+		}
+	} else {
+		validateRequiredLXCContainerCreateAttribute(&resp.Diagnostics, path.Root("ostemplate"), plan.OSTemplate, "ostemplate")
+		validateRequiredLXCContainerCreateAttribute(&resp.Diagnostics, path.Root("rootfs"), plan.RootFS, "rootfs")
+		if resp.Diagnostics.HasError() {
+			return
+		}
 
-	if err := r.client.CreateLXCContainer(ctx, plan.Node.ValueString(), createReq); err != nil {
-		resp.Diagnostics.AddError("Unable to Create Proxmox LXC Container", err.Error())
-		return
+		createReq, diags := lxcContainerCreateRequestFromModel(ctx, plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if err := r.client.CreateLXCContainer(ctx, plan.Node.ValueString(), createReq); err != nil {
+			resp.Diagnostics.AddError("Unable to Create Proxmox LXC Container", err.Error())
+			return
+		}
 	}
 
 	state, diags := r.readLXCContainerState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &plan)

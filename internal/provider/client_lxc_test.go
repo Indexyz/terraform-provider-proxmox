@@ -459,6 +459,53 @@ func TestClientLXCContainerTaskTimeoutCap(t *testing.T) {
 	}
 }
 
+func TestClientLXCContainerClone(t *testing.T) {
+	ctx := context.Background()
+	withLXCContainerTaskTiming(t, time.Millisecond, time.Second)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertTokenAuth(t, r)
+		switch {
+		case r.URL.Path == "/api2/json/nodes/pve-1/lxc/9000/clone" && r.Method == http.MethodPost:
+			assertFormValues(t, r, url.Values{
+				"newid":    {"200"},
+				"node":     {"pve-1"},
+				"hostname": {"cloned-ct"},
+				"full":     {"1"},
+				"storage":  {"local-lvm"},
+			})
+			writeEnvelope(t, w, "UPID:pve-1:0001:clone:9000:")
+		case isLXCContainerTaskRequest(r, "UPID:pve-1:0001:clone:9000:"):
+			writeEnvelope(t, w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ctx, ClientConfig{
+		Endpoint:       server.URL,
+		APITokenID:     "terraform@pve!provider",
+		APITokenSecret: "token-secret",
+		Timeout:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() unexpected error: %v", err)
+	}
+
+	if err := client.CloneLXCContainer(ctx, CloneLXCContainerRequest{
+		SourceNode: "pve-1",
+		SourceVMID: 9000,
+		TargetNode: "pve-1",
+		NewID:      200,
+		Hostname:   stringPtr("cloned-ct"),
+		Full:       boolPtr(true),
+		Storage:    stringPtr("local-lvm"),
+	}); err != nil {
+		t.Fatalf("CloneLXCContainer() unexpected error: %v", err)
+	}
+}
+
 func isLXCContainerTaskRequest(r *http.Request, upid string) bool {
 	if r.Method != http.MethodGet {
 		return false

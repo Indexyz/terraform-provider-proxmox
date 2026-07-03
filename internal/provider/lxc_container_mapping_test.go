@@ -278,3 +278,58 @@ func assertStringMapValue(t *testing.T, value types.Map, expected map[string]str
 		t.Fatalf("unexpected map value: got %#v want %#v", actual, expected)
 	}
 }
+
+func mustLXCContainerCloneValue(t *testing.T, value lxcContainerCloneModel) types.Object {
+	t.Helper()
+	result, diags := types.ObjectValueFrom(context.Background(), lxcContainerCloneAttrTypes(), value)
+	assertNoDiags(t, diags)
+	return result
+}
+
+func TestLXCContainerCloneRequestFromModel(t *testing.T) {
+	t.Parallel()
+
+	model := lxcContainerModel{
+		Node:     types.StringValue("pve-1"),
+		VMID:     types.Int64Value(200),
+		Hostname: types.StringValue("cloned-ct"),
+		Clone: mustLXCContainerCloneValue(t, lxcContainerCloneModel{
+			SourceVMID: types.Int64Value(9000),
+			Full:       types.BoolValue(true),
+			Storage:    types.StringValue("local-lvm"),
+		}),
+	}
+
+	cloneReq, diags := lxcContainerCloneRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if cloneReq.SourceNode != "pve-1" || cloneReq.SourceVMID != 9000 || cloneReq.NewID != 200 {
+		t.Fatalf("unexpected clone core values: %#v", cloneReq)
+	}
+	if cloneReq.Hostname == nil || *cloneReq.Hostname != "cloned-ct" {
+		t.Fatalf("unexpected hostname: %#v", cloneReq.Hostname)
+	}
+	if cloneReq.Full == nil || !*cloneReq.Full {
+		t.Fatalf("expected full=true, got %#v", cloneReq.Full)
+	}
+	if cloneReq.Storage == nil || *cloneReq.Storage != "local-lvm" {
+		t.Fatalf("unexpected storage: %#v", cloneReq.Storage)
+	}
+}
+
+func TestLXCContainerCloneRequestDefaultsSourceNode(t *testing.T) {
+	t.Parallel()
+
+	model := lxcContainerModel{
+		Node: types.StringValue("pve-2"),
+		VMID: types.Int64Value(201),
+		Clone: mustLXCContainerCloneValue(t, lxcContainerCloneModel{
+			SourceVMID: types.Int64Value(9001),
+		}),
+	}
+
+	cloneReq, diags := lxcContainerCloneRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if cloneReq.SourceNode != "pve-2" {
+		t.Fatalf("expected source_node to default to managed node pve-2, got %q", cloneReq.SourceNode)
+	}
+}

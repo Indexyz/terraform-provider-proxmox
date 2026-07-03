@@ -53,6 +53,7 @@ data "proxmox_lxc_container" "example" {
 - `ostype` (String) Configured container operating system type from `/config`.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this container.
 - `raw` (Attributes) Escape hatch for LXC `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
+- `clone` (Attributes) Create-time clone inputs. This provider cannot infer clone provenance for existing containers, so this remains null for imported or data source reads. (see [below for nested schema](#nestedatt--clone))
 - `rootfs` (String) Root filesystem configuration from `/config`.
 - `searchdomain` (String) DNS search domain configuration from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
@@ -69,3 +70,15 @@ data "proxmox_lxc_container" "example" {
 Read-Only:
 
 - `extra_config` (Map of String) Raw Proxmox LXC config entries keyed by their exact `/config` key.
+
+<a id="nestedatt--clone"></a>
+### Nested Schema for `clone`
+
+Read-Only:
+
+- `bwlimit` (Number) Optional clone bandwidth limit in KiB/s.
+- `full` (Boolean) Whether to request a full clone.
+- `snapshot_name` (String) Optional source snapshot name to clone from.
+- `source_node` (String) Source node that owns `source_vmid`.
+- `source_vmid` (Number) Source VMID to clone from.
+- `storage` (String) Optional target storage override for full clones.

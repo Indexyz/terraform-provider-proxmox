@@ -120,6 +120,20 @@ type UpdateLXCContainerRequest struct {
 	lxcContainerConfigRequest
 }
 
+type CloneLXCContainerRequest struct {
+	SourceNode   string
+	SourceVMID   int64
+	TargetNode   string
+	NewID        int64
+	Hostname     *string
+	Description  *string
+	Pool         *string
+	Full         *bool
+	SnapshotName *string
+	Storage      *string
+	BWLimit      *int64
+}
+
 type lxcContainerTaskStatus struct {
 	Status     string `json:"status"`
 	ExitStatus string `json:"exitstatus"`
@@ -151,6 +165,25 @@ func (c *Client) CreateLXCContainer(ctx context.Context, node string, req Create
 		return err
 	}
 	return c.waitForLXCContainerTask(ctx, node, upid)
+}
+
+func (c *Client) CloneLXCContainer(ctx context.Context, req CloneLXCContainerRequest) error {
+	form := url.Values{}
+	form.Set("newid", strconv.FormatInt(req.NewID, 10))
+	setOptionalString(form, "node", stringPtrIfNotEmpty(req.TargetNode))
+	setOptionalString(form, "hostname", req.Hostname)
+	setOptionalString(form, "description", req.Description)
+	setOptionalString(form, "pool", req.Pool)
+	setOptionalBool(form, "full", req.Full)
+	setOptionalString(form, "snapname", req.SnapshotName)
+	setOptionalString(form, "storage", req.Storage)
+	setOptionalInt64(form, "bwlimit", req.BWLimit)
+
+	var upid string
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/lxc/%d/clone", url.PathEscape(req.SourceNode), req.SourceVMID), nil, form, &upid); err != nil {
+		return err
+	}
+	return c.waitForLXCContainerTask(ctx, req.SourceNode, upid)
 }
 
 func (c *Client) UpdateLXCContainer(ctx context.Context, node string, vmID int64, req UpdateLXCContainerRequest) error {

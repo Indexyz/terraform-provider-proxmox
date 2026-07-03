@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 func lxcContainerStateFromAPI(ctx context.Context, node string, vmID int64, config LXCContainerConfig, status LXCContainerStatus, prior *lxcContainerModel) (lxcContainerModel, diag.Diagnostics) {
@@ -80,6 +81,7 @@ func lxcContainerStateFromAPI(ctx context.Context, node string, vmID int64, conf
 		Network:      networkValue,
 		MountPoint:   mountPointValue,
 		Raw:          rawValue,
+		Clone:        lxcContainerCloneStateValue(prior),
 		Status:       stringOrNull(status.Status),
 		Uptime:       int64OrNull(status.Uptime.Ptr()),
 	}, diags
@@ -114,6 +116,42 @@ func lxcContainerCreateRequestFromModel(ctx context.Context, model lxcContainerM
 		OSTemplate:                stringPointerValue(model.OSTemplate),
 		lxcContainerConfigRequest: configReq,
 	}, diags
+}
+
+func lxcContainerCloneRequestFromModel(ctx context.Context, model lxcContainerModel) (CloneLXCContainerRequest, diag.Diagnostics) {
+	clone, diags := expandLXCContainerCloneModel(ctx, model.Clone)
+	if diags.HasError() {
+		return CloneLXCContainerRequest{}, diags
+	}
+
+	return CloneLXCContainerRequest{
+		SourceNode:   firstNonEmpty(stringValue(clone.SourceNode), stringValue(model.Node)),
+		SourceVMID:   clone.SourceVMID.ValueInt64(),
+		TargetNode:   stringValue(model.Node),
+		NewID:        model.VMID.ValueInt64(),
+		Hostname:     stringPointerValue(model.Hostname),
+		Description:  stringPointerValue(model.Description),
+		Pool:         nil,
+		Full:         boolPointerValue(clone.Full),
+		SnapshotName: stringPointerValue(clone.SnapshotName),
+		Storage:      stringPointerValue(clone.Storage),
+		BWLimit:      int64PointerValue(clone.BWLimit),
+	}, diags
+}
+
+func lxcContainerCloneStateValue(prior *lxcContainerModel) types.Object {
+	if prior == nil || prior.Clone.IsNull() || prior.Clone.IsUnknown() {
+		return types.ObjectNull(lxcContainerCloneAttrTypes())
+	}
+	return prior.Clone
+}
+
+func expandLXCContainerCloneModel(ctx context.Context, value types.Object) (lxcContainerCloneModel, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return lxcContainerCloneModel{}, nil
+	}
+	var result lxcContainerCloneModel
+	return result, value.As(ctx, &result, basetypes.ObjectAsOptions{})
 }
 
 func lxcContainerUpdateRequestFromModel(ctx context.Context, plan lxcContainerModel, prior lxcContainerModel) (UpdateLXCContainerRequest, diag.Diagnostics) {

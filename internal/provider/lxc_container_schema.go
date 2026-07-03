@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -45,6 +46,7 @@ type lxcContainerModel struct {
 	Network      types.Map     `tfsdk:"network"`
 	MountPoint   types.Map     `tfsdk:"mount_point"`
 	Raw          types.Object  `tfsdk:"raw"`
+	Clone        types.Object  `tfsdk:"clone"`
 	Status       types.String  `tfsdk:"status"`
 	Uptime       types.Int64   `tfsdk:"uptime"`
 }
@@ -56,6 +58,57 @@ type lxcContainerRawModel struct {
 func lxcContainerRawAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"extra_config": types.MapType{ElemType: types.StringType},
+	}
+}
+
+type lxcContainerCloneModel struct {
+	SourceNode   types.String `tfsdk:"source_node"`
+	SourceVMID   types.Int64  `tfsdk:"source_vmid"`
+	Full         types.Bool   `tfsdk:"full"`
+	SnapshotName types.String `tfsdk:"snapshot_name"`
+	Storage      types.String `tfsdk:"storage"`
+	BWLimit      types.Int64  `tfsdk:"bwlimit"`
+}
+
+func lxcContainerCloneAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"source_node":   types.StringType,
+		"source_vmid":   types.Int64Type,
+		"full":          types.BoolType,
+		"snapshot_name": types.StringType,
+		"storage":       types.StringType,
+		"bwlimit":       types.Int64Type,
+	}
+}
+
+func lxcContainerCloneDataSourceAttribute() datasourceschema.SingleNestedAttribute {
+	return datasourceschema.SingleNestedAttribute{
+		Computed:            true,
+		MarkdownDescription: "Create-time clone inputs. This provider cannot infer clone provenance for existing containers, so this remains null for imported or data source reads.",
+		Attributes: map[string]datasourceschema.Attribute{
+			"source_node":   datasourceschema.StringAttribute{Computed: true},
+			"source_vmid":   datasourceschema.Int64Attribute{Computed: true},
+			"full":          datasourceschema.BoolAttribute{Computed: true},
+			"snapshot_name": datasourceschema.StringAttribute{Computed: true},
+			"storage":       datasourceschema.StringAttribute{Computed: true},
+			"bwlimit":       datasourceschema.Int64Attribute{Computed: true},
+		},
+	}
+}
+
+func lxcContainerCloneResourceAttribute() schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		MarkdownDescription: "Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create (ostemplate) path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases.",
+		PlanModifiers:       []planmodifier.Object{objectplanmodifier.RequiresReplaceIfConfigured()},
+		Attributes: map[string]schema.Attribute{
+			"source_node":   schema.StringAttribute{Optional: true, MarkdownDescription: "Source node that owns `source_vmid`. Defaults to the managed `node` when omitted."},
+			"source_vmid":   schema.Int64Attribute{Required: true, MarkdownDescription: "Source VMID to clone from.", PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
+			"full":          schema.BoolAttribute{Optional: true, MarkdownDescription: "Whether to request a full clone."},
+			"snapshot_name": schema.StringAttribute{Optional: true, MarkdownDescription: "Optional source snapshot name to clone from."},
+			"storage":       schema.StringAttribute{Optional: true, MarkdownDescription: "Optional target storage override for full clones."},
+			"bwlimit":       schema.Int64Attribute{Optional: true, MarkdownDescription: "Optional clone bandwidth limit in KiB/s."},
+		},
 	}
 }
 
@@ -112,6 +165,7 @@ func lxcContainerDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"network":      datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC network entries keyed by Proxmox slot name such as `net0`."},
 		"mount_point":  datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC mount-point entries keyed by Proxmox slot name such as `mp0`."},
 		"raw":          lxcContainerRawDataSourceAttribute(),
+		"clone":        lxcContainerCloneDataSourceAttribute(),
 		"status":       datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`."},
 		"uptime":       datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Observed container uptime in seconds from `/status/current`."},
 	}
@@ -166,6 +220,7 @@ func lxcContainerResourceAttributes() map[string]schema.Attribute {
 		"network":      schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC network entries keyed by Proxmox slot name such as `net0`."},
 		"mount_point":  schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Raw LXC mount-point entries keyed by Proxmox slot name such as `mp0`."},
 		"raw":          lxcContainerRawResourceAttribute(),
+		"clone":        lxcContainerCloneResourceAttribute(),
 		"status":       schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`. Terraform does not manage power state."},
 		"uptime":       schema.Int64Attribute{Computed: true, MarkdownDescription: "Observed container uptime in seconds from `/status/current`."},
 	}
