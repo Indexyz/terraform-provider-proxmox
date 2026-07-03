@@ -16,40 +16,44 @@ import (
 )
 
 type qemuVMModel struct {
-	ID          types.String `tfsdk:"id"`
-	Node        types.String `tfsdk:"node"`
-	VMID        types.Int64  `tfsdk:"vm_id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Tags        types.String `tfsdk:"tags"`
-	Template    types.Bool   `tfsdk:"template"`
-	Pool        types.String `tfsdk:"pool"`
-	OnBoot      types.Bool   `tfsdk:"onboot"`
-	Protection  types.Bool   `tfsdk:"protection"`
-	SCSIHW      types.String `tfsdk:"scsihw"`
-	Tablet      types.Bool   `tfsdk:"tablet"`
-	Startup     types.String `tfsdk:"startup"`
-	Bios        types.String `tfsdk:"bios"`
-	Machine     types.String `tfsdk:"machine"`
-	Agent       types.String `tfsdk:"agent"`
-	Cores       types.Int64  `tfsdk:"cores"`
-	Sockets     types.Int64  `tfsdk:"sockets"`
-	Memory      types.Int64  `tfsdk:"memory"`
-	CPU         types.String `tfsdk:"cpu"`
-	OSType      types.String `tfsdk:"ostype"`
-	Boot        types.String `tfsdk:"boot"`
-	Common      types.Object `tfsdk:"common"`
-	CloudInit   types.Object `tfsdk:"cloud_init"`
-	Network     types.Map    `tfsdk:"network"`
-	Disk        types.Map    `tfsdk:"disk"`
-	Serial      types.Map    `tfsdk:"serial"`
-	EFIDisk     types.Object `tfsdk:"efi_disk"`
-	TPMState    types.Object `tfsdk:"tpm_state"`
-	VGA         types.Object `tfsdk:"vga"`
-	Raw         types.Object `tfsdk:"raw"`
-	Clone       types.Object `tfsdk:"clone"`
-	Status      types.String `tfsdk:"status"`
-	Uptime      types.Int64  `tfsdk:"uptime"`
+	ID          types.String  `tfsdk:"id"`
+	Node        types.String  `tfsdk:"node"`
+	VMID        types.Int64   `tfsdk:"vm_id"`
+	Name        types.String  `tfsdk:"name"`
+	Description types.String  `tfsdk:"description"`
+	Tags        types.String  `tfsdk:"tags"`
+	Template    types.Bool    `tfsdk:"template"`
+	Pool        types.String  `tfsdk:"pool"`
+	OnBoot      types.Bool    `tfsdk:"onboot"`
+	Protection  types.Bool    `tfsdk:"protection"`
+	SCSIHW      types.String  `tfsdk:"scsihw"`
+	Tablet      types.Bool    `tfsdk:"tablet"`
+	Startup     types.String  `tfsdk:"startup"`
+	Bios        types.String  `tfsdk:"bios"`
+	Machine     types.String  `tfsdk:"machine"`
+	Agent       types.String  `tfsdk:"agent"`
+	Cores       types.Int64   `tfsdk:"cores"`
+	Sockets     types.Int64   `tfsdk:"sockets"`
+	Memory      types.Int64   `tfsdk:"memory"`
+	NUMA        types.Bool    `tfsdk:"numa"`
+	VCPUs       types.Int64   `tfsdk:"vcpus"`
+	CPUUnits    types.Int64   `tfsdk:"cpuunits"`
+	CPULimit    types.Float64 `tfsdk:"cpulimit"`
+	CPU         types.String  `tfsdk:"cpu"`
+	OSType      types.String  `tfsdk:"ostype"`
+	Boot        types.String  `tfsdk:"boot"`
+	Common      types.Object  `tfsdk:"common"`
+	CloudInit   types.Object  `tfsdk:"cloud_init"`
+	Network     types.Map     `tfsdk:"network"`
+	Disk        types.Map     `tfsdk:"disk"`
+	Serial      types.Map     `tfsdk:"serial"`
+	EFIDisk     types.Object  `tfsdk:"efi_disk"`
+	TPMState    types.Object  `tfsdk:"tpm_state"`
+	VGA         types.Object  `tfsdk:"vga"`
+	Raw         types.Object  `tfsdk:"raw"`
+	Clone       types.Object  `tfsdk:"clone"`
+	Status      types.String  `tfsdk:"status"`
+	Uptime      types.Int64   `tfsdk:"uptime"`
 }
 
 type qemuVMCommonModel struct {
@@ -627,6 +631,10 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"cores":       datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Configured vCPU cores from `/config`."},
 		"sockets":     datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Configured CPU sockets from `/config`."},
 		"memory":      datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Configured memory in MiB from `/config`."},
+		"numa":        datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether NUMA is enabled for this VM from `/config`."},
+		"vcpus":       datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Number of hotplugged vCPUs from `/config`."},
+		"cpuunits":    datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "CPU weight for this VM from `/config`."},
+		"cpulimit":    datasourceschema.Float64Attribute{Computed: true, MarkdownDescription: "CPU usage limit from `/config`. Value 0 indicates no limit."},
 		"cpu":         datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured CPU model from `/config`."},
 		"ostype":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured guest operating system type from `/config`."},
 		"boot":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Boot order string from `/config`."},
@@ -684,6 +692,10 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"cores":       schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Configured vCPU cores managed through `/config`."},
 		"sockets":     schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Configured CPU sockets managed through `/config`."},
 		"memory":      schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Configured memory in MiB managed through `/config`."},
+		"numa":        schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether NUMA is enabled for this VM, managed through `/config`."},
+		"vcpus":       schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Number of hotplugged vCPUs managed through `/config`."},
+		"cpuunits":    schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "CPU weight for this VM managed through `/config`."},
+		"cpulimit":    schema.Float64Attribute{Optional: true, Computed: true, MarkdownDescription: "CPU usage limit managed through `/config`. Value 0 indicates no limit."},
 		"cpu":         schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured CPU model managed through `/config`."},
 		"ostype":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured guest operating system type managed through `/config`."},
 		"boot":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Boot order string managed through `/config`."},

@@ -42,6 +42,10 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"sockets":     2,
 				"memory":      8192,
 				"cpu":         "host",
+				"numa":        1,
+				"vcpus":       2,
+				"cpuunits":    1024,
+				"cpulimit":    1.5,
 				"ostype":      "l26",
 				"boot":        "order=scsi0;net0",
 			})
@@ -72,6 +76,10 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"ostype":      {"l26"},
 				"boot":        {"order=scsi0;net0"},
 				"serial0":     {"socket"},
+				"numa":        {"1"},
+				"vcpus":       {"2"},
+				"cpuunits":    {"1024"},
+				"cpulimit":    {"1.5"},
 			})
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/config" && r.Method == http.MethodPut:
@@ -124,6 +132,18 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if got := config.Serial["serial0"]; got != "socket" {
 		t.Fatalf("expected serial0=socket, got %#v", config.Serial)
 	}
+	if config.NUMA.Ptr() == nil || !*config.NUMA.Ptr() {
+		t.Fatalf("expected numa=true, got %#v", config.NUMA)
+	}
+	if config.VCPUs.Ptr() == nil || *config.VCPUs.Ptr() != 2 {
+		t.Fatalf("expected vcpus=2, got %#v", config.VCPUs)
+	}
+	if config.CPUUnits.Ptr() == nil || *config.CPUUnits.Ptr() != 1024 {
+		t.Fatalf("expected cpuunits=1024, got %#v", config.CPUUnits)
+	}
+	if config.CPULimit.Ptr() == nil || *config.CPULimit.Ptr() != 1.5 {
+		t.Fatalf("expected cpulimit=1.5, got %#v", config.CPULimit)
+	}
 
 	status, err := client.GetQemuVMStatus(ctx, "pve-1", 101)
 	if err != nil {
@@ -155,6 +175,10 @@ func TestClientQemuVMMethods(t *testing.T) {
 			OSType:      stringPtr("l26"),
 			Boot:        stringPtr("order=scsi0;net0"),
 			Serial:      map[string]string{"serial0": "socket"},
+			NUMA:        boolPtr(true),
+			VCPUs:       intPtr64(2),
+			CPUUnits:    intPtr64(1024),
+			CPULimit:    float64Ptr(1.5),
 		},
 	}); err != nil {
 		t.Fatalf("CreateQemuVM() unexpected error: %v", err)
@@ -284,6 +308,41 @@ func TestDecodeQemuVMConfigSerialSlotsAreTyped(t *testing.T) {
 	}
 }
 
+func TestDecodeQemuVMConfigCPUFieldsAreTyped(t *testing.T) {
+	t.Parallel()
+
+	config, err := decodeQemuVMConfig(map[string]json.RawMessage{
+		"numa":     json.RawMessage(`1`),
+		"vcpus":    json.RawMessage(`"2"`),
+		"cpuunits": json.RawMessage(`1024`),
+		"cpulimit": json.RawMessage(`"1.5"`),
+		"hostpci0": json.RawMessage(`"0000:00:1f.0"`),
+	})
+	if err != nil {
+		t.Fatalf("decodeQemuVMConfig() unexpected error: %v", err)
+	}
+	if config.NUMA.Ptr() == nil || !*config.NUMA.Ptr() {
+		t.Fatalf("expected typed numa=true, got %#v", config.NUMA)
+	}
+	if config.VCPUs.Ptr() == nil || *config.VCPUs.Ptr() != 2 {
+		t.Fatalf("expected typed vcpus=2, got %#v", config.VCPUs)
+	}
+	if config.CPUUnits.Ptr() == nil || *config.CPUUnits.Ptr() != 1024 {
+		t.Fatalf("expected typed cpuunits=1024, got %#v", config.CPUUnits)
+	}
+	if config.CPULimit.Ptr() == nil || *config.CPULimit.Ptr() != 1.5 {
+		t.Fatalf("expected typed cpulimit=1.5, got %#v", config.CPULimit)
+	}
+	for _, key := range []string{"numa", "vcpus", "cpuunits", "cpulimit"} {
+		if _, ok := config.ExtraConfig[key]; ok {
+			t.Fatalf("expected %s to be decoded as typed field, got extra config %#v", key, config.ExtraConfig)
+		}
+	}
+	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
+	}
+}
+
 func TestClientQemuVMConfigNotFound(t *testing.T) {
 	t.Parallel()
 
@@ -309,6 +368,7 @@ func TestClientQemuVMConfigNotFound(t *testing.T) {
 	}
 }
 
-func stringPtr(v string) *string { return &v }
-func boolPtr(v bool) *bool       { return &v }
-func intPtr64(v int64) *int64    { return &v }
+func stringPtr(v string) *string    { return &v }
+func boolPtr(v bool) *bool          { return &v }
+func intPtr64(v int64) *int64       { return &v }
+func float64Ptr(v float64) *float64 { return &v }

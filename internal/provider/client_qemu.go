@@ -99,6 +99,46 @@ func (i proxmoxOptionalInt64) Ptr() *int64 {
 	return i.value
 }
 
+type proxmoxOptionalFloat64 struct {
+	value *float64
+}
+
+func (f *proxmoxOptionalFloat64) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "null" {
+		f.value = nil
+		return nil
+	}
+
+	var floatValue float64
+	if err := json.Unmarshal(data, &floatValue); err == nil {
+		f.value = &floatValue
+		return nil
+	}
+
+	var stringValue string
+	if err := json.Unmarshal(data, &stringValue); err == nil {
+		if strings.TrimSpace(stringValue) == "" {
+			f.value = nil
+			return nil
+		}
+
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(stringValue), 64)
+		if err != nil {
+			return fmt.Errorf("unable to decode Proxmox float value %q: %w", strings.TrimSpace(stringValue), err)
+		}
+
+		f.value = &parsed
+		return nil
+	}
+
+	return fmt.Errorf("unable to decode Proxmox float value %q", trimmed)
+}
+
+func (f proxmoxOptionalFloat64) Ptr() *float64 {
+	return f.value
+}
+
 type QemuVMConfig struct {
 	Name        string
 	Description string
@@ -116,6 +156,10 @@ type QemuVMConfig struct {
 	Cores       proxmoxOptionalInt64
 	Sockets     proxmoxOptionalInt64
 	Memory      proxmoxOptionalInt64
+	NUMA        proxmoxOptionalBool
+	VCPUs       proxmoxOptionalInt64
+	CPUUnits    proxmoxOptionalInt64
+	CPULimit    proxmoxOptionalFloat64
 	CPU         string
 	OSType      string
 	Boot        string
@@ -134,32 +178,36 @@ type QemuVMConfig struct {
 }
 
 type qemuVMConfigKnown struct {
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Tags        string               `json:"tags"`
-	Template    proxmoxOptionalBool  `json:"template"`
-	Pool        string               `json:"pool"`
-	OnBoot      proxmoxOptionalBool  `json:"onboot"`
-	Protection  proxmoxOptionalBool  `json:"protection"`
-	SCSIHW      string               `json:"scsihw"`
-	Tablet      proxmoxOptionalBool  `json:"tablet"`
-	Startup     string               `json:"startup"`
-	Bios        string               `json:"bios"`
-	Machine     string               `json:"machine"`
-	Agent       string               `json:"agent"`
-	Cores       proxmoxOptionalInt64 `json:"cores"`
-	Sockets     proxmoxOptionalInt64 `json:"sockets"`
-	Memory      proxmoxOptionalInt64 `json:"memory"`
-	CPU         string               `json:"cpu"`
-	OSType      string               `json:"ostype"`
-	Boot        string               `json:"boot"`
-	Hotplug     string               `json:"hotplug"`
-	CICustom    string               `json:"cicustom"`
-	CIPassword  string               `json:"cipassword"`
-	CIType      string               `json:"citype"`
-	CIUpgrade   proxmoxOptionalBool  `json:"ciupgrade"`
-	CIUser      string               `json:"ciuser"`
-	SSHKeys     string               `json:"sshkeys"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Tags        string                 `json:"tags"`
+	Template    proxmoxOptionalBool    `json:"template"`
+	Pool        string                 `json:"pool"`
+	OnBoot      proxmoxOptionalBool    `json:"onboot"`
+	Protection  proxmoxOptionalBool    `json:"protection"`
+	SCSIHW      string                 `json:"scsihw"`
+	Tablet      proxmoxOptionalBool    `json:"tablet"`
+	Startup     string                 `json:"startup"`
+	Bios        string                 `json:"bios"`
+	Machine     string                 `json:"machine"`
+	Agent       string                 `json:"agent"`
+	Cores       proxmoxOptionalInt64   `json:"cores"`
+	Sockets     proxmoxOptionalInt64   `json:"sockets"`
+	Memory      proxmoxOptionalInt64   `json:"memory"`
+	NUMA        proxmoxOptionalBool    `json:"numa"`
+	VCPUs       proxmoxOptionalInt64   `json:"vcpus"`
+	CPUUnits    proxmoxOptionalInt64   `json:"cpuunits"`
+	CPULimit    proxmoxOptionalFloat64 `json:"cpulimit"`
+	CPU         string                 `json:"cpu"`
+	OSType      string                 `json:"ostype"`
+	Boot        string                 `json:"boot"`
+	Hotplug     string                 `json:"hotplug"`
+	CICustom    string                 `json:"cicustom"`
+	CIPassword  string                 `json:"cipassword"`
+	CIType      string                 `json:"citype"`
+	CIUpgrade   proxmoxOptionalBool    `json:"ciupgrade"`
+	CIUser      string                 `json:"ciuser"`
+	SSHKeys     string                 `json:"sshkeys"`
 }
 
 type QemuVMStatus struct {
@@ -183,6 +231,10 @@ type qemuVMConfigRequest struct {
 	Cores       *int64
 	Sockets     *int64
 	Memory      *int64
+	NUMA        *bool
+	VCPUs       *int64
+	CPUUnits    *int64
+	CPULimit    *float64
 	CPU         *string
 	OSType      *string
 	Boot        *string
@@ -240,6 +292,10 @@ func (r UpdateQemuVMRequest) IsEmpty() bool {
 		r.Cores == nil &&
 		r.Sockets == nil &&
 		r.Memory == nil &&
+		r.NUMA == nil &&
+		r.VCPUs == nil &&
+		r.CPUUnits == nil &&
+		r.CPULimit == nil &&
 		r.CPU == nil &&
 		r.OSType == nil &&
 		r.Boot == nil &&
@@ -332,6 +388,10 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 		Cores:       known.Cores,
 		Sockets:     known.Sockets,
 		Memory:      known.Memory,
+		NUMA:        known.NUMA,
+		VCPUs:       known.VCPUs,
+		CPUUnits:    known.CPUUnits,
+		CPULimit:    known.CPULimit,
 		CPU:         known.CPU,
 		OSType:      known.OSType,
 		Boot:        known.Boot,
@@ -351,7 +411,7 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 
 	knownKeys := map[string]struct{}{
 		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "protection": {}, "scsihw": {}, "tablet": {}, "startup": {},
-		"bios": {}, "machine": {}, "agent": {}, "cores": {}, "sockets": {}, "memory": {}, "cpu": {},
+		"bios": {}, "machine": {}, "agent": {}, "cores": {}, "sockets": {}, "memory": {}, "numa": {}, "vcpus": {}, "cpuunits": {}, "cpulimit": {}, "cpu": {},
 		"ostype": {}, "boot": {}, "hotplug": {}, "cicustom": {}, "cipassword": {}, "citype": {},
 		"ciupgrade": {}, "ciuser": {}, "sshkeys": {},
 	}
@@ -415,6 +475,10 @@ func encodeQemuVMFields(form url.Values, req qemuVMConfigRequest) {
 	setOptionalInt64(form, "cores", req.Cores)
 	setOptionalInt64(form, "sockets", req.Sockets)
 	setOptionalInt64(form, "memory", req.Memory)
+	setOptionalBool(form, "numa", req.NUMA)
+	setOptionalInt64(form, "vcpus", req.VCPUs)
+	setOptionalInt64(form, "cpuunits", req.CPUUnits)
+	setOptionalFloat64(form, "cpulimit", req.CPULimit)
 	setOptionalString(form, "cpu", req.CPU)
 	setOptionalString(form, "ostype", req.OSType)
 	setOptionalString(form, "boot", req.Boot)
@@ -505,5 +569,11 @@ func setOptionalBool(form url.Values, key string, value *bool) {
 func setOptionalInt64(form url.Values, key string, value *int64) {
 	if value != nil {
 		form.Set(key, strconv.FormatInt(*value, 10))
+	}
+}
+
+func setOptionalFloat64(form url.Values, key string, value *float64) {
+	if value != nil {
+		form.Set(key, strconv.FormatFloat(*value, 'f', -1, 64))
 	}
 }

@@ -18,6 +18,10 @@ resource "proxmox_qemu_vm" "example" {
   cores       = 2
   sockets     = 1
   memory      = 2048
+  numa        = false
+  vcpus       = 2
+  cpuunits    = 1024
+  cpulimit    = 0
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"

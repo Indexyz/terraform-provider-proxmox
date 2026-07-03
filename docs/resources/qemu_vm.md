@@ -33,6 +33,10 @@ resource "proxmox_qemu_vm" "example" {
   cores       = 2
   sockets     = 1
   memory      = 2048
+  numa        = false
+  vcpus       = 2
+  cpuunits    = 1024
+  cpulimit    = 0
   cpu         = "host"
   ostype      = "l26"
   boot        = "order=scsi0;net0"
@@ -113,6 +117,8 @@ resource "proxmox_qemu_vm" "example" {
 - `common` (Attributes) Common advanced QEMU configuration managed through `/config`. (see [below for nested schema](#nestedatt--common))
 - `cores` (Number) Configured vCPU cores managed through `/config`.
 - `cpu` (String) Configured CPU model managed through `/config`.
+- `cpulimit` (Number) CPU usage limit managed through `/config`. Value 0 indicates no limit.
+- `cpuunits` (Number) CPU weight for this VM managed through `/config`.
 - `description` (String) Optional VM description managed through clone mode and `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. (see [below for nested schema](#nestedatt--disk))
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
@@ -120,6 +126,7 @@ resource "proxmox_qemu_vm" "example" {
 - `memory` (Number) Configured memory in MiB managed through `/config`.
 - `name` (String) Virtual machine name managed through `/nodes/{node}/qemu`, clone mode, and `/config`.
 - `network` (Attributes Map) Typed network devices keyed by Proxmox slot name such as `net0`. (see [below for nested schema](#nestedatt--network))
+- `numa` (Boolean) Whether NUMA is enabled for this VM, managed through `/config`.
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type managed through `/config`.
 - `pool` (String) Pool assignment managed through clone mode and `/config`.
@@ -133,6 +140,7 @@ resource "proxmox_qemu_vm" "example" {
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
 - `vga` (Attributes) Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
+- `vcpus` (Number) Number of hotplugged vCPUs managed through `/config`.
 
 ### Read-Only
 

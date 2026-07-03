@@ -44,6 +44,8 @@ data "proxmox_qemu_vm" "example" {
 - `common` (Attributes) Common advanced QEMU configuration surfaced from `/config`. (see [below for nested schema](#nestedatt--common))
 - `cores` (Number) Configured vCPU cores from `/config`.
 - `cpu` (String) Configured CPU model from `/config`.
+- `cpulimit` (Number) CPU usage limit from `/config`. Value 0 indicates no limit.
+- `cpuunits` (Number) CPU weight for this VM from `/config`.
 - `description` (String) Optional VM description from `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0` when fully covered by this provider version. (see [below for nested schema](#nestedatt--disk))
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--efi_disk))
@@ -52,6 +54,7 @@ data "proxmox_qemu_vm" "example" {
 - `memory` (Number) Configured memory in MiB from `/config`.
 - `name` (String) Virtual machine name from `/nodes/{node}/qemu/{vmid}/config`.
 - `network` (Attributes Map) Typed network devices keyed by Proxmox slot name such as `net0`. (see [below for nested schema](#nestedatt--network))
+- `numa` (Boolean) Whether NUMA is enabled for this VM from `/config`.
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type from `/config`.
 - `pool` (String) Pool assignment from `/config`.
@@ -67,6 +70,7 @@ data "proxmox_qemu_vm" "example" {
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--tpm_state))
 - `vga` (Attributes) Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
+- `vcpus` (Number) Number of hotplugged vCPUs from `/config`.
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
 
 <a id="nestedatt--clone"></a>

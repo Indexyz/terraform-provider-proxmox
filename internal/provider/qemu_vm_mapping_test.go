@@ -1353,3 +1353,72 @@ func TestValidateQemuVMRawConflictsReservesSerial(t *testing.T) {
 		t.Fatalf("unexpected diagnostic summary: %q", got)
 	}
 }
+
+func TestQemuVMStateFromAPIDefaultsCPUFieldsOmitted(t *testing.T) {
+	t.Parallel()
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "api-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.NUMA.IsNull() || state.NUMA.IsUnknown() {
+		t.Fatalf("expected omitted numa to read as null, got %#v", state.NUMA)
+	}
+	if !state.VCPUs.IsNull() {
+		t.Fatalf("expected omitted vcpus to read as null, got %#v", state.VCPUs)
+	}
+	if !state.CPUUnits.IsNull() {
+		t.Fatalf("expected omitted cpuunits to read as null, got %#v", state.CPUUnits)
+	}
+	if !state.CPULimit.IsNull() {
+		t.Fatalf("expected omitted cpulimit to read as null, got %#v", state.CPULimit)
+	}
+}
+
+func TestQemuVMRequestFromModelMapsCPUFields(t *testing.T) {
+	t.Parallel()
+
+	model := qemuVMModel{
+		VMID:     types.Int64Value(101),
+		NUMA:     types.BoolValue(true),
+		VCPUs:    types.Int64Value(4),
+		CPUUnits: types.Int64Value(2048),
+		CPULimit: types.Float64Value(2.0),
+	}
+	createReq, diags := qemuVMCreateRequestFromModel(context.Background(), model)
+	assertNoDiags(t, diags)
+	if createReq.NUMA == nil || !*createReq.NUMA {
+		t.Fatalf("expected numa=true in create request, got %#v", createReq.NUMA)
+	}
+	if createReq.VCPUs == nil || *createReq.VCPUs != 4 {
+		t.Fatalf("expected vcpus=4 in create request, got %#v", createReq.VCPUs)
+	}
+	if createReq.CPUUnits == nil || *createReq.CPUUnits != 2048 {
+		t.Fatalf("expected cpuunits=2048 in create request, got %#v", createReq.CPUUnits)
+	}
+	if createReq.CPULimit == nil || *createReq.CPULimit != 2.0 {
+		t.Fatalf("expected cpulimit=2.0 in create request, got %#v", createReq.CPULimit)
+	}
+}
+
+func TestValidateQemuVMRawConflictsReservesCPUFields(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{"numa", "vcpus", "cpuunits", "cpulimit"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			model := qemuVMModel{
+				Raw: mustQemuVMRawValue(t, qemuVMRawModel{
+					ExtraConfig: mustStringMapValue(t, map[string]string{key: "1"}),
+				}),
+			}
+			diags := validateQemuVMRawConflicts(context.Background(), model)
+			if !diags.HasError() {
+				t.Fatalf("expected raw-vs-typed conflict diagnostics for %s", key)
+			}
+			if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
+				t.Fatalf("unexpected diagnostic summary: %q", got)
+			}
+		})
+	}
+}

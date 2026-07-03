@@ -73,6 +73,10 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Cores:       int64OrNull(config.Cores.Ptr()),
 		Sockets:     int64OrNull(config.Sockets.Ptr()),
 		Memory:      int64OrNull(config.Memory.Ptr()),
+		NUMA:        boolOrNull(config.NUMA.Ptr()),
+		VCPUs:       int64OrNull(config.VCPUs.Ptr()),
+		CPUUnits:    int64OrNull(config.CPUUnits.Ptr()),
+		CPULimit:    float64OrNull(config.CPULimit.Ptr()),
 		CPU:         stringOrNull(config.CPU),
 		OSType:      stringOrNull(config.OSType),
 		Boot:        stringOrNull(config.Boot),
@@ -261,6 +265,10 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		Cores:       int64PointerValue(model.Cores),
 		Sockets:     int64PointerValue(model.Sockets),
 		Memory:      int64PointerValue(model.Memory),
+		NUMA:        boolPointerValue(model.NUMA),
+		VCPUs:       int64PointerValue(model.VCPUs),
+		CPUUnits:    int64PointerValue(model.CPUUnits),
+		CPULimit:    float64PointerValue(model.CPULimit),
 		CPU:         stringPointerValue(model.CPU),
 		OSType:      stringPointerValue(model.OSType),
 		Boot:        stringPointerValue(model.Boot),
@@ -525,7 +533,7 @@ func qemuVMVGAStateValue(ctx context.Context, base map[string]string) (types.Obj
 }
 
 func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.Diagnostics) []string {
-	keys := []string{"protection", "scsihw", "tablet"}
+	keys := []string{"protection", "scsihw", "tablet", "numa", "vcpus", "cpuunits", "cpulimit"}
 
 	common, commonDiags := expandQemuVMCommonModel(ctx, model.Common)
 	diags.Append(commonDiags...)
@@ -1362,6 +1370,14 @@ func int64PointerValue(value types.Int64) *int64 {
 		return nil
 	}
 	result := value.ValueInt64()
+	return &result
+}
+
+func float64PointerValue(value types.Float64) *float64 {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+	result := value.ValueFloat64()
 	return &result
 }
 

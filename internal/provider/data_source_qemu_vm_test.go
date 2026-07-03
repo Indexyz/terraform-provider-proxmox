@@ -26,7 +26,7 @@ func TestQemuVMDataSourceSchemaAttributes(t *testing.T) {
 	t.Parallel()
 
 	attrs := qemuVMDataSourceAttributes()
-	for _, key := range []string{"node", "vm_id", "name", "template", "protection", "scsihw", "tablet", "serial", "tpm_state", "vga", "status", "uptime"} {
+	for _, key := range []string{"node", "vm_id", "name", "template", "protection", "scsihw", "tablet", "numa", "vcpus", "cpuunits", "cpulimit", "serial", "tpm_state", "vga", "status", "uptime"} {
 		if _, ok := attrs[key]; !ok {
 			t.Fatalf("expected data source attribute %q", key)
 		}
@@ -37,7 +37,7 @@ func TestQemuVMResourceSchemaAttributes(t *testing.T) {
 	t.Parallel()
 
 	attrs := qemuVMResourceAttributes()
-	for _, key := range []string{"node", "vm_id", "name", "template", "protection", "scsihw", "tablet", "serial", "tpm_state", "vga", "status", "uptime"} {
+	for _, key := range []string{"node", "vm_id", "name", "template", "protection", "scsihw", "tablet", "numa", "vcpus", "cpuunits", "cpulimit", "serial", "tpm_state", "vga", "status", "uptime"} {
 		if _, ok := attrs[key]; !ok {
 			t.Fatalf("expected resource attribute %q", key)
 		}
