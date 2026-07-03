@@ -108,3 +108,35 @@ func (c *Client) DeleteUser(ctx context.Context, userID string) error {
 	}
 	return err
 }
+
+type userIndexEntry struct {
+	UserID    string               `json:"userid"`
+	Comment   string               `json:"comment"`
+	Email     string               `json:"email"`
+	Firstname string               `json:"firstname"`
+	Lastname  string               `json:"lastname"`
+	Enable    proxmoxOptionalBool  `json:"enable"`
+	Expire    proxmoxOptionalInt64 `json:"expire"`
+	Groups    string               `json:"groups"`
+}
+
+func (c *Client) Users(ctx context.Context) ([]User, error) {
+	var entries []userIndexEntry
+	if err := c.do(ctx, http.MethodGet, "/access/users", nil, nil, &entries); err != nil {
+		return nil, err
+	}
+	result := make([]User, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, User{
+			UserID:    e.UserID,
+			Comment:   e.Comment,
+			Email:     e.Email,
+			Enable:    e.Enable,
+			Expire:    e.Expire,
+			Firstname: e.Firstname,
+			Lastname:  e.Lastname,
+			Groups:    e.Groups,
+		})
+	}
+	return result, nil
+}

@@ -157,6 +157,8 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewNodeTimeDataSource,
 		NewStorageDataSource,
 		NewStoragesDataSource,
+		NewUserDataSource,
+		NewUsersDataSource,
 		NewVersionDataSource,
 		NewNodesDataSource,
 		NewNodeDataSource,

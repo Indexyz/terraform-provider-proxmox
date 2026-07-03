@@ -55,3 +55,15 @@ func (c *Client) DeleteRole(ctx context.Context, roleID string) error {
 	}
 	return err
 }
+
+func (c *Client) Roles(ctx context.Context) ([]Role, error) {
+	var entries []roleResponse
+	if err := c.do(ctx, http.MethodGet, "/access/roles", nil, nil, &entries); err != nil {
+		return nil, err
+	}
+	result := make([]Role, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, Role{RoleID: e.RoleID, Privs: e.Privs})
+	}
+	return result, nil
+}
