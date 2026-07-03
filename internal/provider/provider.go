@@ -133,6 +133,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		NewGroupResource,
 		NewLXCContainerResource,
+		NewLXCSnapshotResource,
 		NewPoolResource,
 		NewQemuVMResource,
 	}
