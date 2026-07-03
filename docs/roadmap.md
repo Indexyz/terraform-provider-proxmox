@@ -22,8 +22,7 @@
 
 ## 接下来
 
-- 针对 LXC 容器继续小步补齐 `network`/`mount_point` 结构化解析等后续能力，并保持 typed 与 `raw.extra_config` 单一 source of truth。
-- 继续按 Proxmox QEMU API 对齐下一个小型 typed 字段，优先评估内存 balloon 相关 scalar（如 `balloon`/`shares`/`hugepages`）或剩余 slot 字段；仍保持 typed 与 `raw.extra_config` 单一 source of truth。
+- LXC `network`/`mount_point` 结构化解析：当前为 `map[string]string`（raw Proxmox 语法），可升级为 typed 嵌套块（类比 QEMU network/disk 的 parse/encode + raw 回退）。这是 schema 破坏性变更（用户配置需迁移），需结合版本策略评估；当前 raw 形式已完整支持所有 Proxmox network/mount_point 语法。
 - 后续新增或修改 Provider schema 时，继续运行 `make generate` 更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 - 如需要面向用户的叙事型指南，可在现有 reference 文档之外补充认证方式选择、权限要求、常见 API 错误和本地 e2e 排障说明。
 - 扩展 `proxmox_qemu_vm` typed 字段时，同步更新 schema、mapping、client 分类、测试和生成文档，并保持 typed 与 `raw.extra_config` 单一 source of truth。
