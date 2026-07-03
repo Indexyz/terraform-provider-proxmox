@@ -38,6 +38,10 @@ data "proxmox_lxc_container" "example" {
 - `cpuunits` (Number) CPU weight for this container from `/config`.
 - `description` (String) Optional container description from `/config`.
 - `features` (String) Raw LXC features string from `/config`.
+- `console` (Boolean) Whether a console device is attached to the container, from `/config`.
+- `tty` (Number) Number of TTYs available to the container, from `/config`.
+- `cmode` (String) Console mode (`shell` or `console`) from `/config`.
+- `hookscript` (String) Hookscript path from `/config`.
 - `hostname` (String) Container hostname from `/config`.
 - `id` (String) Terraform identifier in `node/vm_id` form.
 - `memory` (Number) Configured memory in MiB from `/config`.

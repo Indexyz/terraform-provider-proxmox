@@ -231,6 +231,10 @@ func (r UpdateLXCContainerRequest) IsEmpty() bool {
 		r.Tags == nil &&
 		r.Startup == nil &&
 		r.Features == nil &&
+		r.Console == nil &&
+		r.TTY == nil &&
+		r.CMode == nil &&
+		r.Hookscript == nil &&
 		r.OSType == nil &&
 		r.Nameserver == nil &&
 		r.Searchdomain == nil &&

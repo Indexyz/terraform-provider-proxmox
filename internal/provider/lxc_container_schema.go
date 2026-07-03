@@ -33,6 +33,10 @@ type lxcContainerModel struct {
 	Startup      types.String  `tfsdk:"startup"`
 	Unprivileged types.Bool    `tfsdk:"unprivileged"`
 	Features     types.String  `tfsdk:"features"`
+	Console      types.Bool    `tfsdk:"console"`
+	TTY          types.Int64   `tfsdk:"tty"`
+	CMode        types.String  `tfsdk:"cmode"`
+	Hookscript   types.String  `tfsdk:"hookscript"`
 	OSType       types.String  `tfsdk:"ostype"`
 	RootFS       types.String  `tfsdk:"rootfs"`
 	Nameserver   types.String  `tfsdk:"nameserver"`
@@ -96,6 +100,10 @@ func lxcContainerDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"startup":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Startup ordering string from `/config`."},
 		"unprivileged": datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the container is unprivileged."},
 		"features":     datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Raw LXC features string from `/config`."},
+		"console":      datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether a console device is attached to the container from `/config`."},
+		"tty":          datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Number of TTYs available to the container from `/config`."},
+		"cmode":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Console mode (`shell` or `console`) from `/config`."},
+		"hookscript":   datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Hookscript path from `/config`."},
 		"ostype":       datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Configured container operating system type from `/config`."},
 		"rootfs":       datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Root filesystem configuration from `/config`."},
 		"nameserver":   datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "DNS nameserver configuration from `/config`."},
@@ -146,6 +154,10 @@ func lxcContainerResourceAttributes() map[string]schema.Attribute {
 			PlanModifiers:       []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
 		},
 		"features":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Raw LXC features string managed through `/config`."},
+		"console":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether a console device is attached to the container, managed through `/config`."},
+		"tty":          schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Number of TTYs available to the container, managed through `/config`."},
+		"cmode":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Console mode (`shell` or `console`) managed through `/config`."},
+		"hookscript":   schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Hookscript path managed through `/config`."},
 		"ostype":       schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Configured container operating system type managed through `/config`."},
 		"rootfs":       schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Root filesystem configuration. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"nameserver":   schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "DNS nameserver configuration managed through `/config`."},

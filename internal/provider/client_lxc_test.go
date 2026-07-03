@@ -39,6 +39,10 @@ func TestClientLXCContainerMethods(t *testing.T) {
 				"protection":           true,
 				"startup":              "order=2",
 				"unprivileged":         "1",
+				"console":              0,
+				"tty":                  4,
+				"cmode":                "shell",
+				"hookscript":           "local:snippets/hook.sh",
 				"features":             "nesting=1",
 				"ostype":               "debian",
 				"rootfs":               "local-lvm:vm-101-disk-0,size=8G",
@@ -73,6 +77,10 @@ func TestClientLXCContainerMethods(t *testing.T) {
 				"protection":           {"1"},
 				"startup":              {"order=2"},
 				"unprivileged":         {"1"},
+				"console":              {"0"},
+				"tty":                  {"4"},
+				"cmode":                {"shell"},
+				"hookscript":           {"local:snippets/hook.sh"},
 				"features":             {"nesting=1"},
 				"ostype":               {"debian"},
 				"rootfs":               {"local-lvm:8"},
@@ -143,6 +151,18 @@ func TestClientLXCContainerMethods(t *testing.T) {
 	if config.OnBoot.Ptr() == nil || !*config.OnBoot.Ptr() || config.Protection.Ptr() == nil || !*config.Protection.Ptr() || config.Unprivileged.Ptr() == nil || !*config.Unprivileged.Ptr() {
 		t.Fatalf("unexpected lxc bool fields: %#v", config)
 	}
+	if config.Console.Ptr() != nil && *config.Console.Ptr() {
+		t.Fatalf("expected console=false, got %#v", config.Console)
+	}
+	if config.TTY.Ptr() == nil || *config.TTY.Ptr() != 4 {
+		t.Fatalf("expected tty=4, got %#v", config.TTY)
+	}
+	if config.CMode != "shell" {
+		t.Fatalf("expected cmode=shell, got %#v", config.CMode)
+	}
+	if config.Hookscript != "local:snippets/hook.sh" {
+		t.Fatalf("expected hookscript, got %#v", config.Hookscript)
+	}
 	if got := config.Network["net0"]; got != "name=eth0,bridge=vmbr0,ip=dhcp" {
 		t.Fatalf("unexpected network map: %#v", config.Network)
 	}
@@ -178,6 +198,10 @@ func TestClientLXCContainerMethods(t *testing.T) {
 			Protection:   boolPtr(true),
 			Startup:      stringPtr("order=2"),
 			Unprivileged: boolPtr(true),
+			Console:      boolPtr(false),
+			TTY:          intPtr64(4),
+			CMode:        stringPtr("shell"),
+			Hookscript:   stringPtr("local:snippets/hook.sh"),
 			Features:     stringPtr("nesting=1"),
 			OSType:       stringPtr("debian"),
 			RootFS:       stringPtr("local-lvm:8"),

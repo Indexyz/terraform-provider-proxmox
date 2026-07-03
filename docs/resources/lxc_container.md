@@ -56,6 +56,10 @@ resource "proxmox_lxc_container" "example" {
 - `cpuunits` (Number) CPU weight for this container managed through `/config`.
 - `description` (String) Optional container description managed through `/config`.
 - `features` (String) Raw LXC features string managed through `/config`.
+- `console` (Boolean) Whether a console device is attached to the container, managed through `/config`.
+- `tty` (Number) Number of TTYs available to the container, managed through `/config`.
+- `cmode` (String) Console mode (`shell` or `console`) managed through `/config`.
+- `hookscript` (String) Hookscript path managed through `/config`.
 - `hostname` (String) Container hostname managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
 - `mount_point` (Map of String) Raw LXC mount-point entries keyed by Proxmox slot name such as `mp0`.

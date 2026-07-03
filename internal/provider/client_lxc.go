@@ -35,6 +35,10 @@ type LXCContainerConfig struct {
 	OnBoot       proxmoxOptionalBool
 	Protection   proxmoxOptionalBool
 	Unprivileged proxmoxOptionalBool
+	Console      proxmoxOptionalBool
+	TTY          proxmoxOptionalInt64
+	CMode        string
+	Hookscript   string
 	Cores        proxmoxOptionalInt64
 	CPULimit     proxmoxOptionalFloat64
 	CPUUnits     proxmoxOptionalInt64
@@ -60,6 +64,10 @@ type lxcContainerConfigKnown struct {
 	OnBoot       proxmoxOptionalBool    `json:"onboot"`
 	Protection   proxmoxOptionalBool    `json:"protection"`
 	Unprivileged proxmoxOptionalBool    `json:"unprivileged"`
+	Console      proxmoxOptionalBool    `json:"console"`
+	TTY          proxmoxOptionalInt64   `json:"tty"`
+	CMode        string                 `json:"cmode"`
+	Hookscript   string                 `json:"hookscript"`
 	Cores        proxmoxOptionalInt64   `json:"cores"`
 	CPULimit     proxmoxOptionalFloat64 `json:"cpulimit"`
 	CPUUnits     proxmoxOptionalInt64   `json:"cpuunits"`
@@ -87,6 +95,10 @@ type lxcContainerConfigRequest struct {
 	OnBoot       *bool
 	Protection   *bool
 	Unprivileged *bool
+	Console      *bool
+	TTY          *int64
+	CMode        *string
+	Hookscript   *string
 	Cores        *int64
 	CPULimit     *float64
 	CPUUnits     *int64
@@ -189,6 +201,10 @@ func decodeLXCContainerConfig(raw map[string]json.RawMessage) (LXCContainerConfi
 		OnBoot:       known.OnBoot,
 		Protection:   known.Protection,
 		Unprivileged: known.Unprivileged,
+		Console:      known.Console,
+		TTY:          known.TTY,
+		CMode:        known.CMode,
+		Hookscript:   known.Hookscript,
 		Cores:        known.Cores,
 		CPULimit:     known.CPULimit,
 		CPUUnits:     known.CPUUnits,
@@ -201,7 +217,7 @@ func decodeLXCContainerConfig(raw map[string]json.RawMessage) (LXCContainerConfi
 
 	knownKeys := map[string]struct{}{
 		"hostname": {}, "description": {}, "tags": {}, "arch": {}, "startup": {}, "features": {}, "ostype": {}, "rootfs": {},
-		"nameserver": {}, "searchdomain": {}, "timezone": {}, "onboot": {}, "protection": {}, "unprivileged": {},
+		"nameserver": {}, "searchdomain": {}, "timezone": {}, "onboot": {}, "protection": {}, "unprivileged": {}, "console": {}, "tty": {}, "cmode": {}, "hookscript": {},
 		"cores": {}, "cpulimit": {}, "cpuunits": {}, "memory": {}, "swap": {},
 	}
 
@@ -265,6 +281,10 @@ func encodeLXCContainerCommonFields(form url.Values, req lxcContainerConfigReque
 	setOptionalBool(form, "protection", req.Protection)
 	setOptionalString(form, "startup", req.Startup)
 	setOptionalString(form, "features", req.Features)
+	setOptionalBool(form, "console", req.Console)
+	setOptionalInt64(form, "tty", req.TTY)
+	setOptionalString(form, "cmode", req.CMode)
+	setOptionalString(form, "hookscript", req.Hookscript)
 	setOptionalString(form, "ostype", req.OSType)
 	setOptionalString(form, "nameserver", req.Nameserver)
 	setOptionalString(form, "searchdomain", req.Searchdomain)
