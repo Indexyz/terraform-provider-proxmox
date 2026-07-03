@@ -131,6 +131,7 @@ func (p *ProxmoxProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewACLResource,
 		NewGroupResource,
 		NewLXCContainerResource,
 		NewLXCSnapshotResource,
