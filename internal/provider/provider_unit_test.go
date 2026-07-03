@@ -111,7 +111,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		resourceNames = append(resourceNames, resp.TypeName)
 	}
 	sort.Strings(resourceNames)
-	if want := []string{"proxmox_acl", "proxmox_group", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_node_firewall_options", "proxmox_pool", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_role", "proxmox_storage", "proxmox_user", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
+	if want := []string{"proxmox_acl", "proxmox_firewall_rule", "proxmox_group", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_node_firewall_options", "proxmox_pool", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_role", "proxmox_storage", "proxmox_user", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
 		t.Fatalf("unexpected resources: got %v want %v", resourceNames, want)
 	}
 
