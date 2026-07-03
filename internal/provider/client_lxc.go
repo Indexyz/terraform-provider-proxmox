@@ -36,6 +36,8 @@ type LXCContainerConfig struct {
 	Protection   proxmoxOptionalBool
 	Unprivileged proxmoxOptionalBool
 	Cores        proxmoxOptionalInt64
+	CPULimit     proxmoxOptionalFloat64
+	CPUUnits     proxmoxOptionalInt64
 	Memory       proxmoxOptionalInt64
 	Swap         proxmoxOptionalInt64
 	Network      map[string]string
@@ -44,23 +46,25 @@ type LXCContainerConfig struct {
 }
 
 type lxcContainerConfigKnown struct {
-	Hostname     string               `json:"hostname"`
-	Description  string               `json:"description"`
-	Tags         string               `json:"tags"`
-	Arch         string               `json:"arch"`
-	Startup      string               `json:"startup"`
-	Features     string               `json:"features"`
-	OSType       string               `json:"ostype"`
-	RootFS       string               `json:"rootfs"`
-	Nameserver   string               `json:"nameserver"`
-	Searchdomain string               `json:"searchdomain"`
-	Timezone     string               `json:"timezone"`
-	OnBoot       proxmoxOptionalBool  `json:"onboot"`
-	Protection   proxmoxOptionalBool  `json:"protection"`
-	Unprivileged proxmoxOptionalBool  `json:"unprivileged"`
-	Cores        proxmoxOptionalInt64 `json:"cores"`
-	Memory       proxmoxOptionalInt64 `json:"memory"`
-	Swap         proxmoxOptionalInt64 `json:"swap"`
+	Hostname     string                 `json:"hostname"`
+	Description  string                 `json:"description"`
+	Tags         string                 `json:"tags"`
+	Arch         string                 `json:"arch"`
+	Startup      string                 `json:"startup"`
+	Features     string                 `json:"features"`
+	OSType       string                 `json:"ostype"`
+	RootFS       string                 `json:"rootfs"`
+	Nameserver   string                 `json:"nameserver"`
+	Searchdomain string                 `json:"searchdomain"`
+	Timezone     string                 `json:"timezone"`
+	OnBoot       proxmoxOptionalBool    `json:"onboot"`
+	Protection   proxmoxOptionalBool    `json:"protection"`
+	Unprivileged proxmoxOptionalBool    `json:"unprivileged"`
+	Cores        proxmoxOptionalInt64   `json:"cores"`
+	CPULimit     proxmoxOptionalFloat64 `json:"cpulimit"`
+	CPUUnits     proxmoxOptionalInt64   `json:"cpuunits"`
+	Memory       proxmoxOptionalInt64   `json:"memory"`
+	Swap         proxmoxOptionalInt64   `json:"swap"`
 }
 
 type LXCContainerStatus struct {
@@ -84,6 +88,8 @@ type lxcContainerConfigRequest struct {
 	Protection   *bool
 	Unprivileged *bool
 	Cores        *int64
+	CPULimit     *float64
+	CPUUnits     *int64
 	Memory       *int64
 	Swap         *int64
 	Network      map[string]string
@@ -184,6 +190,8 @@ func decodeLXCContainerConfig(raw map[string]json.RawMessage) (LXCContainerConfi
 		Protection:   known.Protection,
 		Unprivileged: known.Unprivileged,
 		Cores:        known.Cores,
+		CPULimit:     known.CPULimit,
+		CPUUnits:     known.CPUUnits,
 		Memory:       known.Memory,
 		Swap:         known.Swap,
 		Network:      map[string]string{},
@@ -194,7 +202,7 @@ func decodeLXCContainerConfig(raw map[string]json.RawMessage) (LXCContainerConfi
 	knownKeys := map[string]struct{}{
 		"hostname": {}, "description": {}, "tags": {}, "arch": {}, "startup": {}, "features": {}, "ostype": {}, "rootfs": {},
 		"nameserver": {}, "searchdomain": {}, "timezone": {}, "onboot": {}, "protection": {}, "unprivileged": {},
-		"cores": {}, "memory": {}, "swap": {},
+		"cores": {}, "cpulimit": {}, "cpuunits": {}, "memory": {}, "swap": {},
 	}
 
 	for key, value := range raw {
@@ -249,6 +257,8 @@ func encodeLXCContainerCommonFields(form url.Values, req lxcContainerConfigReque
 	setOptionalString(form, "description", req.Description)
 	setOptionalString(form, "tags", req.Tags)
 	setOptionalInt64(form, "cores", req.Cores)
+	setOptionalFloat64(form, "cpulimit", req.CPULimit)
+	setOptionalInt64(form, "cpuunits", req.CPUUnits)
 	setOptionalInt64(form, "memory", req.Memory)
 	setOptionalInt64(form, "swap", req.Swap)
 	setOptionalBool(form, "onboot", req.OnBoot)

@@ -15,32 +15,34 @@ import (
 )
 
 type lxcContainerModel struct {
-	ID           types.String `tfsdk:"id"`
-	Node         types.String `tfsdk:"node"`
-	VMID         types.Int64  `tfsdk:"vm_id"`
-	OSTemplate   types.String `tfsdk:"ostemplate"`
-	Hostname     types.String `tfsdk:"hostname"`
-	Description  types.String `tfsdk:"description"`
-	Tags         types.String `tfsdk:"tags"`
-	Arch         types.String `tfsdk:"arch"`
-	Cores        types.Int64  `tfsdk:"cores"`
-	Memory       types.Int64  `tfsdk:"memory"`
-	Swap         types.Int64  `tfsdk:"swap"`
-	OnBoot       types.Bool   `tfsdk:"onboot"`
-	Protection   types.Bool   `tfsdk:"protection"`
-	Startup      types.String `tfsdk:"startup"`
-	Unprivileged types.Bool   `tfsdk:"unprivileged"`
-	Features     types.String `tfsdk:"features"`
-	OSType       types.String `tfsdk:"ostype"`
-	RootFS       types.String `tfsdk:"rootfs"`
-	Nameserver   types.String `tfsdk:"nameserver"`
-	Searchdomain types.String `tfsdk:"searchdomain"`
-	Timezone     types.String `tfsdk:"timezone"`
-	Network      types.Map    `tfsdk:"network"`
-	MountPoint   types.Map    `tfsdk:"mount_point"`
-	Raw          types.Object `tfsdk:"raw"`
-	Status       types.String `tfsdk:"status"`
-	Uptime       types.Int64  `tfsdk:"uptime"`
+	ID           types.String  `tfsdk:"id"`
+	Node         types.String  `tfsdk:"node"`
+	VMID         types.Int64   `tfsdk:"vm_id"`
+	OSTemplate   types.String  `tfsdk:"ostemplate"`
+	Hostname     types.String  `tfsdk:"hostname"`
+	Description  types.String  `tfsdk:"description"`
+	Tags         types.String  `tfsdk:"tags"`
+	Arch         types.String  `tfsdk:"arch"`
+	Cores        types.Int64   `tfsdk:"cores"`
+	CPULimit     types.Float64 `tfsdk:"cpulimit"`
+	CPUUnits     types.Int64   `tfsdk:"cpuunits"`
+	Memory       types.Int64   `tfsdk:"memory"`
+	Swap         types.Int64   `tfsdk:"swap"`
+	OnBoot       types.Bool    `tfsdk:"onboot"`
+	Protection   types.Bool    `tfsdk:"protection"`
+	Startup      types.String  `tfsdk:"startup"`
+	Unprivileged types.Bool    `tfsdk:"unprivileged"`
+	Features     types.String  `tfsdk:"features"`
+	OSType       types.String  `tfsdk:"ostype"`
+	RootFS       types.String  `tfsdk:"rootfs"`
+	Nameserver   types.String  `tfsdk:"nameserver"`
+	Searchdomain types.String  `tfsdk:"searchdomain"`
+	Timezone     types.String  `tfsdk:"timezone"`
+	Network      types.Map     `tfsdk:"network"`
+	MountPoint   types.Map     `tfsdk:"mount_point"`
+	Raw          types.Object  `tfsdk:"raw"`
+	Status       types.String  `tfsdk:"status"`
+	Uptime       types.Int64   `tfsdk:"uptime"`
 }
 
 type lxcContainerRawModel struct {
@@ -85,6 +87,8 @@ func lxcContainerDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"tags":         datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Comma-separated Proxmox tags from `/config`."},
 		"arch":         datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Container architecture from `/config`."},
 		"cores":        datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Configured vCPU cores from `/config`."},
+		"cpulimit":     datasourceschema.Float64Attribute{Computed: true, MarkdownDescription: "CPU usage limit from `/config`. Value 0 indicates no limit."},
+		"cpuunits":     datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "CPU weight for this container from `/config`."},
 		"memory":       datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Configured memory in MiB from `/config`."},
 		"swap":         datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Configured swap in MiB from `/config`."},
 		"onboot":       datasourceschema.BoolAttribute{Computed: true, MarkdownDescription: "Whether the container should start automatically on boot."},
@@ -128,6 +132,8 @@ func lxcContainerResourceAttributes() map[string]schema.Attribute {
 		"tags":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Comma-separated Proxmox tags managed through `/config`."},
 		"arch":        schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Container architecture. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"cores":       schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Configured vCPU cores managed through `/config`."},
+		"cpulimit":    schema.Float64Attribute{Optional: true, Computed: true, MarkdownDescription: "CPU usage limit managed through `/config`. Value 0 indicates no limit."},
+		"cpuunits":    schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "CPU weight for this container managed through `/config`."},
 		"memory":      schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Configured memory in MiB managed through `/config`."},
 		"swap":        schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Configured swap in MiB managed through `/config`."},
 		"onboot":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether the container should start automatically on boot."},

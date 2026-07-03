@@ -31,6 +31,8 @@ func TestClientLXCContainerMethods(t *testing.T) {
 				"tags":                 "prod,terraform",
 				"arch":                 "amd64",
 				"cores":                "2",
+				"cpulimit":             1.5,
+				"cpuunits":             "1024",
 				"memory":               512,
 				"swap":                 "128",
 				"onboot":               1,
@@ -63,6 +65,8 @@ func TestClientLXCContainerMethods(t *testing.T) {
 				"tags":                 {"prod,terraform"},
 				"arch":                 {"amd64"},
 				"cores":                {"2"},
+				"cpulimit":             {"1.5"},
+				"cpuunits":             {"1024"},
 				"memory":               {"512"},
 				"swap":                 {"128"},
 				"onboot":               {"1"},
@@ -133,6 +137,9 @@ func TestClientLXCContainerMethods(t *testing.T) {
 	if config.Cores.Ptr() == nil || *config.Cores.Ptr() != 2 || config.Memory.Ptr() == nil || *config.Memory.Ptr() != 512 || config.Swap.Ptr() == nil || *config.Swap.Ptr() != 128 {
 		t.Fatalf("unexpected lxc integer fields: %#v", config)
 	}
+	if config.CPULimit.Ptr() == nil || *config.CPULimit.Ptr() != 1.5 || config.CPUUnits.Ptr() == nil || *config.CPUUnits.Ptr() != 1024 {
+		t.Fatalf("unexpected lxc cpu fields: %#v", config)
+	}
 	if config.OnBoot.Ptr() == nil || !*config.OnBoot.Ptr() || config.Protection.Ptr() == nil || !*config.Protection.Ptr() || config.Unprivileged.Ptr() == nil || !*config.Unprivileged.Ptr() {
 		t.Fatalf("unexpected lxc bool fields: %#v", config)
 	}
@@ -163,6 +170,8 @@ func TestClientLXCContainerMethods(t *testing.T) {
 			Tags:         stringPtr("prod,terraform"),
 			Arch:         stringPtr("amd64"),
 			Cores:        intPtr64(2),
+			CPULimit:     float64Ptr(1.5),
+			CPUUnits:     intPtr64(1024),
 			Memory:       intPtr64(512),
 			Swap:         intPtr64(128),
 			OnBoot:       boolPtr(true),

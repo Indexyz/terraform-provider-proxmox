@@ -34,6 +34,8 @@ data "proxmox_lxc_container" "example" {
 
 - `arch` (String) Container architecture from `/config`.
 - `cores` (Number) Configured vCPU cores from `/config`.
+- `cpulimit` (Number) CPU usage limit from `/config`. Value 0 indicates no limit.
+- `cpuunits` (Number) CPU weight for this container from `/config`.
 - `description` (String) Optional container description from `/config`.
 - `features` (String) Raw LXC features string from `/config`.
 - `hostname` (String) Container hostname from `/config`.

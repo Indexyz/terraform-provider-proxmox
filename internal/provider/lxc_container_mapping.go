@@ -59,6 +59,8 @@ func lxcContainerStateFromAPI(ctx context.Context, node string, vmID int64, conf
 		Tags:         stringOrNull(config.Tags),
 		Arch:         stringOrNull(config.Arch),
 		Cores:        int64OrNull(config.Cores.Ptr()),
+		CPULimit:     float64OrNull(config.CPULimit.Ptr()),
+		CPUUnits:     int64OrNull(config.CPUUnits.Ptr()),
 		Memory:       int64OrNull(config.Memory.Ptr()),
 		Swap:         int64OrNull(config.Swap.Ptr()),
 		OnBoot:       types.BoolValue(onboot),
@@ -193,6 +195,8 @@ func lxcContainerConfigRequestFromModel(ctx context.Context, model lxcContainerM
 		Protection:   boolPointerValue(model.Protection),
 		Unprivileged: boolPointerValue(model.Unprivileged),
 		Cores:        int64PointerValue(model.Cores),
+		CPULimit:     float64PointerValue(model.CPULimit),
+		CPUUnits:     int64PointerValue(model.CPUUnits),
 		Memory:       int64PointerValue(model.Memory),
 		Swap:         int64PointerValue(model.Swap),
 		Network:      network,
@@ -361,7 +365,7 @@ func appendDeletedRawKeys(ctx context.Context, keys []string, plan types.Object,
 
 func isReservedLXCContainerRawKey(key string) bool {
 	reserved := map[string]struct{}{
-		"hostname": {}, "description": {}, "tags": {}, "cores": {}, "memory": {}, "swap": {},
+		"hostname": {}, "description": {}, "tags": {}, "cores": {}, "cpulimit": {}, "cpuunits": {}, "memory": {}, "swap": {},
 		"onboot": {}, "protection": {}, "startup": {}, "features": {}, "ostype": {},
 		"nameserver": {}, "searchdomain": {}, "timezone": {}, "arch": {}, "unprivileged": {},
 		"ostemplate": {}, "rootfs": {},

@@ -238,6 +238,8 @@ func (r UpdateLXCContainerRequest) IsEmpty() bool {
 		r.OnBoot == nil &&
 		r.Protection == nil &&
 		r.Cores == nil &&
+		r.CPULimit == nil &&
+		r.CPUUnits == nil &&
 		r.Memory == nil &&
 		r.Swap == nil &&
 		len(r.Network) == 0 &&

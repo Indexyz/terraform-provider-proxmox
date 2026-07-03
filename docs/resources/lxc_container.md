@@ -52,6 +52,8 @@ resource "proxmox_lxc_container" "example" {
 
 - `arch` (String) Container architecture. Changes require replacement.
 - `cores` (Number) Configured vCPU cores managed through `/config`.
+- `cpulimit` (Number) CPU usage limit managed through `/config`. Value 0 indicates no limit.
+- `cpuunits` (Number) CPU weight for this container managed through `/config`.
 - `description` (String) Optional container description managed through `/config`.
 - `features` (String) Raw LXC features string managed through `/config`.
 - `hostname` (String) Container hostname managed through `/config`.
