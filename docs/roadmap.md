@@ -26,6 +26,7 @@
 - 新增 `proxmox_user` 和 `proxmox_users` 数据源，覆盖用户查询（`GET /access/users/{userid}` 单个、`GET /access/users` 列表），补全 access 管理数据源；provider 注册、示例和 reference 文档。
 - 新增 `proxmox_role` 和 `proxmox_roles` 数据源，覆盖角色查询（`GET /access/roles/{roleid}` 单个、`GET /access/roles` 列表），provider 注册、示例和 reference 文档。
 - 新增 `proxmox_node_firewall_options` 资源，覆盖节点防火墙选项管理（`GET/PUT /nodes/{node}/firewall/options`），typed 全部 20 个选项（`enable`/log_level_in/out/forward/conntrack/synflood/smurf/tcpflags/nftables 等），delete 通过 reset 所有 key 实现，import（`node`）、provider 注册、测试、示例和 reference 文档。
+- 新增 `proxmox_user_token` 资源，覆盖 API token 管理（`POST/GET/PUT/DELETE /access/users/{userid}/token/{tokenid}`），`user_id`/`token_id` required + `comment`/`expire`/`privsep`，create 返回的敏感 `value`/`full_token_id` 保存在 state（不可从 Proxmox 读回），import（`userid/tokenid`）、provider 注册、测试、示例和 reference 文档。
 - 新增 `proxmox_lxc_container` 资源和数据源支持，覆盖 LXC client、task wait、schema、mapping、raw 冲突校验、provider 注册、示例和 reference 文档。
 
 ## 接下来

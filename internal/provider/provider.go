@@ -142,6 +142,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewRoleResource,
 		NewStorageResource,
 		NewUserResource,
+		NewUserTokenResource,
 	}
 }
 
