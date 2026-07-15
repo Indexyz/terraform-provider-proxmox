@@ -4,7 +4,7 @@
 
 - 扫描项目结构、Provider 配置、HTTP client、资源、数据源、QEMU VM typed/raw 映射、文档生成和 CI/e2e 工具链。
 - 新增 `docs/codebase.md`，整理开发者向代码库说明、API surface、资源/数据源职责、QEMU 扩展边界、测试与 CI 入口、已有 spec/plan 归档，并记录 `AGENTS.md` 中的贡献约束。
-- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，14 个资源和 19 个数据源均有示例来源。
+- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，15 个资源和 19 个数据源均有示例来源。
 - 为 QEMU VM `protection` typed 字段新增预期失败的 client、mapping、raw conflict 与 schema 属性单元测试。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `protection` typed boolean，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["protection"]` 迁移到 typed 字段。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `scsihw` typed 字段，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["scsihw"]` 迁移到 typed 字段。
@@ -31,7 +31,8 @@
 - 新增 `proxmox_guest_firewall_options` 资源，覆盖 VM/容器级防火墙选项（`GET/PUT /nodes/{node}/{qemu|lxc}/{vmid}/firewall/options`），typed 10 个选项（`enable`/`dhcp`/`ipfilter`/`macfilter`/`log_level_in/out`/`policy_in/out`/`ndp`/`radv`），`node`/`vm_id`/`guest_type`（qemu/lxc）RequiresReplace、delete 通过 reset 所有 key 实现、import（`node/vm_id/guest_type`）、provider 注册、示例和 reference 文档。
 - 新增 `proxmox_lxc_container` 资源和数据源支持，覆盖 LXC client、task wait、schema、mapping、raw 冲突校验、provider 注册、示例和 reference 文档。
 - 修复 Tests CI：清理 `golangci-lint v2.12.2` 报告的 17 个 lint 问题，并重新生成 18 份未同步的 Provider reference 文档。
-- 对照当前 Provider 注册、Proxmox VE API Viewer 和成熟 Provider 的覆盖面完成后续功能研究；修正 README 与代码库文档中过时的 3 resources/12 data sources 清单，当前实际为 14 resources/19 data sources。
+- 对照当前 Provider 注册、Proxmox VE API Viewer 和成熟 Provider 的覆盖面完成后续功能研究；修正 README 与代码库文档中过时的 3 resources/12 data sources 清单，并建立持续同步实际注册项的维护约束。
+- 新增 `proxmox_cluster_firewall_options` 资源，覆盖 `GET/PUT /cluster/firewall/options`，管理 cluster-wide `enable`、`ebtables`、默认 in/out/forward policy 和 `log_ratelimit`；Terraform delete 通过 `delete` reset 全部托管 key，支持固定 ID `cluster` 导入，并补齐 client/resource 测试、示例和生成文档。
 
 ## 接下来
 
@@ -39,12 +40,11 @@
 
 | 顺序 | 候选功能 | 核心 API | 价值/成本/风险 | 实施重点 |
 | --- | --- | --- | --- | --- |
-| 1 | Cluster firewall options resource | `GET/PUT /cluster/firewall/options` | 高/低/低 | 复用现有 node/guest firewall options 的 typed schema、reset 和 import 模式，补齐集群防火墙启用及默认策略管理。 |
-| 2 | Backup job resource | `GET/POST /cluster/backup`、`GET/PUT/DELETE /cluster/backup/{id}` | 高/中/中 | 显式建模 schedule、storage、guest/pool/all 选择和 retention；CRUD 只管理计划，不触发备份任务。 |
-| 3 | Storage file download resource | `POST /nodes/{node}/storage/{storage}/download-url`、storage content item API | 高/中/中 | 支持 ISO、云镜像和 LXC template 的 URL 下载、checksum、UPID 等待及删除生命周期，打通 guest provisioning 工作流。 |
-| 4 | Cluster metrics server resource | `/cluster/metrics/server/{id}` CRUD | 中高/低至中/低至中 | 复用现有 `ClusterMetricsServers` client/data source；正确处理 Graphite/Influx 类型字段和不可读回的 secret。 |
-| 5 | Firewall aliases、IP sets、security groups 和 scoped rules | `/cluster/firewall/aliases`、`/ipset`、`/groups`，以及 node/guest `/rules` | 高/中至高/中 | 复用现有 firewall client/resource；谨慎处理 positional rule identity、依赖顺序和共享配置冲突。 |
-| 6 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
+| 1 | Backup job resource | `GET/POST /cluster/backup`、`GET/PUT/DELETE /cluster/backup/{id}` | 高/中/中 | 显式建模 schedule、storage、guest/pool/all 选择和 retention；CRUD 只管理计划，不触发备份任务。 |
+| 2 | Storage file download resource | `POST /nodes/{node}/storage/{storage}/download-url`、storage content item API | 高/中/中 | 支持 ISO、云镜像和 LXC template 的 URL 下载、checksum、UPID 等待及删除生命周期，打通 guest provisioning 工作流。 |
+| 3 | Cluster metrics server resource | `/cluster/metrics/server/{id}` CRUD | 中高/低至中/低至中 | 复用现有 `ClusterMetricsServers` client/data source；正确处理 Graphite/Influx 类型字段和不可读回的 secret。 |
+| 4 | Firewall aliases、IP sets、security groups 和 scoped rules | `/cluster/firewall/aliases`、`/ipset`、`/groups`，以及 node/guest `/rules` | 高/中至高/中 | 复用现有 firewall client/resource；谨慎处理 positional rule identity、依赖顺序和共享配置冲突。 |
+| 5 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
 
 ### 后续中大型功能
 

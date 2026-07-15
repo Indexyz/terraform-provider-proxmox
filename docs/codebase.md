@@ -25,7 +25,7 @@
 | `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、storage、QEMU、LXC 和 node 数据源。 |
 | `internal/provider/*_test.go` | Provider、client、resource/data source、QEMU 映射、e2e smoke 测试。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、14 个 resource 示例。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、15 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -103,15 +103,16 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | Storage methods | `/storage[/{storage}]` | 存储池 CRUD 和查询。 |
 | Role/User/Token methods | `/access/roles`、`/access/users`、`/access/users/{userid}/token` | RBAC 角色、用户和 API token 管理。 |
 | ACL methods | `GET/PUT /access/acl` | 权限绑定读取和差异更新。 |
-| Firewall methods | `/cluster/firewall/rules`、节点和 guest `/firewall/options` | 集群规则及节点/guest 防火墙选项管理。 |
+| Firewall methods | `/cluster/firewall/options`、`/cluster/firewall/rules`、节点和 guest `/firewall/options` | 集群选项/规则及节点/guest 防火墙选项管理。 |
 
 ## 资源
 
-当前注册 **14 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **15 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
 | `proxmox_acl` | 管理 path 下的 role 与 user/group 权限绑定。 |
+| `proxmox_cluster_firewall_options` | 管理集群级防火墙启用、默认策略和日志限速。 |
 | `proxmox_firewall_rule` | 管理集群级防火墙规则。 |
 | `proxmox_group` | 管理 access group。 |
 | `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
@@ -223,7 +224,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 14 个资源和 19 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 15 个资源和 19 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。
 
