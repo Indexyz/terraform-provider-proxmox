@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -42,13 +41,7 @@ func (c *Client) GetACL(ctx context.Context) ([]ACLEntry, error) {
 	}
 	result := make([]ACLEntry, 0, len(entries))
 	for _, e := range entries {
-		result = append(result, ACLEntry{
-			Path:      e.Path,
-			Propagate: e.Propagate,
-			RoleID:    e.RoleID,
-			Type:      e.Type,
-			UGID:      e.UGID,
-		})
+		result = append(result, ACLEntry(e))
 	}
 	return result, nil
 }
@@ -73,9 +66,4 @@ func boolToFormValue(b bool) string {
 		return "1"
 	}
 	return "0"
-}
-
-// aclBindingKey uniquely identifies an ACL binding (path + type + ugid + roleid).
-func aclBindingKey(entry ACLEntry) string {
-	return fmt.Sprintf("%s|%s|%s|%s", entry.Path, entry.Type, entry.UGID, entry.RoleID)
 }

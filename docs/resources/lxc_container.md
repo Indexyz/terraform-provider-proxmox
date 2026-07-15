@@ -56,14 +56,14 @@ resource "proxmox_lxc_container" "example" {
 ### Optional
 
 - `arch` (String) Container architecture. Changes require replacement.
+- `clone` (Attributes) Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create (ostemplate) path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases. (see [below for nested schema](#nestedatt--clone))
+- `cmode` (String) Console mode (`shell` or `console`) managed through `/config`.
+- `console` (Boolean) Whether a console device is attached to the container, managed through `/config`.
 - `cores` (Number) Configured vCPU cores managed through `/config`.
 - `cpulimit` (Number) CPU usage limit managed through `/config`. Value 0 indicates no limit.
 - `cpuunits` (Number) CPU weight for this container managed through `/config`.
 - `description` (String) Optional container description managed through `/config`.
 - `features` (String) Raw LXC features string managed through `/config`.
-- `console` (Boolean) Whether a console device is attached to the container, managed through `/config`.
-- `tty` (Number) Number of TTYs available to the container, managed through `/config`.
-- `cmode` (String) Console mode (`shell` or `console`) managed through `/config`.
 - `hookscript` (String) Hookscript path managed through `/config`.
 - `hostname` (String) Container hostname managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
@@ -75,13 +75,13 @@ resource "proxmox_lxc_container" "example" {
 - `ostype` (String) Configured container operating system type managed through `/config`.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this container.
 - `raw` (Attributes) Escape hatch for LXC `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
-- `clone` (Attributes) Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create (ostemplate) path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases. (see [below for nested schema](#nestedatt--clone))
 - `rootfs` (String) Root filesystem configuration. Changes require replacement.
 - `searchdomain` (String) DNS search domain configuration managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.
 - `swap` (Number) Configured swap in MiB managed through `/config`.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `timezone` (String) Timezone configuration managed through `/config`.
+- `tty` (Number) Number of TTYs available to the container, managed through `/config`.
 - `unprivileged` (Boolean) Whether the container is unprivileged. Changes require replacement.
 
 ### Read-Only
@@ -90,15 +90,12 @@ resource "proxmox_lxc_container" "example" {
 - `status` (String) Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`. Terraform does not manage power state.
 - `uptime` (Number) Observed container uptime in seconds from `/status/current`.
 
-<a id="nestedatt--raw"></a>
-### Nested Schema for `raw`
-
-Optional:
-
-- `extra_config` (Map of String) Raw Proxmox LXC config entries keyed by their exact `/config` key.
-
 <a id="nestedatt--clone"></a>
 ### Nested Schema for `clone`
+
+Required:
+
+- `source_vmid` (Number) Source VMID to clone from.
 
 Optional:
 
@@ -106,8 +103,24 @@ Optional:
 - `full` (Boolean) Whether to request a full clone.
 - `snapshot_name` (String) Optional source snapshot name to clone from.
 - `source_node` (String) Source node that owns `source_vmid`. Defaults to the managed `node` when omitted.
-- `source_vmid` (Number) Source VMID to clone from.
 - `storage` (String) Optional target storage override for full clones.
+
+
+<a id="nestedatt--mount_point"></a>
+### Nested Schema for `mount_point`
+
+Optional:
+
+- `acl` (Boolean)
+- `backup` (Boolean)
+- `mountpoint` (String)
+- `quota` (Boolean)
+- `read_only` (Boolean)
+- `replicate` (Boolean)
+- `shared` (Boolean)
+- `size` (String)
+- `volume` (String)
+
 
 <a id="nestedatt--network"></a>
 ### Nested Schema for `network`
@@ -129,17 +142,10 @@ Optional:
 - `trunks` (String)
 - `type` (String)
 
-<a id="nestedatt--mount_point"></a>
-### Nested Schema for `mount_point`
+
+<a id="nestedatt--raw"></a>
+### Nested Schema for `raw`
 
 Optional:
 
-- `acl` (Boolean)
-- `backup` (Boolean)
-- `mountpoint` (String)
-- `quota` (Boolean)
-- `read_only` (Boolean)
-- `replicate` (Boolean)
-- `shared` (Boolean)
-- `size` (String)
-- `volume` (String)
+- `extra_config` (Map of String) Raw Proxmox LXC config entries keyed by their exact `/config` key.

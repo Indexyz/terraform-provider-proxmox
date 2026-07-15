@@ -207,7 +207,7 @@ func lxcContainerConfigRequestFromModel(ctx context.Context, model lxcContainerM
 	diags.Append(networkDiags...)
 	mountPoint, mountPointDiags := expandLXCContainerMountPointMap(ctx, model.MountPoint)
 	diags.Append(mountPointDiags...)
-	diags.Append(validateLXCContainerMapKeys(ctx, model)...)
+	diags.Append(validateLXCContainerMapKeys(model)...)
 	raw, rawDiags := expandLXCContainerRawModel(ctx, model.Raw)
 	diags.Append(rawDiags...)
 	if diags.HasError() {
@@ -252,14 +252,14 @@ func lxcContainerConfigRequestFromModel(ctx context.Context, model lxcContainerM
 	}, diags
 }
 
-func validateLXCContainerMapKeys(ctx context.Context, model lxcContainerModel) diag.Diagnostics {
+func validateLXCContainerMapKeys(model lxcContainerModel) diag.Diagnostics {
 	var diags diag.Diagnostics
-	validateLXCContainerMapKeySet(ctx, &diags, model.Network, path.Root("network"), isLXCContainerNetworkKey, "Invalid LXC network key", "LXC network map keys must use Proxmox network slots such as net0 or net1.")
-	validateLXCContainerMapKeySet(ctx, &diags, model.MountPoint, path.Root("mount_point"), isLXCContainerMountPointKey, "Invalid LXC mount_point key", "LXC mount_point map keys must use Proxmox mount-point slots such as mp0 or mp1.")
+	validateLXCContainerMapKeySet(&diags, model.Network, path.Root("network"), isLXCContainerNetworkKey, "Invalid LXC network key", "LXC network map keys must use Proxmox network slots such as net0 or net1.")
+	validateLXCContainerMapKeySet(&diags, model.MountPoint, path.Root("mount_point"), isLXCContainerMountPointKey, "Invalid LXC mount_point key", "LXC mount_point map keys must use Proxmox mount-point slots such as mp0 or mp1.")
 	return diags
 }
 
-func validateLXCContainerMapKeySet(ctx context.Context, diags *diag.Diagnostics, value types.Map, base path.Path, valid func(string) bool, summary string, detail string) {
+func validateLXCContainerMapKeySet(diags *diag.Diagnostics, value types.Map, base path.Path, valid func(string) bool, summary string, detail string) {
 	if value.IsNull() || value.IsUnknown() {
 		return
 	}
@@ -564,8 +564,8 @@ func lxcContainerDeleteKeys(ctx context.Context, plan lxcContainerModel, prior l
 	deleteKeys = appendDeletedString(deleteKeys, "searchdomain", plan.Searchdomain, prior.Searchdomain)
 	deleteKeys = appendDeletedString(deleteKeys, "timezone", plan.Timezone, prior.Timezone)
 
-	deleteKeys = appendDeletedMapKeys(ctx, deleteKeys, plan.Network, prior.Network, diags)
-	deleteKeys = appendDeletedMapKeys(ctx, deleteKeys, plan.MountPoint, prior.MountPoint, diags)
+	deleteKeys = appendDeletedMapKeys(deleteKeys, plan.Network, prior.Network)
+	deleteKeys = appendDeletedMapKeys(deleteKeys, plan.MountPoint, prior.MountPoint)
 	deleteKeys = appendDeletedRawKeys(ctx, deleteKeys, plan.Raw, prior.Raw, diags)
 
 	sort.Strings(deleteKeys)
@@ -593,7 +593,7 @@ func appendDeletedBool(keys []string, key string, plan types.Bool, prior types.B
 	return keys
 }
 
-func appendDeletedMapKeys(ctx context.Context, keys []string, plan types.Map, prior types.Map, diags *diag.Diagnostics) []string {
+func appendDeletedMapKeys(keys []string, plan types.Map, prior types.Map) []string {
 	if prior.IsNull() || prior.IsUnknown() {
 		return keys
 	}

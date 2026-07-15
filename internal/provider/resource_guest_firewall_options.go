@@ -115,7 +115,7 @@ func (r *GuestFirewallOptionsResource) Create(ctx context.Context, req resource.
 		resp.Diagnostics.AddError("Unable to Set Proxmox Guest Firewall Options", err.Error())
 		return
 	}
-	state, diags := r.readState(ctx, kind, plan.Node.ValueString(), plan.VMID.ValueInt64(), &plan)
+	state, diags := r.readState(ctx, kind, plan.Node.ValueString(), plan.VMID.ValueInt64())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -130,7 +130,7 @@ func (r *GuestFirewallOptionsResource) Read(ctx context.Context, req resource.Re
 		return
 	}
 	kind := state.GuestType.ValueString()
-	refreshed, diags := r.readState(ctx, kind, state.Node.ValueString(), state.VMID.ValueInt64(), &state)
+	refreshed, diags := r.readState(ctx, kind, state.Node.ValueString(), state.VMID.ValueInt64())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -155,7 +155,7 @@ func (r *GuestFirewallOptionsResource) Update(ctx context.Context, req resource.
 		resp.Diagnostics.AddError("Unable to Update Proxmox Guest Firewall Options", err.Error())
 		return
 	}
-	refreshed, diags := r.readState(ctx, kind, plan.Node.ValueString(), plan.VMID.ValueInt64(), &plan)
+	refreshed, diags := r.readState(ctx, kind, plan.Node.ValueString(), plan.VMID.ValueInt64())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -195,7 +195,7 @@ func validateGuestType(t string) (string, error) {
 	return t, nil
 }
 
-func (r *GuestFirewallOptionsResource) readState(ctx context.Context, kind, node string, vmID int64, prior *guestFirewallOptionsModel) (guestFirewallOptionsModel, diag.Diagnostics) {
+func (r *GuestFirewallOptionsResource) readState(ctx context.Context, kind, node string, vmID int64) (guestFirewallOptionsModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	opts, err := r.client.GetGuestFirewallOptions(ctx, kind, node, vmID)
 	if err != nil {

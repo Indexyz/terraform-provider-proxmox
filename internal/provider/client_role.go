@@ -63,7 +63,7 @@ func (c *Client) Roles(ctx context.Context) ([]Role, error) {
 	}
 	result := make([]Role, 0, len(entries))
 	for _, e := range entries {
-		result = append(result, Role{RoleID: e.RoleID, Privs: e.Privs})
+		result = append(result, Role(e))
 	}
 	return result, nil
 }

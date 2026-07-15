@@ -95,27 +95,7 @@ func (c *Client) GetNodeFirewallOptions(ctx context.Context, node string) (NodeF
 	if err := json.Unmarshal(payload, &known); err != nil {
 		return NodeFirewallOptions{}, fmt.Errorf("unable to decode firewall options: %w", err)
 	}
-	return NodeFirewallOptions{
-		Enable:                           known.Enable,
-		LogLevelIn:                       known.LogLevelIn,
-		LogLevelOut:                      known.LogLevelOut,
-		LogLevelForward:                  known.LogLevelForward,
-		LogNFConntrack:                   known.LogNFConntrack,
-		NFConntrackAllowInvalid:          known.NFConntrackAllowInvalid,
-		NFConntrackMax:                   known.NFConntrackMax,
-		NFConntrackTCPTimeoutEstablished: known.NFConntrackTCPTimeoutEstablished,
-		NFConntrackTCPSynRecvTimeout:     known.NFConntrackTCPSynRecvTimeout,
-		NFConntrackHelpers:               known.NFConntrackHelpers,
-		Ndp:                              known.Ndp,
-		Nosmurfs:                         known.Nosmurfs,
-		ProtectionSynflood:               known.ProtectionSynflood,
-		ProtectionSynfloodBurst:          known.ProtectionSynfloodBurst,
-		ProtectionSynfloodRate:           known.ProtectionSynfloodRate,
-		SmurfLogLevel:                    known.SmurfLogLevel,
-		TCPFlagsLogLevel:                 known.TCPFlagsLogLevel,
-		TCPFlags:                         known.TCPFlags,
-		Nftables:                         known.Nftables,
-	}, nil
+	return NodeFirewallOptions(known), nil
 }
 
 func (c *Client) UpdateNodeFirewallOptions(ctx context.Context, node string, req NodeFirewallOptionsRequest) error {

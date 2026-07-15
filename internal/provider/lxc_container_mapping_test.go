@@ -223,7 +223,7 @@ func TestValidateLXCContainerMapKeysRejectsInvalidKeys(t *testing.T) {
 		MountPoint: mustStringMapValue(t, map[string]string{"rootfs": "local-lvm:8"}),
 	}
 
-	diags := validateLXCContainerMapKeys(context.Background(), model)
+	diags := validateLXCContainerMapKeys(model)
 	if len(diags) != 2 {
 		t.Fatalf("expected two invalid map key diagnostics, got %v", diags)
 	}

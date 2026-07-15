@@ -388,7 +388,7 @@ func TestClientLXCContainerNoTaskWhenUPIDMissing(t *testing.T) {
 }
 
 func TestClientLXCContainerTaskContextCanceled(t *testing.T) {
-	withLXCContainerTaskTiming(t, time.Millisecond, time.Minute)
+	withLXCContainerTaskTiming(t, time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -423,7 +423,7 @@ func TestClientLXCContainerTaskContextCanceled(t *testing.T) {
 }
 
 func TestClientLXCContainerTaskTimeoutCap(t *testing.T) {
-	withLXCContainerTaskTiming(t, time.Millisecond, 5*time.Millisecond)
+	withLXCContainerTaskTiming(t, 5*time.Millisecond)
 
 	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -461,7 +461,7 @@ func TestClientLXCContainerTaskTimeoutCap(t *testing.T) {
 
 func TestClientLXCContainerClone(t *testing.T) {
 	ctx := context.Background()
-	withLXCContainerTaskTiming(t, time.Millisecond, time.Second)
+	withLXCContainerTaskTiming(t, time.Second)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertTokenAuth(t, r)
@@ -526,11 +526,11 @@ func isLXCContainerTaskRequest(r *http.Request, upid string) bool {
 	return decoded == upid
 }
 
-func withLXCContainerTaskTiming(t *testing.T, pollInterval, timeoutCap time.Duration) {
+func withLXCContainerTaskTiming(t *testing.T, timeoutCap time.Duration) {
 	t.Helper()
 	originalPollInterval := lxcContainerTaskPollInterval
 	originalTimeoutCap := lxcContainerTaskTimeoutCap
-	lxcContainerTaskPollInterval = pollInterval
+	lxcContainerTaskPollInterval = time.Millisecond
 	lxcContainerTaskTimeoutCap = timeoutCap
 	t.Cleanup(func() {
 		lxcContainerTaskPollInterval = originalPollInterval

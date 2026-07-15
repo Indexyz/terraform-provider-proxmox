@@ -61,7 +61,7 @@ func (r *LXCContainerResource) ValidateConfig(ctx context.Context, req resource.
 	}
 
 	resp.Diagnostics.Append(validateLXCContainerRawConflicts(ctx, config)...)
-	resp.Diagnostics.Append(validateLXCContainerMapKeys(ctx, config)...)
+	resp.Diagnostics.Append(validateLXCContainerMapKeys(config)...)
 }
 
 func (r *LXCContainerResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

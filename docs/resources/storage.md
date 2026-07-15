@@ -31,7 +31,7 @@ resource "proxmox_storage" "local_dir" {
 ### Required
 
 - `storage` (String) The storage identifier. Changes require replacement.
-- `type` (String) Storage type (e.g. `dir`, `lvm`, `lvmthin`, `nfs`, `zfs`, `rbd`, `cephfs`, `cifs`, `iscsi`, `pbs`, `btrfs`, `zfspool`). Changes require replacement.
+- `type` (String) Storage type (e.g. `dir`, `lvm`, `lvmthin`, `nfs`, `zfs`, `rbd`, `cephfs`, `cifs`, `iscsi`, `pbs`, `btrfs`, `zfspool`, `esxi`, `iscsidirect`). Changes require replacement.
 
 ### Optional
 
@@ -40,7 +40,7 @@ resource "proxmox_storage" "local_dir" {
 - `datastore` (String) PBS datastore name (for `pbs`).
 - `disable` (Boolean) Disable the storage.
 - `export` (String) NFS export path (for `nfs`).
-- `fingerpribt` (String) Certificate SHA256 fingerprint (for `pbs`).
+- `fingerprint` (String) Certificate SHA256 fingerprint (for `pbs`).
 - `format` (String) Default image format.
 - `fs_name` (String) Ceph filesystem name (for `cephfs`).
 - `krbd` (Boolean) Always access rbd through krbd kernel module.
@@ -53,6 +53,7 @@ resource "proxmox_storage" "local_dir" {
 - `password` (String) Password for accessing the share/datastore.
 - `path` (String) File system path (for `dir` type).
 - `pool` (String) Pool name (for `rbd`/`zfs`).
+- `raw` (Attributes) Escape hatch for `/storage` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `server` (String) Server IP or DNS name (for `nfs`/`cifs`/`iscsi`/`pbs`/`rbd`).
 - `share` (String) CIFS share (for `cifs`).
 - `shared` (Boolean) Indicate this is a single storage shared across nodes.
@@ -61,7 +62,6 @@ resource "proxmox_storage" "local_dir" {
 - `thin_pool` (String) LVM thin pool LV name (for `lvmthin`).
 - `username` (String) Username for accessing the share/datastore.
 - `vg_name` (String) Volume group name (for `lvm`/`lvmthin`).
-- `raw` (Attributes) Escape hatch for `/storage` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 
 ### Read-Only
 

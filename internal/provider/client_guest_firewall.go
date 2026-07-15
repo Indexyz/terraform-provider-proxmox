@@ -68,18 +68,7 @@ func (c *Client) GetGuestFirewallOptions(ctx context.Context, kind, node string,
 	if err := json.Unmarshal(payload, &known); err != nil {
 		return GuestFirewallOptions{}, fmt.Errorf("unable to decode guest firewall options: %w", err)
 	}
-	return GuestFirewallOptions{
-		Enable:      known.Enable,
-		DHCP:        known.DHCP,
-		IPFilter:    known.IPFilter,
-		MACFilter:   known.MACFilter,
-		LogLevelIn:  known.LogLevelIn,
-		LogLevelOut: known.LogLevelOut,
-		PolicyIn:    known.PolicyIn,
-		PolicyOut:   known.PolicyOut,
-		NDP:         known.NDP,
-		RADV:        known.RADV,
-	}, nil
+	return GuestFirewallOptions(known), nil
 }
 
 func (c *Client) UpdateGuestFirewallOptions(ctx context.Context, kind, node string, vmID int64, req GuestFirewallOptionsRequest) error {

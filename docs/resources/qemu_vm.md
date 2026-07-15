@@ -113,9 +113,9 @@ resource "proxmox_qemu_vm" "example" {
 ### Optional
 
 - `agent` (String) Raw QEMU guest agent configuration string managed through `/config`.
+- `balloon` (Number) Target balloon memory in MiB managed through `/config`. 0 disables ballooning.
 - `bios` (String) Configured BIOS type managed through `/config`.
 - `boot` (String) Boot order string managed through `/config`.
-- `balloon` (Number) Target balloon memory in MiB managed through `/config`. 0 disables ballooning.
 - `clone` (Attributes) Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases. (see [below for nested schema](#nestedatt--clone))
 - `cloud_init` (Attributes) Typed cloud-init configuration managed through `/config`. (see [below for nested schema](#nestedatt--cloud_init))
 - `common` (Attributes) Common advanced QEMU configuration managed through `/config`. (see [below for nested schema](#nestedatt--common))
@@ -126,6 +126,7 @@ resource "proxmox_qemu_vm" "example" {
 - `description` (String) Optional VM description managed through clone mode and `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. (see [below for nested schema](#nestedatt--disk))
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
+- `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 - `machine` (String) Configured machine type managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
 - `name` (String) Virtual machine name managed through `/nodes/{node}/qemu`, clone mode, and `/config`.
@@ -137,15 +138,15 @@ resource "proxmox_qemu_vm" "example" {
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type managed through `/config`.
-- `sockets` (Number) Configured CPU sockets managed through `/config`.
-- `shares` (Number) Memory shares for auto-ballooning managed through `/config`.
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough).
+- `shares` (Number) Memory shares for auto-ballooning managed through `/config`.
+- `sockets` (Number) Configured CPU sockets managed through `/config`.
 - `startup` (String) Startup ordering string managed through `/config`.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
-- `vga` (Attributes) Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
 - `vcpus` (Number) Number of hotplugged vCPUs managed through `/config`.
+- `vga` (Attributes) Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
 
 ### Read-Only
 
@@ -202,7 +203,6 @@ Optional:
 Optional:
 
 - `hotplug` (String) Hotplug feature set managed through `/config`.
-- `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 
 
 <a id="nestedatt--disk"></a>
@@ -286,6 +286,7 @@ Optional:
 - `storage` (String)
 - `version` (String)
 - `volume` (String)
+
 
 <a id="nestedatt--vga"></a>
 ### Nested Schema for `vga`

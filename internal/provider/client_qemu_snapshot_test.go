@@ -14,7 +14,7 @@ import (
 
 func TestClientQemuSnapshotMethods(t *testing.T) {
 	ctx := context.Background()
-	withLXCContainerTaskTiming(t, time.Millisecond, time.Second)
+	withLXCContainerTaskTiming(t, time.Second)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertTokenAuth(t, r)

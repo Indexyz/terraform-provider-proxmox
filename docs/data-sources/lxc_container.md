@@ -33,14 +33,14 @@ data "proxmox_lxc_container" "example" {
 ### Read-Only
 
 - `arch` (String) Container architecture from `/config`.
+- `clone` (Attributes) Create-time clone inputs. This provider cannot infer clone provenance for existing containers, so this remains null for imported or data source reads. (see [below for nested schema](#nestedatt--clone))
+- `cmode` (String) Console mode (`shell` or `console`) from `/config`.
+- `console` (Boolean) Whether a console device is attached to the container from `/config`.
 - `cores` (Number) Configured vCPU cores from `/config`.
 - `cpulimit` (Number) CPU usage limit from `/config`. Value 0 indicates no limit.
 - `cpuunits` (Number) CPU weight for this container from `/config`.
 - `description` (String) Optional container description from `/config`.
 - `features` (String) Raw LXC features string from `/config`.
-- `console` (Boolean) Whether a console device is attached to the container, from `/config`.
-- `tty` (Number) Number of TTYs available to the container, from `/config`.
-- `cmode` (String) Console mode (`shell` or `console`) from `/config`.
 - `hookscript` (String) Hookscript path from `/config`.
 - `hostname` (String) Container hostname from `/config`.
 - `id` (String) Terraform identifier in `node/vm_id` form.
@@ -53,7 +53,6 @@ data "proxmox_lxc_container" "example" {
 - `ostype` (String) Configured container operating system type from `/config`.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this container.
 - `raw` (Attributes) Escape hatch for LXC `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
-- `clone` (Attributes) Create-time clone inputs. This provider cannot infer clone provenance for existing containers, so this remains null for imported or data source reads. (see [below for nested schema](#nestedatt--clone))
 - `rootfs` (String) Root filesystem configuration from `/config`.
 - `searchdomain` (String) DNS search domain configuration from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
@@ -61,27 +60,38 @@ data "proxmox_lxc_container" "example" {
 - `swap` (Number) Configured swap in MiB from `/config`.
 - `tags` (String) Comma-separated Proxmox tags from `/config`.
 - `timezone` (String) Timezone configuration from `/config`.
+- `tty` (Number) Number of TTYs available to the container from `/config`.
 - `unprivileged` (Boolean) Whether the container is unprivileged.
 - `uptime` (Number) Observed container uptime in seconds from `/status/current`.
-
-<a id="nestedatt--raw"></a>
-### Nested Schema for `raw`
-
-Read-Only:
-
-- `extra_config` (Map of String) Raw Proxmox LXC config entries keyed by their exact `/config` key.
 
 <a id="nestedatt--clone"></a>
 ### Nested Schema for `clone`
 
 Read-Only:
 
-- `bwlimit` (Number) Optional clone bandwidth limit in KiB/s.
-- `full` (Boolean) Whether to request a full clone.
-- `snapshot_name` (String) Optional source snapshot name to clone from.
-- `source_node` (String) Source node that owns `source_vmid`.
-- `source_vmid` (Number) Source VMID to clone from.
-- `storage` (String) Optional target storage override for full clones.
+- `bwlimit` (Number)
+- `full` (Boolean)
+- `snapshot_name` (String)
+- `source_node` (String)
+- `source_vmid` (Number)
+- `storage` (String)
+
+
+<a id="nestedatt--mount_point"></a>
+### Nested Schema for `mount_point`
+
+Read-Only:
+
+- `acl` (Boolean)
+- `backup` (Boolean)
+- `mountpoint` (String)
+- `quota` (Boolean)
+- `read_only` (Boolean)
+- `replicate` (Boolean)
+- `shared` (Boolean)
+- `size` (String)
+- `volume` (String)
+
 
 <a id="nestedatt--network"></a>
 ### Nested Schema for `network`
@@ -103,17 +113,10 @@ Read-Only:
 - `trunks` (String)
 - `type` (String)
 
-<a id="nestedatt--mount_point"></a>
-### Nested Schema for `mount_point`
+
+<a id="nestedatt--raw"></a>
+### Nested Schema for `raw`
 
 Read-Only:
 
-- `acl` (Boolean)
-- `backup` (Boolean)
-- `mountpoint` (String)
-- `quota` (Boolean)
-- `read_only` (Boolean)
-- `replicate` (Boolean)
-- `shared` (Boolean)
-- `size` (String)
-- `volume` (String)
+- `extra_config` (Map of String) Raw Proxmox LXC config entries keyed by their exact `/config` key.

@@ -98,7 +98,7 @@ func (r *NodeFirewallOptionsResource) Configure(_ context.Context, req resource.
 	r.client = client
 }
 
-func firewallOptionsRequestFromModel(plan nodeFirewallOptionsModel, prior nodeFirewallOptionsModel) NodeFirewallOptionsRequest {
+func firewallOptionsRequestFromModel(plan nodeFirewallOptionsModel) NodeFirewallOptionsRequest {
 	req := NodeFirewallOptionsRequest{
 		Enable:                           boolPointerValue(plan.Enable),
 		LogLevelIn:                       stringPointer(plan.LogLevelIn),
@@ -140,12 +140,12 @@ func (r *NodeFirewallOptionsResource) Create(ctx context.Context, req resource.C
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	updateReq := firewallOptionsRequestFromModel(plan, nodeFirewallOptionsModel{})
+	updateReq := firewallOptionsRequestFromModel(plan)
 	if err := r.client.UpdateNodeFirewallOptions(ctx, plan.Node.ValueString(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Set Proxmox Node Firewall Options", err.Error())
 		return
 	}
-	state, diags := r.readState(ctx, plan.Node.ValueString(), &plan)
+	state, diags := r.readState(ctx, plan.Node.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -159,7 +159,7 @@ func (r *NodeFirewallOptionsResource) Read(ctx context.Context, req resource.Rea
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	refreshed, diags := r.readState(ctx, state.Node.ValueString(), &state)
+	refreshed, diags := r.readState(ctx, state.Node.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -175,13 +175,13 @@ func (r *NodeFirewallOptionsResource) Update(ctx context.Context, req resource.U
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	updateReq := firewallOptionsRequestFromModel(plan, state)
+	updateReq := firewallOptionsRequestFromModel(plan)
 	updateReq.Delete = firewallOptionsDeleteKeys(plan, state)
 	if err := r.client.UpdateNodeFirewallOptions(ctx, plan.Node.ValueString(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Update Proxmox Node Firewall Options", err.Error())
 		return
 	}
-	refreshed, diags := r.readState(ctx, plan.Node.ValueString(), &plan)
+	refreshed, diags := r.readState(ctx, plan.Node.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -205,7 +205,7 @@ func (r *NodeFirewallOptionsResource) ImportState(ctx context.Context, req resou
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 
-func (r *NodeFirewallOptionsResource) readState(ctx context.Context, node string, prior *nodeFirewallOptionsModel) (nodeFirewallOptionsModel, diag.Diagnostics) {
+func (r *NodeFirewallOptionsResource) readState(ctx context.Context, node string) (nodeFirewallOptionsModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	opts, err := r.client.GetNodeFirewallOptions(ctx, node)
 	if err != nil {

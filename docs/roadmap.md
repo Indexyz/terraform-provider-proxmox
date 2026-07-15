@@ -30,6 +30,7 @@
 - 新增 `proxmox_firewall_rule` 资源（`/cluster/firewall/rules` CRUD），content-based identity（11 identity fields `RequiresReplaceIfConfigured` + `enable`/`comment` mutable），`pos` computed 每次操作重新解析，duplicate pre-check（≥1 match 报错）、ambiguous match（≥2 报错）、no digest、no import、provider 注册、测试、示例和 reference 文档。
 - 新增 `proxmox_guest_firewall_options` 资源，覆盖 VM/容器级防火墙选项（`GET/PUT /nodes/{node}/{qemu|lxc}/{vmid}/firewall/options`），typed 10 个选项（`enable`/`dhcp`/`ipfilter`/`macfilter`/`log_level_in/out`/`policy_in/out`/`ndp`/`radv`），`node`/`vm_id`/`guest_type`（qemu/lxc）RequiresReplace、delete 通过 reset 所有 key 实现、import（`node/vm_id/guest_type`）、provider 注册、示例和 reference 文档。
 - 新增 `proxmox_lxc_container` 资源和数据源支持，覆盖 LXC client、task wait、schema、mapping、raw 冲突校验、provider 注册、示例和 reference 文档。
+- 修复 Tests CI：清理 `golangci-lint v2.12.2` 报告的 17 个 lint 问题，并重新生成 18 份未同步的 Provider reference 文档。
 
 ## 接下来
 

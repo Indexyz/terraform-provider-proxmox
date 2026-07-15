@@ -26,7 +26,9 @@ func TestClientNodeFirewallOptions(t *testing.T) {
 				"nosmurfs":            1,
 			})
 		case r.URL.Path == "/api2/json/nodes/pve-1/firewall/options" && r.Method == http.MethodPut:
-			r.ParseForm()
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("ParseForm() unexpected error: %v", err)
+			}
 			if r.Form.Get("delete") == "" {
 				// Update call
 				assertFormValues(t, r, url.Values{

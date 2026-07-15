@@ -50,6 +50,7 @@ data "proxmox_qemu_vm" "example" {
 - `description` (String) Optional VM description from `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0` when fully covered by this provider version. (see [below for nested schema](#nestedatt--disk))
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--efi_disk))
+- `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) from `/config`.
 - `id` (String) Terraform identifier in `node/vm_id` form.
 - `machine` (String) Configured machine type from `/config`.
 - `memory` (Number) Configured memory in MiB from `/config`.
@@ -62,18 +63,18 @@ data "proxmox_qemu_vm" "example" {
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type from `/config`.
-- `sockets` (Number) Configured CPU sockets from `/config`.
+- `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0`.
 - `shares` (Number) Memory shares for auto-ballooning from `/config`.
-- `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0` from `/config`.
+- `sockets` (Number) Configured CPU sockets from `/config`.
 - `startup` (String) Startup ordering string from `/config`.
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM from `/config`.
 - `tags` (String) Comma-separated Proxmox tags from `/config`.
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--tpm_state))
-- `vga` (Attributes) Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
-- `vcpus` (Number) Number of hotplugged vCPUs from `/config`.
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
+- `vcpus` (Number) Number of hotplugged vCPUs from `/config`.
+- `vga` (Attributes) Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
 
 <a id="nestedatt--clone"></a>
 ### Nested Schema for `clone`
@@ -119,7 +120,6 @@ Read-Only:
 
 Read-Only:
 
-- `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) from `/config`.
 - `hotplug` (String) Hotplug feature set from `/config`.
 
 
@@ -204,6 +204,7 @@ Read-Only:
 - `storage` (String)
 - `version` (String)
 - `volume` (String)
+
 
 <a id="nestedatt--vga"></a>
 ### Nested Schema for `vga`

@@ -106,7 +106,7 @@ func (r *ACLResource) Create(ctx context.Context, req resource.CreateRequest, re
 		resp.Diagnostics.AddError("Unable to Create Proxmox ACL", err.Error())
 		return
 	}
-	state, diags := r.readACLState(ctx, plan.Path.ValueString(), &plan)
+	state, diags := r.readACLState(ctx, plan.Path.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -120,7 +120,7 @@ func (r *ACLResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	refreshed, diags := r.readACLState(ctx, state.Path.ValueString(), &state)
+	refreshed, diags := r.readACLState(ctx, state.Path.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -142,11 +142,7 @@ func (r *ACLResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	}
 
 	// Determine removed bindings and delete them, then add all current bindings.
-	removed, err := r.diffRemovedBindings(ctx, plan, state)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to Read Current Proxmox ACL", err.Error())
-		return
-	}
+	removed := r.diffRemovedBindings(ctx, plan, state)
 	for _, rb := range removed {
 		if err := r.deleteBinding(ctx, rb); err != nil {
 			resp.Diagnostics.AddError("Unable to Remove Proxmox ACL Binding", err.Error())
@@ -157,7 +153,7 @@ func (r *ACLResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		resp.Diagnostics.AddError("Unable to Update Proxmox ACL", err.Error())
 		return
 	}
-	refreshed, diags := r.readACLState(ctx, plan.Path.ValueString(), &plan)
+	refreshed, diags := r.readACLState(ctx, plan.Path.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -184,7 +180,7 @@ func (r *ACLResource) ImportState(ctx context.Context, req resource.ImportStateR
 // applyACL sets all role/user/group bindings for the path in a single API call.
 // Proxmox PUT /access/acl adds (delete=false) or removes (delete=true) all
 // role×user/group combinations for the path.
-func (r *ACLResource) applyACL(ctx context.Context, model aclResourceModel, delete bool) error {
+func (r *ACLResource) applyACL(ctx context.Context, model aclResourceModel, remove bool) error {
 	roles, diags := listToStringSlice(ctx, model.Roles)
 	if diags.HasError() {
 		return fmt.Errorf("unable to read roles: %v", diags)
@@ -213,13 +209,13 @@ func (r *ACLResource) applyACL(ctx context.Context, model aclResourceModel, dele
 		Users:     strings.Join(sortedStrings(users), ","),
 		Groups:    strings.Join(sortedStrings(groups), ","),
 		Propagate: &propagate,
-		Delete:    delete,
+		Delete:    remove,
 	}
 	return r.client.SetACL(ctx, req)
 }
 
 // diffRemovedBindings returns bindings present in state but no longer in plan.
-func (r *ACLResource) diffRemovedBindings(ctx context.Context, plan aclResourceModel, state aclResourceModel) ([]ACLEntry, error) {
+func (r *ACLResource) diffRemovedBindings(ctx context.Context, plan aclResourceModel, state aclResourceModel) []ACLEntry {
 	planKeys := map[string]bool{}
 	planRoles, _ := listToStringSlice(ctx, plan.Roles)
 	planUsers, _ := listToStringSlice(ctx, plan.Users)
@@ -251,7 +247,7 @@ func (r *ACLResource) diffRemovedBindings(ctx context.Context, plan aclResourceM
 			}
 		}
 	}
-	return removed, nil
+	return removed
 }
 
 func (r *ACLResource) deleteBinding(ctx context.Context, binding ACLEntry) error {
@@ -269,7 +265,7 @@ func (r *ACLResource) deleteBinding(ctx context.Context, binding ACLEntry) error
 	return r.client.SetACL(ctx, req)
 }
 
-func (r *ACLResource) readACLState(ctx context.Context, aclPath string, prior *aclResourceModel) (aclResourceModel, diag.Diagnostics) {
+func (r *ACLResource) readACLState(ctx context.Context, aclPath string) (aclResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	entries, err := r.client.GetACL(ctx)
 	if err != nil {
@@ -293,9 +289,10 @@ func (r *ACLResource) readACLState(ctx context.Context, aclPath string, prior *a
 	propagate := true
 	for _, e := range pathEntries {
 		roleSet[e.RoleID] = true
-		if e.Type == "user" {
+		switch e.Type {
+		case "user":
 			userSet[e.UGID] = true
-		} else if e.Type == "group" {
+		case "group":
 			groupSet[e.UGID] = true
 		}
 		if e.Propagate.Ptr() != nil {
