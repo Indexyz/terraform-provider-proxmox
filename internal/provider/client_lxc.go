@@ -12,12 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
-)
-
-var (
-	lxcContainerTaskPollInterval = 2 * time.Second
-	lxcContainerTaskTimeoutCap   = 10 * time.Minute
 )
 
 type LXCContainerConfig struct {
@@ -134,11 +128,6 @@ type CloneLXCContainerRequest struct {
 	BWLimit      *int64
 }
 
-type lxcContainerTaskStatus struct {
-	Status     string `json:"status"`
-	ExitStatus string `json:"exitstatus"`
-}
-
 func (c *Client) GetLXCContainerConfig(ctx context.Context, node string, vmID int64) (LXCContainerConfig, error) {
 	var raw map[string]json.RawMessage
 	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/lxc/%d/config", url.PathEscape(node), vmID), nil, nil, &raw); err != nil {
@@ -164,7 +153,7 @@ func (c *Client) CreateLXCContainer(ctx context.Context, node string, req Create
 	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/lxc", url.PathEscape(node)), nil, form, &upid); err != nil {
 		return err
 	}
-	return c.waitForLXCContainerTask(ctx, node, upid)
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func (c *Client) CloneLXCContainer(ctx context.Context, req CloneLXCContainerRequest) error {
@@ -183,7 +172,7 @@ func (c *Client) CloneLXCContainer(ctx context.Context, req CloneLXCContainerReq
 	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/lxc/%d/clone", url.PathEscape(req.SourceNode), req.SourceVMID), nil, form, &upid); err != nil {
 		return err
 	}
-	return c.waitForLXCContainerTask(ctx, req.SourceNode, upid)
+	return c.waitForNodeTask(ctx, req.SourceNode, upid)
 }
 
 func (c *Client) UpdateLXCContainer(ctx context.Context, node string, vmID int64, req UpdateLXCContainerRequest) error {
@@ -194,7 +183,7 @@ func (c *Client) UpdateLXCContainer(ctx context.Context, node string, vmID int64
 	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/nodes/%s/lxc/%d/config", url.PathEscape(node), vmID), nil, form, &upid); err != nil {
 		return err
 	}
-	return c.waitForLXCContainerTask(ctx, node, upid)
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func (c *Client) DeleteLXCContainer(ctx context.Context, node string, vmID int64) error {
@@ -205,7 +194,7 @@ func (c *Client) DeleteLXCContainer(ctx context.Context, node string, vmID int64
 		}
 		return err
 	}
-	return c.waitForLXCContainerTask(ctx, node, upid)
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func decodeLXCContainerConfig(raw map[string]json.RawMessage) (LXCContainerConfig, error) {
@@ -325,41 +314,6 @@ func encodeLXCContainerCommonFields(form url.Values, req lxcContainerConfigReque
 	setSortedStringMap(form, req.Network)
 	setSortedStringMap(form, req.MountPoint)
 	setSortedStringMap(form, req.ExtraConfig)
-}
-
-func (c *Client) waitForLXCContainerTask(ctx context.Context, node string, upid string) error {
-	if upid == "" {
-		return nil
-	}
-
-	waitCtx := ctx
-	cancel := func() {}
-	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > lxcContainerTaskTimeoutCap {
-		waitCtx, cancel = context.WithTimeout(ctx, lxcContainerTaskTimeoutCap)
-	}
-	defer cancel()
-
-	for {
-		var status lxcContainerTaskStatus
-		if err := c.do(waitCtx, http.MethodGet, fmt.Sprintf("/nodes/%s/tasks/%s/status", url.PathEscape(node), url.PathEscape(upid)), nil, nil, &status); err != nil {
-			return fmt.Errorf("unable to poll LXC task %q status: %w", upid, err)
-		}
-
-		if status.Status == "stopped" {
-			if status.ExitStatus == "OK" {
-				return nil
-			}
-			return fmt.Errorf("LXC task %q failed with exit status %q", upid, status.ExitStatus)
-		}
-
-		timer := time.NewTimer(lxcContainerTaskPollInterval)
-		select {
-		case <-waitCtx.Done():
-			timer.Stop()
-			return fmt.Errorf("waiting for LXC task %q: %w", upid, waitCtx.Err())
-		case <-timer.C:
-		}
-	}
 }
 
 func isLXCContainerNetworkKey(key string) bool {

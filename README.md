@@ -57,6 +57,7 @@ Provider configuration also supports ticket-based authentication with `username`
 - `proxmox_qemu_vm`
 - `proxmox_role`
 - `proxmox_storage`
+- `proxmox_storage_file_download`
 - `proxmox_user`
 - `proxmox_user_token`
 

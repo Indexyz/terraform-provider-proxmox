@@ -84,5 +84,5 @@ func (c *Client) waitSnapshotTask(ctx context.Context, node, upid string) error 
 	if upid == "" {
 		return nil
 	}
-	return c.waitForLXCContainerTask(ctx, node, upid)
+	return c.waitForNodeTask(ctx, node, upid)
 }

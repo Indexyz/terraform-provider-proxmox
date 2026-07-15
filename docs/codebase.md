@@ -25,7 +25,7 @@
 | `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、storage、QEMU、LXC 和 node 数据源。 |
 | `internal/provider/*_test.go` | Provider、client、resource/data source、QEMU 映射、e2e smoke 测试。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、16 个 resource 示例。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、17 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -101,6 +101,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | LXC container methods | `/nodes/{node}/lxc[/{vmid}]`、`/config`、`/clone` | LXC 创建、clone、读取、更新和删除。 |
 | Snapshot methods | `/nodes/{node}/{qemu|lxc}/{vmid}/snapshot[/{snapname}]` | QEMU/LXC 快照 CRUD 和任务等待。 |
 | Storage methods | `/storage[/{storage}]` | 存储池 CRUD 和查询。 |
+| Storage file methods | `/nodes/{node}/storage/{storage}/download-url`、`/content/{volume}` | 下载、读取和删除 ISO、LXC template 与 import image，并等待异步任务。 |
 | Role/User/Token methods | `/access/roles`、`/access/users`、`/access/users/{userid}/token` | RBAC 角色、用户和 API token 管理。 |
 | ACL methods | `GET/PUT /access/acl` | 权限绑定读取和差异更新。 |
 | Backup job methods | `/cluster/backup[/{id}]` | vzdump 备份计划 CRUD，不执行备份任务。 |
@@ -108,7 +109,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 
 ## 资源
 
-当前注册 **16 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **17 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -126,6 +127,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone 和 typed/raw 配置。 |
 | `proxmox_role` | 管理 RBAC 角色和权限集合。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
+| `proxmox_storage_file_download` | 下载并管理 storage 中的 ISO、LXC template 或 import image。 |
 | `proxmox_user` | 管理 Proxmox 用户。 |
 | `proxmox_user_token` | 管理用户 API token。 |
 
@@ -226,7 +228,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 16 个资源和 19 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 17 个资源和 19 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。
 

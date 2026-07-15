@@ -459,7 +459,13 @@ func (c *Client) login(ctx context.Context) error {
 
 func (c *Client) do(ctx context.Context, method, apiPath string, query url.Values, form url.Values, out any) error {
 	requestURL := *c.baseURL
-	requestURL.Path = path.Join(c.baseURL.Path, apiPath)
+	escapedPath := path.Join(c.baseURL.EscapedPath(), apiPath)
+	requestPath, err := url.PathUnescape(escapedPath)
+	if err != nil {
+		return fmt.Errorf("unable to decode Proxmox API path %q: %w", escapedPath, err)
+	}
+	requestURL.Path = requestPath
+	requestURL.RawPath = escapedPath
 	if method == http.MethodGet && len(query) > 0 {
 		requestURL.RawQuery = query.Encode()
 	}

@@ -528,12 +528,12 @@ func isLXCContainerTaskRequest(r *http.Request, upid string) bool {
 
 func withLXCContainerTaskTiming(t *testing.T, timeoutCap time.Duration) {
 	t.Helper()
-	originalPollInterval := lxcContainerTaskPollInterval
-	originalTimeoutCap := lxcContainerTaskTimeoutCap
-	lxcContainerTaskPollInterval = time.Millisecond
-	lxcContainerTaskTimeoutCap = timeoutCap
+	originalPollInterval := nodeTaskPollInterval
+	originalTimeoutCap := nodeTaskTimeoutCap
+	nodeTaskPollInterval = time.Millisecond
+	nodeTaskTimeoutCap = timeoutCap
 	t.Cleanup(func() {
-		lxcContainerTaskPollInterval = originalPollInterval
-		lxcContainerTaskTimeoutCap = originalTimeoutCap
+		nodeTaskPollInterval = originalPollInterval
+		nodeTaskTimeoutCap = originalTimeoutCap
 	})
 }

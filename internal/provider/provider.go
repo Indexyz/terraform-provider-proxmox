@@ -144,6 +144,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewQemuSnapshotResource,
 		NewQemuVMResource,
 		NewRoleResource,
+		NewStorageFileDownloadResource,
 		NewStorageResource,
 		NewUserResource,
 		NewUserTokenResource,
