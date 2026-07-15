@@ -6,7 +6,7 @@
 
 - 项目是基于 Terraform Plugin Framework 的 Proxmox VE Provider，Go module 为 `github.com/indexyz/terraform-provider-proxmox`。
 - Provider 二进制入口在 `main.go`，通过 `providerserver.Serve` 以 `registry.terraform.io/indexyz/proxmox` 地址启动。
-- Provider 实现集中在 `internal/provider/`，包括配置、HTTP 客户端、资源、数据源和 QEMU VM 映射逻辑。
+- Provider 实现集中在 `internal/provider/`，包括配置、HTTP 客户端、资源、数据源，以及 QEMU、LXC、存储、防火墙和 RBAC 映射逻辑。
 - 面向 Terraform 用户的生成文档在 `docs/`；示例配置在 `examples/`；CI 和本地 Proxmox e2e 辅助脚本在 `tools/ci/`。
 
 ## 目录与职责
@@ -22,10 +22,10 @@
 | `internal/provider/resource_qemu_vm.go` | `proxmox_qemu_vm` 资源生命周期、导入、配置验证。 |
 | `internal/provider/qemu_vm_schema.go` | QEMU VM resource/data source 共享 schema 和 Terraform model。 |
 | `internal/provider/qemu_vm_mapping.go` | QEMU VM Terraform model、API request、API state 之间的转换；typed/raw 冲突检测。 |
-| `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、QEMU、node 数据源。 |
+| `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、storage、QEMU、LXC 和 node 数据源。 |
 | `internal/provider/*_test.go` | Provider、client、resource/data source、QEMU 映射、e2e smoke 测试。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、12 个 data source、3 个 resource 示例。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、14 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -77,6 +77,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 
 ## API surface 对照
 
+下表概览当前主要 API family；具体请求字段和映射以对应的 `client_*.go` 为准。
+
 | Client 方法 | HTTP/API | 用途 |
 | --- | --- | --- |
 | `Version` | `GET /version` | Proxmox VE 版本信息。 |
@@ -96,8 +98,35 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `CloneQemuVM` | `POST /nodes/{sourceNode}/qemu/{sourceVMID}/clone` | clone 模式创建 QEMU VM。 |
 | `UpdateQemuVM` | `PUT /nodes/{node}/qemu/{vmid}/config` | 更新 QEMU `/config`。 |
 | `DeleteQemuVM` | `DELETE /nodes/{node}/qemu/{vmid}` | 删除 QEMU VM。 |
+| LXC container methods | `/nodes/{node}/lxc[/{vmid}]`、`/config`、`/clone` | LXC 创建、clone、读取、更新和删除。 |
+| Snapshot methods | `/nodes/{node}/{qemu|lxc}/{vmid}/snapshot[/{snapname}]` | QEMU/LXC 快照 CRUD 和任务等待。 |
+| Storage methods | `/storage[/{storage}]` | 存储池 CRUD 和查询。 |
+| Role/User/Token methods | `/access/roles`、`/access/users`、`/access/users/{userid}/token` | RBAC 角色、用户和 API token 管理。 |
+| ACL methods | `GET/PUT /access/acl` | 权限绑定读取和差异更新。 |
+| Firewall methods | `/cluster/firewall/rules`、节点和 guest `/firewall/options` | 集群规则及节点/guest 防火墙选项管理。 |
 
 ## 资源
+
+当前注册 **14 个资源**，并在 `examples/resources/` 中各有对应示例：
+
+| 资源 | 主要职责 |
+| --- | --- |
+| `proxmox_acl` | 管理 path 下的 role 与 user/group 权限绑定。 |
+| `proxmox_firewall_rule` | 管理集群级防火墙规则。 |
+| `proxmox_group` | 管理 access group。 |
+| `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
+| `proxmox_lxc_container` | 管理 LXC 容器、clone 和 typed/raw 配置。 |
+| `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
+| `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
+| `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
+| `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
+| `proxmox_qemu_vm` | 管理 QEMU VM、clone 和 typed/raw 配置。 |
+| `proxmox_role` | 管理 RBAC 角色和权限集合。 |
+| `proxmox_storage` | 管理 Proxmox 存储池。 |
+| `proxmox_user` | 管理 Proxmox 用户。 |
+| `proxmox_user_token` | 管理用户 API token。 |
+
+下面记录 group、pool 和 QEMU VM 的关键生命周期边界；其它资源的用户 schema 以 `docs/resources/` 中的生成文档为准。
 
 ### `proxmox_group`
 
@@ -167,9 +196,16 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_cluster_metrics_servers` | `data_source_cluster_metrics_servers.go` | `GET /cluster/metrics/server`。 |
 | `proxmox_group` | `data_source_group.go` | `GET /access/groups/{groupid}`。 |
 | `proxmox_groups` | `data_source_groups.go` | `GET /access/groups`。 |
+| `proxmox_lxc_container` | `data_source_lxc_container.go` | 读取 LXC `/config` 和 `/status/current`，共享 LXC typed/raw 映射。 |
 | `proxmox_pool` | `data_source_pool.go` | `GET /pools?poolid=...`。 |
 | `proxmox_pools` | `data_source_pools.go` | `GET /pools`。 |
 | `proxmox_qemu_vm` | `data_source_qemu_vm.go` | 读取 QEMU `/config` 和 `/status/current`，共享 QEMU typed/raw 映射。 |
+| `proxmox_role` | `data_source_role.go` | `GET /access/roles/{roleid}`。 |
+| `proxmox_roles` | `data_source_roles.go` | `GET /access/roles`。 |
+| `proxmox_storage` | `data_source_storage.go` | `GET /storage/{storage}`。 |
+| `proxmox_storages` | `data_source_storages.go` | `GET /storage`。 |
+| `proxmox_user` | `data_source_user.go` | `GET /access/users/{userid}`。 |
+| `proxmox_users` | `data_source_users.go` | `GET /access/users`。 |
 
 新增数据源时，应补齐 client 方法、data source schema/read、`provider.go` 注册、单元测试和生成文档。
 
@@ -187,7 +223,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 3 个资源和 12 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 14 个资源和 19 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。
 

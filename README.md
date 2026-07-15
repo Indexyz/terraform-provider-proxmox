@@ -6,8 +6,9 @@ The current baseline is designed against the bundled `pve-docs/` reference and i
 
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
-- Declarative `proxmox_group`, `proxmox_pool`, and minimal `proxmox_qemu_vm` resources backed by `/access/groups`, `/pools`, and `/nodes/{node}/qemu`
-- Inventory data sources for `proxmox_group`, `proxmox_groups`, `proxmox_pool`, `proxmox_pools`, `proxmox_qemu_vm`, `proxmox_node_dns`, `proxmox_node_time`, and `proxmox_cluster_metrics_servers`
+- Declarative QEMU VM and LXC container management, including clone workflows, typed device configuration, snapshots, and raw configuration escape hatches
+- Storage, pool, RBAC, API token, ACL, and cluster/node/guest firewall management
+- Inventory data sources for guests, storage, pools, access control objects, node settings, metrics servers, and cluster resources
 
 ## Requirements
 
@@ -42,9 +43,20 @@ Provider configuration also supports ticket-based authentication with `username`
 
 ## Supported Resources
 
+- `proxmox_acl`
+- `proxmox_firewall_rule`
 - `proxmox_group`
+- `proxmox_guest_firewall_options`
+- `proxmox_lxc_container`
+- `proxmox_lxc_snapshot`
+- `proxmox_node_firewall_options`
 - `proxmox_pool`
+- `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`
+- `proxmox_role`
+- `proxmox_storage`
+- `proxmox_user`
+- `proxmox_user_token`
 
 ## Supported Data Sources
 
@@ -52,13 +64,20 @@ Provider configuration also supports ticket-based authentication with `username`
 - `proxmox_cluster_resources`
 - `proxmox_group`
 - `proxmox_groups`
+- `proxmox_lxc_container`
+- `proxmox_node`
 - `proxmox_node_dns`
 - `proxmox_node_time`
-- `proxmox_node`
 - `proxmox_nodes`
 - `proxmox_pool`
 - `proxmox_pools`
 - `proxmox_qemu_vm`
+- `proxmox_role`
+- `proxmox_roles`
+- `proxmox_storage`
+- `proxmox_storages`
+- `proxmox_user`
+- `proxmox_users`
 - `proxmox_version`
 
 Supported environment variables:
@@ -88,7 +107,7 @@ go test ./...
 
 ## QEMU/KVM Workflow
 
-Use `proxmox_cluster_resources` for cluster-wide inventory, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for managed QEMU configuration including Phase 1A/1B clone, common, cloud-init, network, disk, and raw escape-hatch support.
+Use `proxmox_cluster_resources` for cluster-wide inventory, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for managed QEMU configuration including clone, common, cloud-init, network, disk, EFI, TPM, and raw escape-hatch workflows. Manage VM snapshots separately with `proxmox_qemu_snapshot`.
 
 When extending `proxmox_qemu_vm` beyond the minimal surface, keep these boundaries intact:
 
