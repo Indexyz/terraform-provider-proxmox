@@ -17,10 +17,14 @@ func TestPrepareProxmoxE2EAnswerTemplateMatchesAssistantSchema(t *testing.T) {
 	content := string(script)
 
 	for _, required := range []string{
+		`ISO_VERSION="${PROXMOX_E2E_ISO_VERSION:-9.2-1}"`,
+		`ISO_URL="${PROXMOX_E2E_ISO_URL:-https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso}"`,
+		`ISO_SHA256="${PROXMOX_E2E_ISO_SHA256:-4e88fe416df9b527624a175f24c9aa07c714d3332afb1ee3dbf3879573ef2c6c}"`,
+		`ISO_CHECKSUM_URL="${PROXMOX_E2E_ISO_CHECKSUM_URL:-https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso.sha256}"`,
 		`keyboard = "en-us"`,
-		`root_password = "$ROOT_PASSWORD"`,
-		`reboot_on_error = false`,
-		`disk_list = ['vda']`,
+		`root-password = "$ROOT_PASSWORD"`,
+		`reboot-on-error = false`,
+		`disk-list = ['vda']`,
 		"-no-reboot",
 	} {
 		if !strings.Contains(content, required) {
@@ -29,9 +33,9 @@ func TestPrepareProxmoxE2EAnswerTemplateMatchesAssistantSchema(t *testing.T) {
 	}
 
 	for _, unsupported := range []string{
-		"root-password",
-		"reboot-mode",
-		"disk-list",
+		"root_password",
+		"reboot_on_error",
+		"disk_list",
 	} {
 		if strings.Contains(content, unsupported) {
 			t.Fatalf("answer template contains unsupported assistant schema field %q", unsupported)

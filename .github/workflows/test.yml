@@ -85,14 +85,14 @@ jobs:
   e2e:
     name: Proxmox E2E Smoke
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       PROXMOX_E2E_WORK_DIR: .e2e/proxmox
-      PROXMOX_E2E_ISO_VERSION: '8.4-1'
-      PROXMOX_E2E_ISO_SHA256: d237d70ca48a9f6eb47f95fd4fd337722c3f69f8106393844d027d28c26523d8
-      PROXMOX_E2E_ASSISTANT_VERSION: '8.2.5'
-      PROXMOX_E2E_ASSISTANT_SHA256: 47028ea31ef4463b6534e18aef3f296a29400ccc75d0d82cb296893864b09f15
+      PROXMOX_E2E_ISO_VERSION: '9.2-1'
+      PROXMOX_E2E_ISO_SHA256: 4e88fe416df9b527624a175f24c9aa07c714d3332afb1ee3dbf3879573ef2c6c
+      PROXMOX_E2E_ASSISTANT_VERSION: '9.2.7'
+      PROXMOX_E2E_ASSISTANT_SHA256: 92d34cd218bcabea83b72dd45f6e92ab571a221a8cbe1b548076685bc9234f15
       PROXMOX_E2E_ROOT_PASSWORD: proxmox-e2e-password
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -117,7 +117,7 @@ jobs:
         run: |
           assistant_deb="proxmox-auto-install-assistant_${PROXMOX_E2E_ASSISTANT_VERSION}_amd64.deb"
           curl --fail --location --retry 3 --output "$assistant_deb" \
-            "http://download.proxmox.com/debian/pve/dists/bookworm/pve-no-subscription/binary-amd64/$assistant_deb"
+            "http://download.proxmox.com/debian/pve/dists/trixie/pve-no-subscription/binary-amd64/$assistant_deb"
           printf '%s  %s\n' "$PROXMOX_E2E_ASSISTANT_SHA256" "$assistant_deb" | sha256sum --check --status
           sudo apt-get install -y "./$assistant_deb"
       - name: Restore Proxmox disk cache

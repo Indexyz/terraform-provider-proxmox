@@ -6,6 +6,7 @@ package provider
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -24,6 +25,12 @@ data "proxmox_nodes" "current" {}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.proxmox_version.current", "version"),
+					resource.TestCheckResourceAttrWith("data.proxmox_version.current", "release", func(value string) error {
+						if !strings.HasPrefix(value, "9.") {
+							return fmt.Errorf("expected Proxmox VE 9 release, got %q", value)
+						}
+						return nil
+					}),
 					resource.TestCheckResourceAttrWith("data.proxmox_nodes.current", "nodes.#", func(value string) error {
 						count, err := strconv.Atoi(value)
 						if err != nil {

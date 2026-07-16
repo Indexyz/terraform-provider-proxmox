@@ -40,6 +40,7 @@
 - 新增 `proxmox_replication_job` 资源，覆盖 `/cluster/replication[/{id}]` 配置 CRUD；使用 stable `<guest>-<job-number>` identity、immutable target、digest guarded update、private managed-field deletion 和 import，`source`/guest/job number/type 仅作为 observed computed state；不调用 replication run-now，destroy 使用 `force=1` 只移除 job config，不隐式清理 replication snapshots 或 target data，并以 exact-form HTTP 测试覆盖单节点 e2e 无法验证的多节点行为。
 - 新增 `docs/guides/provider-configuration.md`，补充 endpoint/TLS、API token 与 ticket 认证组合、环境变量优先级、权限规划、state 安全和常见 API 错误排障；扩展 `tools/ci/README.md`，记录本地依赖安装、KVM/TCG 边界、只读 smoke test、后台 QEMU 停止/重建、日志诊断和 CI cache 与本地复现差异，并从 README 和代码库文档建立入口。
 - 新增面向 Proxmox VE 9 的 `proxmox_realm` 资源，覆盖 `/access/domains[/{realm}]` LDAP、AD 和 OpenID Connect 外部 realm CRUD；使用单一 typed-only variant schema，拒绝内建 `pam`/`pve`，支持 digest guarded update、private managed-field deletion 和 import；LDAP bind password 与 OpenID client key 使用 Terraform 1.11+ WriteOnly + version 轮换，API 读回的 client key/password/TFA 不进入 state，并补齐 PVE 9 `audiences`、exact-form HTTP、variant/secret 测试、示例和生成文档。将手工指南移入 `templates/guides/`，确保 `make generate` 不再删除。
+- 将 GitHub Actions 单节点 e2e 环境从 Proxmox VE 8.4-1 升级到 9.2-1，切换到 Debian 13 Trixie 的 `proxmox-auto-install-assistant` 9.2.7，并重新固定 ISO/assistant SHA256；e2e host 固定 Ubuntu 24.04 以满足 assistant 依赖，answer file 迁移到 kebab-case keys，cache key 随新 pins 自动失效旧 qcow2，contract test 固定 PVE 9/Trixie 输入，acceptance smoke 明确要求 API release major 为 9。
 
 ## 接下来
 
@@ -58,7 +59,7 @@
 ### 持续约束
 
 - 新增或修改 Provider schema 时运行 `make generate`，同步更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/` 和示例。
-- 当前 e2e 环境是单节点 Proxmox VE 8.4；实现仅存在于 PVE 9 或需要多节点/ZFS 的能力前，先明确最低支持版本，并以 HTTP 单元测试覆盖无法在现有 e2e 验证的行为。
+- 当前 e2e 环境是单节点 Proxmox VE 9.2，只运行只读 version/nodes smoke；需要资源变更、多节点或 ZFS 的能力仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。

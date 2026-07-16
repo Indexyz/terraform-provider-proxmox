@@ -2,18 +2,18 @@
 
 These scripts support the GitHub Actions Proxmox e2e job. They prepare and boot a single-node Proxmox VE guest, then the provider runs one read-only smoke test against the real API.
 
-The smoke test reads `proxmox_version` and `proxmox_nodes`. It does not create resources and does not validate multi-node, ZFS, or Proxmox VE 9-only behavior.
+The smoke test reads `proxmox_version` and `proxmox_nodes` and requires the API to report Proxmox VE 9. It does not create resources or validate multi-node, ZFS, or PVE 9-only resource behavior.
 
 ## Pinned inputs and host requirements
 
-- Proxmox VE ISO: `8.4-1`
-- ISO URL: `https://enterprise.proxmox.com/iso/proxmox-ve_8.4-1.iso`
-- ISO SHA256: `d237d70ca48a9f6eb47f95fd4fd337722c3f69f8106393844d027d28c26523d8`
-- Auto-install assistant: `proxmox-auto-install-assistant_8.2.5_amd64.deb`
-- Auto-install assistant SHA256: `47028ea31ef4463b6534e18aef3f296a29400ccc75d0d82cb296893864b09f15`
+- Proxmox VE ISO: `9.2-1`
+- ISO URL: `https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso`
+- ISO SHA256: `4e88fe416df9b527624a175f24c9aa07c714d3332afb1ee3dbf3879573ef2c6c`
+- Auto-install assistant: `proxmox-auto-install-assistant_9.2.7_amd64.deb`
+- Auto-install assistant SHA256: `92d34cd218bcabea83b72dd45f6e92ab571a221a8cbe1b548076685bc9234f15`
 - Default guest resources: 2 vCPUs, 6144 MiB RAM, and a 32 GiB sparse qcow2 disk
 
-Use a Linux x86_64 host with enough memory and disk space. Read/write access to `/dev/kvm` is strongly preferred. The scripts fall back to QEMU TCG when KVM is unavailable, but installation or boot can exceed the default timeouts.
+Use a Linux x86_64 host with enough memory and disk space. The pinned assistant requires `libc6` >= 2.39 and `libssl3t64`; CI uses Ubuntu 24.04, and local runs should use Ubuntu 24.04 or Debian 13. Read/write access to `/dev/kvm` is strongly preferred. The scripts fall back to QEMU TCG when KVM is unavailable, but installation or boot can exceed the default timeouts.
 
 ## Local setup
 
@@ -27,11 +27,11 @@ sudo apt-get install -y qemu-system-x86 qemu-utils curl jq xorriso ca-certificat
 Download, verify, and install the pinned auto-install assistant used by CI:
 
 ```bash
-assistant_deb='proxmox-auto-install-assistant_8.2.5_amd64.deb'
+assistant_deb='proxmox-auto-install-assistant_9.2.7_amd64.deb'
 curl --fail --location --retry 3 --output "$assistant_deb" \
-  "http://download.proxmox.com/debian/pve/dists/bookworm/pve-no-subscription/binary-amd64/$assistant_deb"
+  "http://download.proxmox.com/debian/pve/dists/trixie/pve-no-subscription/binary-amd64/$assistant_deb"
 printf '%s  %s\n' \
-  '47028ea31ef4463b6534e18aef3f296a29400ccc75d0d82cb296893864b09f15' \
+  '92d34cd218bcabea83b72dd45f6e92ab571a221a8cbe1b548076685bc9234f15' \
   "$assistant_deb" | sha256sum --check
 sudo apt-get install -y "./$assistant_deb"
 ```
