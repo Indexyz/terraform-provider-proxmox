@@ -1,6 +1,6 @@
 # 代码库扫描文档
 
-本文档根据当前项目代码扫描整理，面向需要理解、扩展或审查该 Terraform Provider 的开发者。Terraform Registry 面向用户的 schema 文档仍由 `terraform-plugin-docs` 生成，见 `docs/index.md`、`docs/resources/` 和 `docs/data-sources/`。
+本文档根据当前项目代码扫描整理，面向需要理解、扩展或审查该 Terraform Provider 的开发者。Terraform Registry 面向用户的 schema 文档仍由 `terraform-plugin-docs` 生成，见 `docs/index.md`、`docs/resources/` 和 `docs/data-sources/`；手工维护的认证、权限和错误排障说明见 `docs/guides/provider-configuration.md`。
 
 ## 项目概览
 
@@ -24,6 +24,7 @@
 | `internal/provider/qemu_vm_mapping.go` | QEMU VM Terraform model、API request、API state 之间的转换；typed/raw 冲突检测。 |
 | `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、storage、QEMU、LXC 和 node 数据源。 |
 | `internal/provider/*_test.go` | Provider、client、resource/data source、QEMU 映射、e2e smoke 测试。 |
+| `docs/guides/` | 手工维护的用户指南；当前包含 Provider 配置、认证、权限规划和常见错误排障。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
 | `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、23 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
@@ -237,7 +238,7 @@ make generate
 
 示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 23 个资源和 19 个数据源均有对应示例。
 
-注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。
+注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。`docs/guides/` 是手工维护内容，不由 tfplugindocs 从 schema 生成。
 
 ## 测试与 CI
 
@@ -260,7 +261,7 @@ make generate
 - `e2e_smoke_test.go`：真实 Proxmox API smoke test，读取 `proxmox_version` 和 `proxmox_nodes`。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 
-GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e smoke job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 8.4-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；acceptance smoke 只读验证 `proxmox_version` 和 `proxmox_nodes`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
+GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e smoke job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 8.4-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；acceptance smoke 只读验证 `proxmox_version` 和 `proxmox_nodes`。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
 
 ## 贡献边界
 

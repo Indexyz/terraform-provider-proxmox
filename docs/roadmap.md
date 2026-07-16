@@ -38,6 +38,7 @@
 - 新增 `proxmox_cluster_metrics_server` 资源，覆盖 `/cluster/metrics/server/{id}` 同步 CRUD，支持 Graphite、InfluxDB 和 Proxmox VE 9 OpenTelemetry 字段、digest guarded update、字段移除、import 与 write-only InfluxDB token 保留；复用并扩展现有 metrics client，同时保持 list data source 兼容，补齐测试、示例和生成文档。
 - 补齐 cluster firewall named objects：新增 `proxmox_cluster_firewall_alias`、`proxmox_cluster_firewall_ip_set`、`proxmox_cluster_firewall_ip_set_entry` 和 `proxmox_cluster_firewall_security_group`，支持 stable-name/CIDR identity、digest guarded update、import 和非 force IP set 删除；将 `proxmox_firewall_rule` 扩展到 cluster/node/QEMU/LXC/security-group scope，并确保 positional rule 在每次 create/update/delete 前重新读取当前 ruleset，补齐 exact-form HTTP 测试、scope/ownership 测试、示例和生成文档。
 - 新增 `proxmox_replication_job` 资源，覆盖 `/cluster/replication[/{id}]` 配置 CRUD；使用 stable `<guest>-<job-number>` identity、immutable target、digest guarded update、private managed-field deletion 和 import，`source`/guest/job number/type 仅作为 observed computed state；不调用 replication run-now，destroy 使用 `force=1` 只移除 job config，不隐式清理 replication snapshots 或 target data，并以 exact-form HTTP 测试覆盖单节点 e2e 无法验证的多节点行为。
+- 新增 `docs/guides/provider-configuration.md`，补充 endpoint/TLS、API token 与 ticket 认证组合、环境变量优先级、权限规划、state 安全和常见 API 错误排障；扩展 `tools/ci/README.md`，记录本地依赖安装、KVM/TCG 边界、只读 smoke test、后台 QEMU 停止/重建、日志诊断和 CI cache 与本地复现差异，并从 README 和代码库文档建立入口。
 
 ## 接下来
 
@@ -59,6 +60,6 @@
 - 当前 e2e 环境是单节点 Proxmox VE 8.4；实现仅存在于 PVE 9 或需要多节点/ZFS 的能力前，先明确最低支持版本，并以 HTTP 单元测试覆盖无法在现有 e2e 验证的行为。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
-- 面向用户的叙事型指南可继续补充认证方式选择、权限要求、常见 API 错误和本地 e2e 排障说明。
+- 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。
 
 研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。

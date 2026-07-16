@@ -39,7 +39,9 @@ provider "proxmox" {
 }
 ```
 
-Provider configuration also supports ticket-based authentication with `username` and `password`.
+Provider configuration also supports ticket-based authentication with `username` and `password`, plus an optional `otp`. Ticket authentication and API token authentication are mutually exclusive, and each selected method requires its complete credential pair.
+
+See [Provider configuration and troubleshooting](docs/guides/provider-configuration.md) for endpoint normalization, environment-variable precedence, permission planning, state security, and common API errors.
 
 ## Supported Resources
 
@@ -113,6 +115,8 @@ To run tests:
 ```shell
 go test ./...
 ```
+
+The CI tooling is a separate Go module, and the real Proxmox smoke test requires QEMU/KVM and additional host setup. See [`tools/ci/README.md`](tools/ci/README.md) for local reproduction and diagnostics.
 
 ## QEMU/KVM Workflow
 
