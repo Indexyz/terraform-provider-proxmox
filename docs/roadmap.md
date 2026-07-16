@@ -39,16 +39,17 @@
 - 补齐 cluster firewall named objects：新增 `proxmox_cluster_firewall_alias`、`proxmox_cluster_firewall_ip_set`、`proxmox_cluster_firewall_ip_set_entry` 和 `proxmox_cluster_firewall_security_group`，支持 stable-name/CIDR identity、digest guarded update、import 和非 force IP set 删除；将 `proxmox_firewall_rule` 扩展到 cluster/node/QEMU/LXC/security-group scope，并确保 positional rule 在每次 create/update/delete 前重新读取当前 ruleset，补齐 exact-form HTTP 测试、scope/ownership 测试、示例和生成文档。
 - 新增 `proxmox_replication_job` 资源，覆盖 `/cluster/replication[/{id}]` 配置 CRUD；使用 stable `<guest>-<job-number>` identity、immutable target、digest guarded update、private managed-field deletion 和 import，`source`/guest/job number/type 仅作为 observed computed state；不调用 replication run-now，destroy 使用 `force=1` 只移除 job config，不隐式清理 replication snapshots 或 target data，并以 exact-form HTTP 测试覆盖单节点 e2e 无法验证的多节点行为。
 - 新增 `docs/guides/provider-configuration.md`，补充 endpoint/TLS、API token 与 ticket 认证组合、环境变量优先级、权限规划、state 安全和常见 API 错误排障；扩展 `tools/ci/README.md`，记录本地依赖安装、KVM/TCG 边界、只读 smoke test、后台 QEMU 停止/重建、日志诊断和 CI cache 与本地复现差异，并从 README 和代码库文档建立入口。
+- 新增面向 Proxmox VE 9 的 `proxmox_realm` 资源，覆盖 `/access/domains[/{realm}]` LDAP、AD 和 OpenID Connect 外部 realm CRUD；使用单一 typed-only variant schema，拒绝内建 `pam`/`pve`，支持 digest guarded update、private managed-field deletion 和 import；LDAP bind password 与 OpenID client key 使用 Terraform 1.11+ WriteOnly + version 轮换，API 读回的 client key/password/TFA 不进入 state，并补齐 PVE 9 `audiences`、exact-form HTTP、variant/secret 测试、示例和生成文档。将手工指南移入 `templates/guides/`，确保 `make generate` 不再删除。
 
 ## 接下来
 
 ### 优先实现
 
-本轮六项推荐功能已经全部完成。后续候选均属于需要单独设计和评审的中大型功能，暂不直接进入实现。
+本轮推荐功能与 Proxmox VE 9 external Authentication realm 已完成。后续候选仍需单独设计和评审。
 
 ### 后续中大型功能
 
-- Authentication realm：覆盖 `/access/domains/{realm}` 的 LDAP/OpenID 等类型；按 storage typed/raw 模式建模类型专属字段，并明确 password/client secret 的 write-only state 语义。
+- Authentication realm 后续：按独立设计补充只读 data source、LDAP group/sync 高级字段、client certificate 和 TFA；`/sync` 属命令式操作，不在普通 realm CRUD 中隐式执行。
 - HA resources/rules：先验证 Proxmox VE 9 的 affinity rule schema；删除 Terraform resource 只能退出 HA 管理，不能删除 VM/CT，也不应等待运行时放置状态无限收敛。
 - Node networking：覆盖 `/nodes/{node}/network`，将 pending 配置与 apply/reload 生命周期分离，避免单个接口资源自动 reload 导致中间状态或管理网络断连。
 - SDN zones/VNets/subnets：作为独立 epic 处理 typed variants、共享 digest、依赖顺序和显式 activation，不在每个子资源 CRUD 后自动 apply。

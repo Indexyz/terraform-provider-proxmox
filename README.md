@@ -7,12 +7,12 @@ The current baseline is designed against the bundled `pve-docs/` reference and i
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
 - Declarative QEMU VM and LXC container management, including clone workflows, typed device configuration, snapshots, and raw configuration escape hatches
-- Storage, pool, RBAC, API token, ACL, and cluster/node/guest firewall management
+- Storage, pool, external authentication realm, RBAC, API token, ACL, and cluster/node/guest firewall management
 - Inventory data sources for guests, storage, pools, access control objects, node settings, metrics servers, and cluster resources
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0; Terraform >= 1.11 is required when using the write-only `proxmox_realm` secret attributes
 - [Go](https://golang.org/doc/install) >= 1.24
 
 ## Building the Provider
@@ -62,6 +62,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_pool`
 - `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`
+- `proxmox_realm`
 - `proxmox_replication_job`
 - `proxmox_role`
 - `proxmox_storage`

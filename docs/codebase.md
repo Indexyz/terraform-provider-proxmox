@@ -24,9 +24,10 @@
 | `internal/provider/qemu_vm_mapping.go` | QEMU VM Terraform model、API request、API state 之间的转换；typed/raw 冲突检测。 |
 | `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、storage、QEMU、LXC 和 node 数据源。 |
 | `internal/provider/*_test.go` | Provider、client、resource/data source、QEMU 映射、e2e smoke 测试。 |
-| `docs/guides/` | 手工维护的用户指南；当前包含 Provider 配置、认证、权限规划和常见错误排障。 |
+| `docs/guides/` | 从 `templates/guides/` 渲染的用户指南；当前包含 Provider 配置、认证、权限规划和常见错误排障。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、23 个 resource 示例。 |
+| `templates/guides/` | 手工维护的指南模板；`make generate` 时渲染到 `docs/guides/`，避免 tfplugindocs 清理生成目录时丢失。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、24 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -104,6 +105,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | Storage methods | `/storage[/{storage}]` | 存储池 CRUD 和查询。 |
 | Storage file methods | `/nodes/{node}/storage/{storage}/download-url`、`/content/{volume}` | 下载、读取和删除 ISO、LXC template 与 import image，并等待异步任务。 |
 | Role/User/Token methods | `/access/roles`、`/access/users`、`/access/users/{userid}/token` | RBAC 角色、用户和 API token 管理。 |
+| Realm methods | `/access/domains[/{realm}]` | Proxmox VE 9 LDAP、AD 和 OpenID Connect 外部认证 realm CRUD。 |
 | ACL methods | `GET/PUT /access/acl` | 权限绑定读取和差异更新。 |
 | Backup job methods | `/cluster/backup[/{id}]` | vzdump 备份计划 CRUD，不执行备份任务。 |
 | Replication job methods | `/cluster/replication[/{id}]` | 存储复制计划 CRUD，不执行 run-now。 |
@@ -111,7 +113,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 
 ## 资源
 
-当前注册 **23 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **24 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -132,6 +134,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone 和 typed/raw 配置。 |
+| `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；secret 使用 WriteOnly + version 轮换。 |
 | `proxmox_replication_job` | 管理 cluster storage replication 计划，不隐式运行复制或清理数据。 |
 | `proxmox_role` | 管理 RBAC 角色和权限集合。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
@@ -236,9 +239,9 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 23 个资源和 19 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 24 个资源和 19 个数据源均有对应示例。
 
-注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。`docs/guides/` 是手工维护内容，不由 tfplugindocs 从 schema 生成。
+注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
 ## 测试与 CI
 
@@ -258,6 +261,7 @@ make generate
 - `client_test.go`、`client_qemu_test.go`：HTTP 方法、认证 header/cookie、API error、基础和 QEMU endpoints。
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
+- `client_realm_test.go`、`resource_realm_test.go`：PVE 9 realm exact-form CRUD、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
 - `e2e_smoke_test.go`：真实 Proxmox API smoke test，读取 `proxmox_version` 和 `proxmox_nodes`。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 
