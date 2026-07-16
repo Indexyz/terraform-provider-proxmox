@@ -60,6 +60,7 @@ Provider configuration also supports ticket-based authentication with `username`
 - `proxmox_pool`
 - `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`
+- `proxmox_replication_job`
 - `proxmox_role`
 - `proxmox_storage`
 - `proxmox_storage_file_download`

@@ -4,7 +4,7 @@
 
 - 扫描项目结构、Provider 配置、HTTP client、资源、数据源、QEMU VM typed/raw 映射、文档生成和 CI/e2e 工具链。
 - 新增 `docs/codebase.md`，整理开发者向代码库说明、API surface、资源/数据源职责、QEMU 扩展边界、测试与 CI 入口、已有 spec/plan 归档，并记录 `AGENTS.md` 中的贡献约束。
-- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，22 个资源和 19 个数据源均有示例来源。
+- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，23 个资源和 19 个数据源均有示例来源。
 - 为 QEMU VM `protection` typed 字段新增预期失败的 client、mapping、raw conflict 与 schema 属性单元测试。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `protection` typed boolean，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["protection"]` 迁移到 typed 字段。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `scsihw` typed 字段，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["scsihw"]` 迁移到 typed 字段。
@@ -37,14 +37,13 @@
 - 新增 `proxmox_storage_file_download` 资源，覆盖 `/nodes/{node}/storage/{storage}/download-url` 和 content item GET/DELETE，支持 `iso`/`vztmpl`/`import`、checksum、解压和 TLS 校验；将 LXC 专用 task waiter 提取为通用 node UPID waiter，create/delete 均校验最终 exit status，并修正 API path 的 escaped-segment 处理以安全支持包含 `/` 的 volume ID，补齐校验、测试、示例和生成文档。
 - 新增 `proxmox_cluster_metrics_server` 资源，覆盖 `/cluster/metrics/server/{id}` 同步 CRUD，支持 Graphite、InfluxDB 和 Proxmox VE 9 OpenTelemetry 字段、digest guarded update、字段移除、import 与 write-only InfluxDB token 保留；复用并扩展现有 metrics client，同时保持 list data source 兼容，补齐测试、示例和生成文档。
 - 补齐 cluster firewall named objects：新增 `proxmox_cluster_firewall_alias`、`proxmox_cluster_firewall_ip_set`、`proxmox_cluster_firewall_ip_set_entry` 和 `proxmox_cluster_firewall_security_group`，支持 stable-name/CIDR identity、digest guarded update、import 和非 force IP set 删除；将 `proxmox_firewall_rule` 扩展到 cluster/node/QEMU/LXC/security-group scope，并确保 positional rule 在每次 create/update/delete 前重新读取当前 ruleset，补齐 exact-form HTTP 测试、scope/ownership 测试、示例和生成文档。
+- 新增 `proxmox_replication_job` 资源，覆盖 `/cluster/replication[/{id}]` 配置 CRUD；使用 stable `<guest>-<job-number>` identity、immutable target、digest guarded update、private managed-field deletion 和 import，`source`/guest/job number/type 仅作为 observed computed state；不调用 replication run-now，destroy 使用 `force=1` 只移除 job config，不隐式清理 replication snapshots 或 target data，并以 exact-form HTTP 测试覆盖单节点 e2e 无法验证的多节点行为。
 
 ## 接下来
 
 ### 优先实现
 
-| 顺序 | 候选功能 | 核心 API | 价值/成本/风险 | 实施重点 |
-| --- | --- | --- | --- | --- |
-| 1 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
+本轮六项推荐功能已经全部完成。后续候选均属于需要单独设计和评审的中大型功能，暂不直接进入实现。
 
 ### 后续中大型功能
 
