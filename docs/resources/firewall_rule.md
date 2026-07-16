@@ -3,12 +3,12 @@
 page_title: "proxmox_firewall_rule Resource - proxmox"
 subcategory: ""
 description: |-
-  Manages a Proxmox VE cluster-level firewall rule through /cluster/firewall/rules. Rules are matched by content (identity fields); pos is computed and re-resolved on every operation. Import is not supported.
+  Manages a Proxmox VE cluster, node, QEMU/LXC guest, or security-group firewall rule. Rules are matched by content; pos is computed and re-resolved immediately before every mutation. Import is not supported.
 ---
 
 # proxmox_firewall_rule (Resource)
 
-Manages a Proxmox VE cluster-level firewall rule through `/cluster/firewall/rules`. Rules are matched by content (identity fields); `pos` is computed and re-resolved on every operation. Import is not supported.
+Manages a Proxmox VE cluster, node, QEMU/LXC guest, or security-group firewall rule. Rules are matched by content; `pos` is computed and re-resolved immediately before every mutation. Import is not supported.
 
 ## Example Usage
 
@@ -30,24 +30,29 @@ resource "proxmox_firewall_rule" "allow_https" {
 
 ### Required
 
-- `action` (String) Rule action: `ACCEPT`, `DROP`, or `REJECT`.
+- `action` (String) Rule action (`ACCEPT`, `DROP`, `REJECT`) or security group name.
 - `type` (String) Rule direction: `in`, `out`, `forward`, or `group`.
 
 ### Optional
 
 - `comment` (String) Rule comment.
-- `dest` (String) Destination CIDR or address.
-- `dport` (String) Destination port(s).
+- `dest` (String) Destination CIDR, address, alias, or IP set.
+- `dport` (String) Destination ports.
 - `enable` (Number) Whether the rule is active (1) or disabled (0). Defaults to 1.
+- `guest_type` (String) Guest type `qemu` or `lxc` for guest scope. Changes require replacement.
 - `icmp_type` (String) ICMP type.
 - `iface` (String) Network interface.
 - `log` (String) Log level: `emerg`, `alert`, `crit`, `err`, `warning`, `notice`, `info`, `debug`, or `nolog`.
 - `macro` (String) Predefined macro name.
-- `proto` (String) Protocol (e.g. `tcp`, `udp`, `icmp`).
-- `source` (String) Source CIDR or address.
-- `sport` (String) Source port(s).
+- `node` (String) Node name for node and guest scopes. Changes require replacement.
+- `proto` (String) Protocol (for example `tcp`, `udp`, or `icmp`).
+- `scope` (String) Ruleset scope: `cluster`, `node`, `guest`, or `security_group`. Changes require replacement.
+- `security_group` (String) Security group name for security_group scope. Changes require replacement.
+- `source` (String) Source CIDR, address, alias, or IP set.
+- `sport` (String) Source ports.
+- `vm_id` (Number) Guest VM/container ID for guest scope. Changes require replacement.
 
 ### Read-Only
 
-- `id` (String) Content-based identifier (type/action + identity fields).
-- `pos` (Number) Position in the firewall ruleset (computed, re-resolved on every operation).
+- `id` (String) Content-based rule identifier.
+- `pos` (Number) Current position in the ruleset.

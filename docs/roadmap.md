@@ -4,7 +4,7 @@
 
 - 扫描项目结构、Provider 配置、HTTP client、资源、数据源、QEMU VM typed/raw 映射、文档生成和 CI/e2e 工具链。
 - 新增 `docs/codebase.md`，整理开发者向代码库说明、API surface、资源/数据源职责、QEMU 扩展边界、测试与 CI 入口、已有 spec/plan 归档，并记录 `AGENTS.md` 中的贡献约束。
-- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，18 个资源和 19 个数据源均有示例来源。
+- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，22 个资源和 19 个数据源均有示例来源。
 - 为 QEMU VM `protection` typed 字段新增预期失败的 client、mapping、raw conflict 与 schema 属性单元测试。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `protection` typed boolean，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["protection"]` 迁移到 typed 字段。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `scsihw` typed 字段，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["scsihw"]` 迁移到 typed 字段。
@@ -27,7 +27,7 @@
 - 新增 `proxmox_role` 和 `proxmox_roles` 数据源，覆盖角色查询（`GET /access/roles/{roleid}` 单个、`GET /access/roles` 列表），provider 注册、示例和 reference 文档。
 - 新增 `proxmox_node_firewall_options` 资源，覆盖节点防火墙选项管理（`GET/PUT /nodes/{node}/firewall/options`），typed 全部 20 个选项（`enable`/log_level_in/out/forward/conntrack/synflood/smurf/tcpflags/nftables 等），delete 通过 reset 所有 key 实现，import（`node`）、provider 注册、测试、示例和 reference 文档。
 - 新增 `proxmox_user_token` 资源，覆盖 API token 管理（`POST/GET/PUT/DELETE /access/users/{userid}/token/{tokenid}`），`user_id`/`token_id` required + `comment`/`expire`/`privsep`，create 返回的敏感 `value`/`full_token_id` 保存在 state（不可从 Proxmox 读回），import（`userid/tokenid`）、provider 注册、测试、示例和 reference 文档。
-- 新增 `proxmox_firewall_rule` 资源（`/cluster/firewall/rules` CRUD），content-based identity（11 identity fields `RequiresReplaceIfConfigured` + `enable`/`comment` mutable），`pos` computed 每次操作重新解析，duplicate pre-check（≥1 match 报错）、ambiguous match（≥2 报错）、no digest、no import、provider 注册、测试、示例和 reference 文档。
+- 新增并扩展 `proxmox_firewall_rule` 资源，覆盖 cluster、node、QEMU/LXC guest 和 security group `/rules` CRUD；使用 content-based identity、computed `pos` 并在每次 mutation 前重新读取 ruleset 定位，duplicate pre-check（≥1 match 报错）、ambiguous match（≥2 报错）、可用时携带共享 digest，并通过 private state 仅删除 Terraform 曾托管的可选字段；不支持不稳定的 positional import。
 - 新增 `proxmox_guest_firewall_options` 资源，覆盖 VM/容器级防火墙选项（`GET/PUT /nodes/{node}/{qemu|lxc}/{vmid}/firewall/options`），typed 10 个选项（`enable`/`dhcp`/`ipfilter`/`macfilter`/`log_level_in/out`/`policy_in/out`/`ndp`/`radv`），`node`/`vm_id`/`guest_type`（qemu/lxc）RequiresReplace、delete 通过 reset 所有 key 实现、import（`node/vm_id/guest_type`）、provider 注册、示例和 reference 文档。
 - 新增 `proxmox_lxc_container` 资源和数据源支持，覆盖 LXC client、task wait、schema、mapping、raw 冲突校验、provider 注册、示例和 reference 文档。
 - 修复 Tests CI：清理 `golangci-lint v2.12.2` 报告的 17 个 lint 问题，并重新生成 18 份未同步的 Provider reference 文档。
@@ -36,6 +36,7 @@
 - 新增 `proxmox_backup_job` 资源，覆盖 `/cluster/backup[/{id}]` 同步 CRUD；支持固定 job ID、schedule/storage/node、all/pool/vmid 互斥选择、exclude、mode/compression、bandwidth、notification、notes、protected、repeat-missed 和 `prune-backups` retention，更新通过 `delete` 清理移除字段，删除仅移除计划且不触发备份任务，并补齐校验、测试、示例和生成文档。
 - 新增 `proxmox_storage_file_download` 资源，覆盖 `/nodes/{node}/storage/{storage}/download-url` 和 content item GET/DELETE，支持 `iso`/`vztmpl`/`import`、checksum、解压和 TLS 校验；将 LXC 专用 task waiter 提取为通用 node UPID waiter，create/delete 均校验最终 exit status，并修正 API path 的 escaped-segment 处理以安全支持包含 `/` 的 volume ID，补齐校验、测试、示例和生成文档。
 - 新增 `proxmox_cluster_metrics_server` 资源，覆盖 `/cluster/metrics/server/{id}` 同步 CRUD，支持 Graphite、InfluxDB 和 Proxmox VE 9 OpenTelemetry 字段、digest guarded update、字段移除、import 与 write-only InfluxDB token 保留；复用并扩展现有 metrics client，同时保持 list data source 兼容，补齐测试、示例和生成文档。
+- 补齐 cluster firewall named objects：新增 `proxmox_cluster_firewall_alias`、`proxmox_cluster_firewall_ip_set`、`proxmox_cluster_firewall_ip_set_entry` 和 `proxmox_cluster_firewall_security_group`，支持 stable-name/CIDR identity、digest guarded update、import 和非 force IP set 删除；将 `proxmox_firewall_rule` 扩展到 cluster/node/QEMU/LXC/security-group scope，并确保 positional rule 在每次 create/update/delete 前重新读取当前 ruleset，补齐 exact-form HTTP 测试、scope/ownership 测试、示例和生成文档。
 
 ## 接下来
 
@@ -43,8 +44,7 @@
 
 | 顺序 | 候选功能 | 核心 API | 价值/成本/风险 | 实施重点 |
 | --- | --- | --- | --- | --- |
-| 1 | Firewall aliases、IP sets、security groups 和 scoped rules | `/cluster/firewall/aliases`、`/ipset`、`/groups`，以及 node/guest `/rules` | 高/中至高/中 | 复用现有 firewall client/resource；谨慎处理 positional rule identity、依赖顺序和共享配置冲突。 |
-| 2 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
+| 1 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
 
 ### 后续中大型功能
 
