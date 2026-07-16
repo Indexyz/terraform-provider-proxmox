@@ -27,7 +27,7 @@
 | `docs/guides/` | 从 `templates/guides/` 渲染的用户指南；当前包含 Provider 配置、认证、权限规划和常见错误排障。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
 | `templates/guides/` | 手工维护的指南模板；`make generate` 时渲染到 `docs/guides/`，避免 tfplugindocs 清理生成目录时丢失。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、19 个 data source、24 个 resource 示例。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、20 个 data source、24 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -105,7 +105,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | Storage methods | `/storage[/{storage}]` | 存储池 CRUD 和查询。 |
 | Storage file methods | `/nodes/{node}/storage/{storage}/download-url`、`/content/{volume}` | 下载、读取和删除 ISO、LXC template 与 import image，并等待异步任务。 |
 | Role/User/Token methods | `/access/roles`、`/access/users`、`/access/users/{userid}/token` | RBAC 角色、用户和 API token 管理。 |
-| Realm methods | `/access/domains[/{realm}]` | Proxmox VE 9 LDAP、AD 和 OpenID Connect 外部认证 realm CRUD。 |
+| Realm methods | `/access/domains[/{realm}]` | 读取任意 realm，并管理 Proxmox VE 9 LDAP、AD 和 OpenID Connect 外部 realm CRUD。 |
 | ACL methods | `GET/PUT /access/acl` | 权限绑定读取和差异更新。 |
 | Backup job methods | `/cluster/backup[/{id}]` | vzdump 备份计划 CRUD，不执行备份任务。 |
 | Replication job methods | `/cluster/replication[/{id}]` | 存储复制计划 CRUD，不执行 run-now。 |
@@ -216,6 +216,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_pool` | `data_source_pool.go` | `GET /pools?poolid=...`。 |
 | `proxmox_pools` | `data_source_pools.go` | `GET /pools`。 |
 | `proxmox_qemu_vm` | `data_source_qemu_vm.go` | 读取 QEMU `/config` 和 `/status/current`，共享 QEMU typed/raw 映射。 |
+| `proxmox_realm` | `data_source_realm.go` | `GET /access/domains/{realm}`；仅输出公开 typed 字段，支持只读查询内建 `pam`/`pve`。 |
 | `proxmox_role` | `data_source_role.go` | `GET /access/roles/{roleid}`。 |
 | `proxmox_roles` | `data_source_roles.go` | `GET /access/roles`。 |
 | `proxmox_storage` | `data_source_storage.go` | `GET /storage/{storage}`。 |
@@ -239,7 +240,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 24 个资源和 19 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 24 个资源和 20 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -261,11 +262,11 @@ make generate
 - `client_test.go`、`client_qemu_test.go`：HTTP 方法、认证 header/cookie、API error、基础和 QEMU endpoints。
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
-- `client_realm_test.go`、`resource_realm_test.go`：PVE 9 realm exact-form CRUD、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
-- `e2e_smoke_test.go`：真实 Proxmox API smoke test，要求 PVE 9 并读取 `proxmox_version` 和 `proxmox_nodes`。
+- `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
+- `e2e_smoke_test.go`：真实 Proxmox API smoke test，要求 PVE 9，并读取 version、nodes 和内建 `pam` realm。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 
-GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e smoke job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 9.2-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；acceptance smoke 要求 API 报告 PVE 9，并只读验证 `proxmox_version` 和 `proxmox_nodes`。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
+GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e smoke job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 9.2-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；acceptance smoke 要求 API 报告 PVE 9，并只读验证 version、nodes 和内建 `pam` realm。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
 
 ## 贡献边界
 

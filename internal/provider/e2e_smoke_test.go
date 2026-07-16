@@ -22,6 +22,10 @@ func TestAccProxmoxE2ESmoke(t *testing.T) {
 data "proxmox_version" "current" {}
 
 data "proxmox_nodes" "current" {}
+
+data "proxmox_realm" "pam" {
+  realm = "pam"
+}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.proxmox_version.current", "version"),
@@ -31,6 +35,9 @@ data "proxmox_nodes" "current" {}
 						}
 						return nil
 					}),
+					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "id", "pam"),
+					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "realm", "pam"),
+					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "type", "pam"),
 					resource.TestCheckResourceAttrWith("data.proxmox_nodes.current", "nodes.#", func(value string) error {
 						count, err := strconv.Atoi(value)
 						if err != nil {

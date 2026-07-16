@@ -2,7 +2,7 @@
 
 These scripts support the GitHub Actions Proxmox e2e job. They prepare and boot a single-node Proxmox VE guest, then the provider runs one read-only smoke test against the real API.
 
-The smoke test reads `proxmox_version` and `proxmox_nodes` and requires the API to report Proxmox VE 9. It does not create resources or validate multi-node, ZFS, or PVE 9-only resource behavior.
+The smoke test reads `proxmox_version`, `proxmox_nodes`, and the built-in `pam` realm, and requires the API to report Proxmox VE 9. It does not create resources or validate multi-node, ZFS, or external realm behavior.
 
 ## Pinned inputs and host requirements
 
@@ -53,7 +53,7 @@ PROXMOX_VE_TIMEOUT=60 \
 TF_ACC=1 go test -v -cover -timeout 120m -run '^TestAccProxmoxE2ESmoke$' ./internal/provider/
 ```
 
-The preparation script reuses any non-empty `.e2e/proxmox/proxmox-e2e.qcow2`. The start script runs QEMU in the background, forwards `127.0.0.1:8006` to the guest API, records the process ID in `.e2e/proxmox/qemu.pid`, and accepts HTTP 200 or 401 as proof that the API endpoint is ready. The acceptance test then verifies authentication and API reads.
+The preparation script reuses any non-empty `.e2e/proxmox/proxmox-e2e.qcow2`. The start script runs QEMU in the background, forwards `127.0.0.1:8006` to the guest API, records the process ID in `.e2e/proxmox/qemu.pid`, and accepts HTTP 200 or 401 as proof that the API endpoint is ready. The acceptance test then verifies authentication and the read-only version, nodes, and built-in realm API reads.
 
 Use the exact `-run` selector above for this read-only CI smoke test. `make testacc` runs every acceptance test and requires an explicitly chosen Proxmox environment and credentials.
 

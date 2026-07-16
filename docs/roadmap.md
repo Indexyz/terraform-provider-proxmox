@@ -43,17 +43,18 @@
 - 将 GitHub Actions 单节点 e2e 环境从 Proxmox VE 8.4-1 升级到 9.2-1，切换到 Debian 13 Trixie 的 `proxmox-auto-install-assistant` 9.2.7，并重新固定 ISO/assistant SHA256；e2e host 固定 Ubuntu 24.04 以满足 assistant 依赖，answer file 迁移到 kebab-case keys，cache key 随新 pins 自动失效旧 qcow2，contract test 固定 PVE 9/Trixie 输入，acceptance smoke 明确要求 API release major 为 9。
 - 从当前仓库移除 `pve-docs` submodule 与 `.gitmodules`，将本地 `pve-docs/` 和 `.omx/` 加入 ignore，清理 README/copywrite 的 bundled mirror 配置，并删除已跟踪的 `.omx` 配置文件；仅提交当前树变更，不改写 Git 历史。
 - 对照当前 PVE 9.2 API Viewer、官方 HA source 和 Provider 注册/生命周期模式完成下一项功能研究；推荐先补单 realm 只读 `proxmox_realm` data source，允许读取内建 `pam`/`pve` 但保持 resource 不可管理，复用现有 GET 和 secret 过滤边界，并以 PVE 9.2 `pam` realm 扩展只读 smoke。HA resource + affinity rule 作为下一项中型设计；QEMU compound devices 先阻塞于 removed-slot delete 基础，node networking/SDN 继续要求显式 reload/apply 边界。
+- 新增单 realm 只读 `proxmox_realm` data source，复用 `GET /access/domains/{realm}` 并输出 LDAP、AD、OpenID Connect 与内建 realm 的公开 typed 字段；允许查询 `pam`/`pve`，但不暴露 password、client key、certkey、TFA、digest 或 resource secret version，不调用 `/sync`。补齐 exact GET、LDAP/AD/OpenID/内建映射、API error context 和 secret exclusion 测试、示例、生成文档，并将 PVE 9.2 smoke 扩展到读取 `pam`。
 
 ## 接下来
 
 ### 优先实现
 
-下一项推荐实现单 realm 只读 `proxmox_realm` data source：输入 realm ID，输出现有公开 typed 字段，允许读取内建 `pam`/`pve`，但不暴露 password/client key/certkey/TFA 或 secret version，不调用 `/sync`。完成后再单独设计 HA resource 与 PVE 9 node/resource affinity rule。
+下一项优先单独设计 HA resource 与 PVE 9 node/resource affinity rule：Terraform destroy 只能退出 HA 管理，不删除 VM/CT；避免默认 purge 静默级联修改独立管理的 rule；migrate、relocate、arm/disarm、start/stop 和运行时放置不属于普通配置 CRUD。
 
 ### 后续中大型功能
 
 - Authentication realm 高级后续：按独立设计补充 list data source、LDAP group/sync 高级字段、client certificate 和 TFA；`/sync` 属命令式操作，不在普通 realm CRUD 中隐式执行。
-- HA resources/rules：先验证 Proxmox VE 9 的 affinity rule schema；删除 Terraform resource 只能退出 HA 管理，不能删除 VM/CT，也不应等待运行时放置状态无限收敛。
+- HA resources/rules：基于已核验的 Proxmox VE 9 typed affinity rule schema 单独设计；删除 Terraform resource 只能退出 HA 管理，不能删除 VM/CT，也不应等待运行时放置状态无限收敛。
 - Node networking：覆盖 `/nodes/{node}/network`，将 pending 配置与 apply/reload 生命周期分离，避免单个接口资源自动 reload 导致中间状态或管理网络断连。
 - SDN zones/VNets/subnets：作为独立 epic 处理 typed variants、共享 digest、依赖顺序和显式 activation，不在每个子资源 CRUD 后自动 apply。
 - QEMU `hostpci`、`usb`、`rng`、`virtiofs` 等 compound device：按现有 slot parser/encoder 和 whole-slot raw fallback 模式实现；现有 `raw.extra_config` 可覆盖长尾，因此低于集群级能力。
@@ -61,7 +62,7 @@
 ### 持续约束
 
 - 新增或修改 Provider schema 时运行 `make generate`，同步更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/` 和示例。
-- 当前 e2e 环境是单节点 Proxmox VE 9.2，只运行只读 version/nodes smoke；需要资源变更、多节点或 ZFS 的能力仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
+- 当前 e2e 环境是单节点 Proxmox VE 9.2，只运行只读 version/nodes/内建 `pam` realm smoke；需要资源变更、多节点或 ZFS 的能力仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。

@@ -84,6 +84,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_pool`
 - `proxmox_pools`
 - `proxmox_qemu_vm`
+- `proxmox_realm`
 - `proxmox_role`
 - `proxmox_roles`
 - `proxmox_storage`
