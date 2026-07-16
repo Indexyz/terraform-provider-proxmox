@@ -27,7 +27,7 @@
 | `docs/guides/` | 从 `templates/guides/` 渲染的用户指南；当前包含 Provider 配置、认证、权限规划和常见错误排障。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
 | `templates/guides/` | 手工维护的指南模板；`make generate` 时渲染到 `docs/guides/`，避免 tfplugindocs 清理生成目录时丢失。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、20 个 data source、24 个 resource 示例。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、20 个 data source、25 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -109,11 +109,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | ACL methods | `GET/PUT /access/acl` | 权限绑定读取和差异更新。 |
 | Backup job methods | `/cluster/backup[/{id}]` | vzdump 备份计划 CRUD，不执行备份任务。 |
 | Replication job methods | `/cluster/replication[/{id}]` | 存储复制计划 CRUD，不执行 run-now。 |
+| HA resource methods | `/cluster/ha/resources[/{sid}]` | PVE 9 HA enrollment/policy CRUD；collection read、digest update、`purge=0` destroy，不调用 guest 或 HA runtime 命令。 |
 | Firewall methods | `/cluster/firewall/{options,rules,aliases,ipset,groups}`、node/guest `/firewall/{options,rules}` | 集群命名对象、cluster/node/guest/group rules 及防火墙选项管理。 |
 
 ## 资源
 
-当前注册 **24 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **25 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -128,6 +129,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_firewall_rule` | 通过 content identity 管理 cluster、node、QEMU/LXC guest 或 security group 防火墙规则。 |
 | `proxmox_group` | 管理 access group。 |
 | `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
+| `proxmox_ha_resource` | 管理现有 QEMU/LXC guest 的 PVE 9 HA enrollment、显式 requested state 和恢复策略；destroy 固定 `purge=0`，只退出 HA 管理。 |
 | `proxmox_lxc_container` | 管理 LXC 容器、clone 和 typed/raw 配置。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
@@ -263,6 +265,7 @@ make generate
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
+- `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `e2e_smoke_test.go`：真实 Proxmox API smoke test，要求 PVE 9，并读取 version、nodes 和内建 `pam` realm。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 

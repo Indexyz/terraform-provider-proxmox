@@ -44,17 +44,19 @@
 - 从当前仓库移除 `pve-docs` submodule 与 `.gitmodules`，将本地 `pve-docs/` 和 `.omx/` 加入 ignore，清理 README/copywrite 的 bundled mirror 配置，并删除已跟踪的 `.omx` 配置文件；仅提交当前树变更，不改写 Git 历史。
 - 对照当前 PVE 9.2 API Viewer、官方 HA source 和 Provider 注册/生命周期模式完成下一项功能研究；推荐先补单 realm 只读 `proxmox_realm` data source，允许读取内建 `pam`/`pve` 但保持 resource 不可管理，复用现有 GET 和 secret 过滤边界，并以 PVE 9.2 `pam` realm 扩展只读 smoke。HA resource + affinity rule 作为下一项中型设计；QEMU compound devices 先阻塞于 removed-slot delete 基础，node networking/SDN 继续要求显式 reload/apply 边界。
 - 新增单 realm 只读 `proxmox_realm` data source，复用 `GET /access/domains/{realm}` 并输出 LDAP、AD、OpenID Connect 与内建 realm 的公开 typed 字段；允许查询 `pam`/`pve`，但不暴露 password、client key、certkey、TFA、digest 或 resource secret version，不调用 `/sync`。补齐 exact GET、LDAP/AD/OpenID/内建映射、API error context 和 secret exclusion 测试、示例、生成文档，并将 PVE 9.2 smoke 扩展到读取 `pam`。
+- 完成 PVE 9.2 `proxmox_ha_resource` 交付研究：下一项先独立管理现有 `vm:<vmid>`/`ct:<vmid>` 的 HA enrollment、显式 requested state、failback、per-resource auto-rebalance、restart/relocate limits 与 comment；读取 collection 规避 missing item 返回非 404，更新使用 fresh shared digest，destroy 固定 `purge=0` 且绝不删除/停止 guest。Terraform schema 不暴露过渡期 legacy group 或 `enabled` alias，不调用 migrate/relocate/CRM/arm-disarm，也不等待运行时放置收敛；typed affinity rule 后续单独交付。
+- 新增 PVE 9.2 `proxmox_ha_resource` 资源，按研究契约实现 canonical `vm:<vmid>`/`ct:<vmid>`、显式 requested `state`、`comment`、`failback`、`auto_rebalance`、`max_restart` 和 `max_relocate`；通过 collection GET 识别远端缺失并取得 fresh shared digest，使用 private managed fields 删除 Terraform 曾管理的可选字段，支持 import。Destroy 在删除前重读 collection 并固定发送 `purge=0`，只移除 HA 配置，不调用 guest 删除/停止、migrate/relocate、CRM 或 arm/disarm endpoint；补齐 exact-form HTTP、PVE effective defaults、validation/ownership/error context 测试、示例和生成文档。
 
 ## 接下来
 
 ### 优先实现
 
-下一项优先单独设计 HA resource 与 PVE 9 node/resource affinity rule：Terraform destroy 只能退出 HA 管理，不删除 VM/CT；避免默认 purge 静默级联修改独立管理的 rule；migrate、relocate、arm/disarm、start/stop 和运行时放置不属于普通配置 CRUD。
+下一项优先研究并设计单一 typed `proxmox_ha_rule`：覆盖 PVE 9 `node-affinity`/`resource-affinity`，继续使用 fresh shared digest、typed variant validation 与 import；rule 引用已经由 `proxmox_ha_resource` 管理的 canonical SID，不提供 legacy HA group 或 generic raw map。
 
 ### 后续中大型功能
 
 - Authentication realm 高级后续：按独立设计补充 list data source、LDAP group/sync 高级字段、client certificate 和 TFA；`/sync` 属命令式操作，不在普通 realm CRUD 中隐式执行。
-- HA resources/rules：基于已核验的 Proxmox VE 9 typed affinity rule schema 单独设计；删除 Terraform resource 只能退出 HA 管理，不能删除 VM/CT，也不应等待运行时放置状态无限收敛。
+- HA rules：在 `proxmox_ha_resource` 之后实现单一 typed variant resource，覆盖 PVE 9 `node-affinity`/`resource-affinity`、shared digest、feasibility error 与 import；不提供 legacy HA group 或 generic raw map。
 - Node networking：覆盖 `/nodes/{node}/network`，将 pending 配置与 apply/reload 生命周期分离，避免单个接口资源自动 reload 导致中间状态或管理网络断连。
 - SDN zones/VNets/subnets：作为独立 epic 处理 typed variants、共享 digest、依赖顺序和显式 activation，不在每个子资源 CRUD 后自动 apply。
 - QEMU `hostpci`、`usb`、`rng`、`virtiofs` 等 compound device：按现有 slot parser/encoder 和 whole-slot raw fallback 模式实现；现有 `raw.extra_config` 可覆盖长尾，因此低于集群级能力。
@@ -67,4 +69,4 @@
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。
 
-研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。下一项详细比较和实施边界见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)。
+研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。候选比较见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)；HA resource 的 PVE 9.2 schema、生命周期和验证边界见 [`research/proxmox-ha-resource.md`](../research/proxmox-ha-resource.md)。

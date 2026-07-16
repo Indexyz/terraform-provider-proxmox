@@ -111,7 +111,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		resourceNames = append(resourceNames, resp.TypeName)
 	}
 	sort.Strings(resourceNames)
-	if want := []string{"proxmox_acl", "proxmox_backup_job", "proxmox_cluster_firewall_alias", "proxmox_cluster_firewall_ip_set", "proxmox_cluster_firewall_ip_set_entry", "proxmox_cluster_firewall_options", "proxmox_cluster_firewall_security_group", "proxmox_cluster_metrics_server", "proxmox_firewall_rule", "proxmox_group", "proxmox_guest_firewall_options", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_node_firewall_options", "proxmox_pool", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_realm", "proxmox_replication_job", "proxmox_role", "proxmox_storage", "proxmox_storage_file_download", "proxmox_user", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
+	if want := []string{"proxmox_acl", "proxmox_backup_job", "proxmox_cluster_firewall_alias", "proxmox_cluster_firewall_ip_set", "proxmox_cluster_firewall_ip_set_entry", "proxmox_cluster_firewall_options", "proxmox_cluster_firewall_security_group", "proxmox_cluster_metrics_server", "proxmox_firewall_rule", "proxmox_group", "proxmox_guest_firewall_options", "proxmox_ha_resource", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_node_firewall_options", "proxmox_pool", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_realm", "proxmox_replication_job", "proxmox_role", "proxmox_storage", "proxmox_storage_file_download", "proxmox_user", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
 		t.Fatalf("unexpected resources: got %v want %v", resourceNames, want)
 	}
 
