@@ -41,6 +41,7 @@
 - 新增 `docs/guides/provider-configuration.md`，补充 endpoint/TLS、API token 与 ticket 认证组合、环境变量优先级、权限规划、state 安全和常见 API 错误排障；扩展 `tools/ci/README.md`，记录本地依赖安装、KVM/TCG 边界、只读 smoke test、后台 QEMU 停止/重建、日志诊断和 CI cache 与本地复现差异，并从 README 和代码库文档建立入口。
 - 新增面向 Proxmox VE 9 的 `proxmox_realm` 资源，覆盖 `/access/domains[/{realm}]` LDAP、AD 和 OpenID Connect 外部 realm CRUD；使用单一 typed-only variant schema，拒绝内建 `pam`/`pve`，支持 digest guarded update、private managed-field deletion 和 import；LDAP bind password 与 OpenID client key 使用 Terraform 1.11+ WriteOnly + version 轮换，API 读回的 client key/password/TFA 不进入 state，并补齐 PVE 9 `audiences`、exact-form HTTP、variant/secret 测试、示例和生成文档。将手工指南移入 `templates/guides/`，确保 `make generate` 不再删除。
 - 将 GitHub Actions 单节点 e2e 环境从 Proxmox VE 8.4-1 升级到 9.2-1，切换到 Debian 13 Trixie 的 `proxmox-auto-install-assistant` 9.2.7，并重新固定 ISO/assistant SHA256；e2e host 固定 Ubuntu 24.04 以满足 assistant 依赖，answer file 迁移到 kebab-case keys，cache key 随新 pins 自动失效旧 qcow2，contract test 固定 PVE 9/Trixie 输入，acceptance smoke 明确要求 API release major 为 9。
+- 从当前仓库移除 `pve-docs` submodule 与 `.gitmodules`，将本地 `pve-docs/` 和 `.omx/` 加入 ignore，清理 README/copywrite 的 bundled mirror 配置，并删除已跟踪的 `.omx` 配置文件；仅提交当前树变更，不改写 Git 历史。
 
 ## 接下来
 

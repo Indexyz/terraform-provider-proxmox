@@ -20,8 +20,5 @@ project {
 
     # GoReleaser tooling configuration
     ".goreleaser.yml",
-
-    # bundled upstream Proxmox docs mirror
-    "pve-docs/**",
   ]
 }

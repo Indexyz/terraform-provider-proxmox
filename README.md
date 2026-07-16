@@ -2,7 +2,7 @@
 
 This repository contains a Terraform provider for Proxmox VE built on the Terraform Plugin Framework.
 
-The current baseline is designed against the bundled `pve-docs/` reference and includes:
+The current baseline is designed against the official [Proxmox VE documentation](https://pve.proxmox.com/pve-docs/) and includes:
 
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
