@@ -170,14 +170,6 @@ type Group struct {
 	Members []string `json:"members"`
 }
 
-type ClusterMetricsServer struct {
-	Disable *bool  `json:"disable"`
-	ID      string `json:"id"`
-	Port    *int64 `json:"port"`
-	Server  string `json:"server"`
-	Type    string `json:"type"`
-}
-
 type PoolMember struct {
 	ID      string `json:"id"`
 	Node    string `json:"node"`
@@ -307,12 +299,6 @@ func (c *Client) ClusterResources(ctx context.Context, resourceType string) ([]C
 	var resources []ClusterResource
 	err := c.do(ctx, http.MethodGet, "/cluster/resources", query, nil, &resources)
 	return resources, err
-}
-
-func (c *Client) ClusterMetricsServers(ctx context.Context) ([]ClusterMetricsServer, error) {
-	var servers []ClusterMetricsServer
-	err := c.do(ctx, http.MethodGet, "/cluster/metrics/server", nil, nil, &servers)
-	return servers, err
 }
 
 func (c *Client) GetPool(ctx context.Context, poolID string) (Pool, error) {

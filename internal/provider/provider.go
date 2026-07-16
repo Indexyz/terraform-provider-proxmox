@@ -134,6 +134,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewACLResource,
 		NewBackupJobResource,
 		NewClusterFirewallOptionsResource,
+		NewClusterMetricsServerResource,
 		NewFirewallRuleResource,
 		NewGroupResource,
 		NewGuestFirewallOptionsResource,

@@ -4,7 +4,7 @@
 
 - 扫描项目结构、Provider 配置、HTTP client、资源、数据源、QEMU VM typed/raw 映射、文档生成和 CI/e2e 工具链。
 - 新增 `docs/codebase.md`，整理开发者向代码库说明、API surface、资源/数据源职责、QEMU 扩展边界、测试与 CI 入口、已有 spec/plan 归档，并记录 `AGENTS.md` 中的贡献约束。
-- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，17 个资源和 19 个数据源均有示例来源。
+- 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，18 个资源和 19 个数据源均有示例来源。
 - 为 QEMU VM `protection` typed 字段新增预期失败的 client、mapping、raw conflict 与 schema 属性单元测试。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `protection` typed boolean，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["protection"]` 迁移到 typed 字段。
 - 为 `proxmox_qemu_vm` 资源和数据源新增 Proxmox QEMU `scsihw` typed 字段，覆盖 schema、client decode/encode、state/request mapping、raw 冲突校验、测试、示例和生成文档；`raw.extra_config["scsihw"]` 迁移到 typed 字段。
@@ -35,6 +35,7 @@
 - 新增 `proxmox_cluster_firewall_options` 资源，覆盖 `GET/PUT /cluster/firewall/options`，管理 cluster-wide `enable`、`ebtables`、默认 in/out/forward policy 和 `log_ratelimit`；Terraform delete 通过 `delete` reset 全部托管 key，支持固定 ID `cluster` 导入，并补齐 client/resource 测试、示例和生成文档。
 - 新增 `proxmox_backup_job` 资源，覆盖 `/cluster/backup[/{id}]` 同步 CRUD；支持固定 job ID、schedule/storage/node、all/pool/vmid 互斥选择、exclude、mode/compression、bandwidth、notification、notes、protected、repeat-missed 和 `prune-backups` retention，更新通过 `delete` 清理移除字段，删除仅移除计划且不触发备份任务，并补齐校验、测试、示例和生成文档。
 - 新增 `proxmox_storage_file_download` 资源，覆盖 `/nodes/{node}/storage/{storage}/download-url` 和 content item GET/DELETE，支持 `iso`/`vztmpl`/`import`、checksum、解压和 TLS 校验；将 LXC 专用 task waiter 提取为通用 node UPID waiter，create/delete 均校验最终 exit status，并修正 API path 的 escaped-segment 处理以安全支持包含 `/` 的 volume ID，补齐校验、测试、示例和生成文档。
+- 新增 `proxmox_cluster_metrics_server` 资源，覆盖 `/cluster/metrics/server/{id}` 同步 CRUD，支持 Graphite、InfluxDB 和 Proxmox VE 9 OpenTelemetry 字段、digest guarded update、字段移除、import 与 write-only InfluxDB token 保留；复用并扩展现有 metrics client，同时保持 list data source 兼容，补齐测试、示例和生成文档。
 
 ## 接下来
 
@@ -42,9 +43,8 @@
 
 | 顺序 | 候选功能 | 核心 API | 价值/成本/风险 | 实施重点 |
 | --- | --- | --- | --- | --- |
-| 1 | Cluster metrics server resource | `/cluster/metrics/server/{id}` CRUD | 中高/低至中/低至中 | 复用现有 `ClusterMetricsServers` client/data source；正确处理 Graphite/Influx 类型字段和不可读回的 secret。 |
-| 2 | Firewall aliases、IP sets、security groups 和 scoped rules | `/cluster/firewall/aliases`、`/ipset`、`/groups`，以及 node/guest `/rules` | 高/中至高/中 | 复用现有 firewall client/resource；谨慎处理 positional rule identity、依赖顺序和共享配置冲突。 |
-| 3 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
+| 1 | Firewall aliases、IP sets、security groups 和 scoped rules | `/cluster/firewall/aliases`、`/ipset`、`/groups`，以及 node/guest `/rules` | 高/中至高/中 | 复用现有 firewall client/resource；谨慎处理 positional rule identity、依赖顺序和共享配置冲突。 |
+| 2 | Replication job resource | `/cluster/replication[/{id}]` | 高/中/中 | 使用稳定 job ID 和 digest；配置 CRUD 不隐式执行 run-now，运行状态只作为 computed 数据。 |
 
 ### 后续中大型功能
 

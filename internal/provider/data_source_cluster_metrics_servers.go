@@ -84,7 +84,7 @@ func (d *ClusterMetricsServersDataSource) Read(ctx context.Context, _ datasource
 	items := make([]ClusterMetricsServersDataSourceRecord, 0, len(servers))
 	for _, server := range servers {
 		items = append(items, ClusterMetricsServersDataSourceRecord{
-			Disable: boolOrNull(server.Disable),
+			Disable: boolOrNull(server.Disable.Ptr()),
 			ID:      stringOrNull(server.ID),
 			Port:    int64OrNull(server.Port),
 			Server:  stringOrNull(server.Server),

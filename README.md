@@ -46,6 +46,7 @@ Provider configuration also supports ticket-based authentication with `username`
 - `proxmox_acl`
 - `proxmox_backup_job`
 - `proxmox_cluster_firewall_options`
+- `proxmox_cluster_metrics_server`
 - `proxmox_firewall_rule`
 - `proxmox_group`
 - `proxmox_guest_firewall_options`
