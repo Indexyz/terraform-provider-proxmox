@@ -46,6 +46,7 @@
 - 新增单 realm 只读 `proxmox_realm` data source，复用 `GET /access/domains/{realm}` 并输出 LDAP、AD、OpenID Connect 与内建 realm 的公开 typed 字段；允许查询 `pam`/`pve`，但不暴露 password、client key、certkey、TFA、digest 或 resource secret version，不调用 `/sync`。补齐 exact GET、LDAP/AD/OpenID/内建映射、API error context 和 secret exclusion 测试、示例、生成文档，并将 PVE 9.2 smoke 扩展到读取 `pam`。
 - 完成 PVE 9.2 `proxmox_ha_resource` 交付研究：下一项先独立管理现有 `vm:<vmid>`/`ct:<vmid>` 的 HA enrollment、显式 requested state、failback、per-resource auto-rebalance、restart/relocate limits 与 comment；读取 collection 规避 missing item 返回非 404，更新使用 fresh shared digest，destroy 固定 `purge=0` 且绝不删除/停止 guest。Terraform schema 不暴露过渡期 legacy group 或 `enabled` alias，不调用 migrate/relocate/CRM/arm-disarm，也不等待运行时放置收敛；typed affinity rule 后续单独交付。
 - 新增 PVE 9.2 `proxmox_ha_resource` 资源，按研究契约实现 canonical `vm:<vmid>`/`ct:<vmid>`、显式 requested `state`、`comment`、`failback`、`auto_rebalance`、`max_restart` 和 `max_relocate`；通过 collection GET 识别远端缺失并取得 fresh shared digest，使用 private managed fields 删除 Terraform 曾管理的可选字段，支持 import。Destroy 在删除前重读 collection 并固定发送 `purge=0`，只移除 HA 配置，不调用 guest 删除/停止、migrate/relocate、CRM 或 arm/disarm endpoint；补齐 exact-form HTTP、PVE effective defaults、validation/ownership/error context 测试、示例和生成文档。
+- 完成 v0.1.0 发布准备：整理正式 changelog 与迁移说明、同步 README 的 Go 1.26.4 构建要求、让 release workflow 按 tag 提取当前 changelog 段作为 GitHub Release notes，并移除未使用的 `main.commit` linker 注入。
 
 ## 接下来
 

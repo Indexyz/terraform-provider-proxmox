@@ -13,7 +13,7 @@ The current baseline is designed against the official [Proxmox VE documentation]
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0; Terraform >= 1.11 is required when using the write-only `proxmox_realm` secret attributes
-- [Go](https://golang.org/doc/install) >= 1.24
+- [Go](https://golang.org/doc/install) >= 1.26.4
 
 ## Building the Provider
 
