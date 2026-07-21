@@ -266,10 +266,10 @@ make generate
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
-- `e2e_smoke_test.go`：真实 Proxmox API smoke test，要求 PVE 9，并读取 version、nodes 和内建 `pam` realm。
+- `e2e_smoke_test.go`：真实 Proxmox API e2e，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 
-GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e smoke job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 9.2-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；acceptance smoke 要求 API 报告 PVE 9，并只读验证 version、nodes 和内建 `pam` realm。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
+GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 9.2-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；只读 acceptance 测试覆盖 node/cluster/access/storage 数据源，隔离 CRUD 测试使用随机 ID 创建、更新、读取并销毁 pool、group、role、user、API token 和 ACL。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
 
 ## 贡献边界
 

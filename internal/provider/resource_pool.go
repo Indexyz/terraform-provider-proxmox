@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -25,13 +26,13 @@ type PoolResource struct {
 }
 
 type PoolResourceModel struct {
-	ID         types.String             `tfsdk:"id"`
-	PoolID     types.String             `tfsdk:"pool_id"`
-	Comment    types.String             `tfsdk:"comment"`
-	AllowMove  types.Bool               `tfsdk:"allow_move"`
-	VMIDs      types.Set                `tfsdk:"vm_ids"`
-	StorageIDs types.Set                `tfsdk:"storage_ids"`
-	Members    []PoolResourceMemberItem `tfsdk:"members"`
+	ID         types.String `tfsdk:"id"`
+	PoolID     types.String `tfsdk:"pool_id"`
+	Comment    types.String `tfsdk:"comment"`
+	AllowMove  types.Bool   `tfsdk:"allow_move"`
+	VMIDs      types.Set    `tfsdk:"vm_ids"`
+	StorageIDs types.Set    `tfsdk:"storage_ids"`
+	Members    types.List   `tfsdk:"members"`
 }
 
 type PoolResourceMemberItem struct {
@@ -40,6 +41,16 @@ type PoolResourceMemberItem struct {
 	StorageID types.String `tfsdk:"storage_id"`
 	Type      types.String `tfsdk:"type"`
 	VMID      types.Int64  `tfsdk:"vm_id"`
+}
+
+func poolResourceMemberAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":         types.StringType,
+		"node":       types.StringType,
+		"storage_id": types.StringType,
+		"type":       types.StringType,
+		"vm_id":      types.Int64Type,
+	}
 }
 
 func NewPoolResource() resource.Resource {
@@ -320,8 +331,10 @@ func (r *PoolResource) readPoolState(ctx context.Context, poolID string, allowMo
 	vmIDs, storageIDs, members := flattenPoolMembers(pool)
 	vmIDSet, vmDiags := int64SetValue(ctx, vmIDs)
 	storageIDSet, storageDiags := stringSetValue(ctx, storageIDs)
+	memberList, memberDiags := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: poolResourceMemberAttrTypes()}, members)
 	diags.Append(vmDiags...)
 	diags.Append(storageDiags...)
+	diags.Append(memberDiags...)
 	if diags.HasError() {
 		return PoolResourceModel{}, diags
 	}
@@ -333,7 +346,7 @@ func (r *PoolResource) readPoolState(ctx context.Context, poolID string, allowMo
 		AllowMove:  allowMove,
 		VMIDs:      vmIDSet,
 		StorageIDs: storageIDSet,
-		Members:    members,
+		Members:    memberList,
 	}, diags
 }
 

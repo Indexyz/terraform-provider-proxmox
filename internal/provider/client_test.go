@@ -195,6 +195,15 @@ func TestClientTokenAuthPoolAndGroupMethods(t *testing.T) {
 				"poolid":  "platform",
 				"comment": "Managed by Terraform",
 			}})
+		case r.URL.Path == "/api2/json/pools" && r.Method == http.MethodPost:
+			assertFormValues(t, r, url.Values{"comment": {"E2E"}, "poolid": {"e2e"}})
+			writeEnvelope(t, w, nil)
+		case r.URL.Path == "/api2/json/pools" && r.Method == http.MethodPut:
+			assertFormValues(t, r, url.Values{"comment": {"Updated"}, "poolid": {"e2e"}})
+			writeEnvelope(t, w, nil)
+		case r.URL.Path == "/api2/json/pools/e2e" && r.Method == http.MethodDelete:
+			assertFormValues(t, r, url.Values{})
+			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/access/groups" && r.Method == http.MethodPost:
 			assertFormValues(t, r, url.Values{
 				"groupid": {"devs"},
@@ -213,9 +222,7 @@ func TestClientTokenAuthPoolAndGroupMethods(t *testing.T) {
 				"members": []string{"zoe@pve"},
 			})
 		case r.URL.Path == "/api2/json/access/groups/devs" && r.Method == http.MethodDelete:
-			assertFormValues(t, r, url.Values{
-				"groupid": {"devs"},
-			})
+			assertFormValues(t, r, url.Values{})
 			writeEnvelope(t, w, nil)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
@@ -266,6 +273,18 @@ func TestClientTokenAuthPoolAndGroupMethods(t *testing.T) {
 	}
 	if len(pools) != 1 || pools[0].PoolID != "platform" {
 		t.Fatalf("unexpected pools payload: %#v", pools)
+	}
+
+	poolComment := "E2E"
+	if err := client.CreatePool(ctx, "e2e", &poolComment); err != nil {
+		t.Fatalf("CreatePool() unexpected error: %v", err)
+	}
+	updatedPoolComment := "Updated"
+	if err := client.UpdatePool(ctx, UpdatePoolRequest{PoolID: "e2e", Comment: &updatedPoolComment}); err != nil {
+		t.Fatalf("UpdatePool() unexpected error: %v", err)
+	}
+	if err := client.DeletePool(ctx, "e2e"); err != nil {
+		t.Fatalf("DeletePool() unexpected error: %v", err)
 	}
 }
 

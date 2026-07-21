@@ -1,8 +1,8 @@
 # Proxmox E2E CI Tools
 
-These scripts support the GitHub Actions Proxmox e2e job. They prepare and boot a single-node Proxmox VE guest, then the provider runs one read-only smoke test against the real API.
+These scripts support the GitHub Actions Proxmox e2e job. They prepare and boot a single-node Proxmox VE guest, then run an explicit read-only suite and an isolated CRUD suite against the real API.
 
-The smoke test reads `proxmox_version`, `proxmox_nodes`, and the built-in `pam` realm, and requires the API to report Proxmox VE 9. It does not create resources or validate multi-node, ZFS, or external realm behavior.
+The read-only test requires Proxmox VE 9 and covers version, node inventory/status/DNS/time, cluster resources and metrics servers, storage, pools, users, groups, roles, and the built-in `pam` realm. The CRUD test uses randomized identifiers to create, update, read, and destroy a pool, group, role, user, API token, and ACL. It does not manage guests, storage configuration, firewall settings, HA, replication, backup jobs, external realms, or other topology-dependent resources.
 
 ## Pinned inputs and host requirements
 
@@ -38,7 +38,7 @@ sudo apt-get install -y "./$assistant_deb"
 
 Ensure the current user can read and write `/dev/kvm` if the device exists. The appropriate group or permission setup depends on the host distribution.
 
-## Run the smoke test
+## Run the e2e tests
 
 From the repository root:
 
@@ -50,12 +50,12 @@ PROXMOX_VE_USERNAME=root@pam \
 PROXMOX_VE_PASSWORD=proxmox-e2e-password \
 PROXMOX_VE_INSECURE=true \
 PROXMOX_VE_TIMEOUT=60 \
-TF_ACC=1 go test -v -cover -timeout 120m -run '^TestAccProxmoxE2ESmoke$' ./internal/provider/
+TF_ACC=1 go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD)$' ./internal/provider/
 ```
 
-The preparation script reuses any non-empty `.e2e/proxmox/proxmox-e2e.qcow2`. The start script runs QEMU in the background, forwards `127.0.0.1:8006` to the guest API, records the process ID in `.e2e/proxmox/qemu.pid`, and accepts HTTP 200 or 401 as proof that the API endpoint is ready. The acceptance test then verifies authentication and the read-only version, nodes, and built-in realm API reads.
+The preparation script reuses any non-empty `.e2e/proxmox/proxmox-e2e.qcow2`. The start script runs QEMU in the background, forwards `127.0.0.1:8006` to the guest API, records the process ID in `.e2e/proxmox/qemu.pid`, and accepts HTTP 200 or 401 as proof that the API endpoint is ready. The acceptance tests then verify authentication, the expanded read-only API surface, and isolated create/update/read/delete behavior. Terraform destroys the randomized CRUD objects at the end of the test.
 
-Use the exact `-run` selector above for this read-only CI smoke test. `make testacc` runs every acceptance test and requires an explicitly chosen Proxmox environment and credentials.
+Use the exact `-run` selector above so this environment runs only the two repository-owned e2e tests. `make testacc` runs every acceptance test and requires an explicitly chosen Proxmox environment and credentials. A failed local CRUD run can leave randomized test objects in the reusable guest; inspect and remove them before treating that disk as clean.
 
 ## Stop or rebuild the guest
 

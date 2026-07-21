@@ -26,8 +26,9 @@ func TestClientRoleMethods(t *testing.T) {
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/access/roles/TerraformManage" && r.Method == http.MethodGet:
 			writeEnvelope(t, w, map[string]any{
-				"roleid": "TerraformManage",
-				"privs":  "VM.Allocate,VM.Audit,Datastore.AllocateSpace",
+				"VM.Allocate":             1,
+				"VM.Audit":                1,
+				"Datastore.AllocateSpace": 1,
 			})
 		case r.URL.Path == "/api2/json/access/roles/TerraformManage" && r.Method == http.MethodPut:
 			assertFormValues(t, r, url.Values{
@@ -60,7 +61,7 @@ func TestClientRoleMethods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRole() unexpected error: %v", err)
 	}
-	if role.RoleID != "TerraformManage" || role.Privs != "VM.Allocate,VM.Audit,Datastore.AllocateSpace" {
+	if role.RoleID != "TerraformManage" || role.Privs != "Datastore.AllocateSpace,VM.Allocate,VM.Audit" {
 		t.Fatalf("unexpected role: %#v", role)
 	}
 
@@ -95,7 +96,7 @@ func TestClientUserMethods(t *testing.T) {
 				"firstname": "Terraform",
 				"lastname":  "Bot",
 				"email":     "bot@example.com",
-				"groups":    "admins",
+				"groups":    []string{"admins"},
 				"enable":    1,
 				"expire":    0,
 			})

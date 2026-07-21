@@ -83,7 +83,7 @@ jobs:
         timeout-minutes: 10
 
   e2e:
-    name: Proxmox E2E Smoke
+    name: Proxmox E2E
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -131,7 +131,7 @@ jobs:
       - name: Start Proxmox
         run: tools/ci/start-proxmox-e2e.sh
         timeout-minutes: 25
-      - name: Run Proxmox e2e smoke test
+      - name: Run Proxmox e2e tests
         env:
           TF_ACC: "1"
           PROXMOX_VE_ENDPOINT: https://127.0.0.1:8006
@@ -139,7 +139,7 @@ jobs:
           PROXMOX_VE_PASSWORD: proxmox-e2e-password
           PROXMOX_VE_INSECURE: "true"
           PROXMOX_VE_TIMEOUT: "60"
-        run: go test -v -cover -timeout 120m -run '^TestAccProxmoxE2ESmoke$' ./internal/provider/
+        run: go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD)$' ./internal/provider/
       - name: Print Proxmox e2e diagnostics
         if: always()
         run: |

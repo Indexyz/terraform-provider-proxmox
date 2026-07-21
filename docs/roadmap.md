@@ -47,6 +47,7 @@
 - 完成 PVE 9.2 `proxmox_ha_resource` 交付研究：下一项先独立管理现有 `vm:<vmid>`/`ct:<vmid>` 的 HA enrollment、显式 requested state、failback、per-resource auto-rebalance、restart/relocate limits 与 comment；读取 collection 规避 missing item 返回非 404，更新使用 fresh shared digest，destroy 固定 `purge=0` 且绝不删除/停止 guest。Terraform schema 不暴露过渡期 legacy group 或 `enabled` alias，不调用 migrate/relocate/CRM/arm-disarm，也不等待运行时放置收敛；typed affinity rule 后续单独交付。
 - 新增 PVE 9.2 `proxmox_ha_resource` 资源，按研究契约实现 canonical `vm:<vmid>`/`ct:<vmid>`、显式 requested `state`、`comment`、`failback`、`auto_rebalance`、`max_restart` 和 `max_relocate`；通过 collection GET 识别远端缺失并取得 fresh shared digest，使用 private managed fields 删除 Terraform 曾管理的可选字段，支持 import。Destroy 在删除前重读 collection 并固定发送 `purge=0`，只移除 HA 配置，不调用 guest 删除/停止、migrate/relocate、CRM 或 arm/disarm endpoint；补齐 exact-form HTTP、PVE effective defaults、validation/ownership/error context 测试、示例和生成文档。
 - 完成 v0.1.0 发布准备：整理正式 changelog 与迁移说明、同步 README 的 Go 1.26.4 构建要求、让 release workflow 按 tag 提取当前 changelog 段作为 GitHub Release notes，并移除未使用的 `main.commit` linker 注入。
+- 扩展单节点 PVE 9.2 e2e 覆盖：只读测试新增 node status/DNS/time、cluster resources/metrics、storage、pool、group、role 和 user 数据源；隔离 CRUD 测试使用随机 ID 覆盖 pool、group、role、user、API token 与 ACL 的 create/update/read/delete，并在测试结束时销毁对象。真实 PVE 9.2 本地验证将 e2e statement coverage 从 5.6% 提升到 20.1%，同时修复 PVE 9 user groups 数组解码、role privilege map 解码、pool computed members unknown state，以及 pool/group DELETE 请求契约。CI 继续使用精确 `-run` selector，避免误执行其他 acceptance tests。
 
 ## 接下来
 
@@ -65,7 +66,7 @@
 ### 持续约束
 
 - 新增或修改 Provider schema 时运行 `make generate`，同步更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/` 和示例。
-- 当前 e2e 环境是单节点 Proxmox VE 9.2，只运行只读 version/nodes/内建 `pam` realm smoke；需要资源变更、多节点或 ZFS 的能力仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
+- 当前 e2e 环境是单节点 Proxmox VE 9.2，运行扩展的只读数据源测试和随机命名的 pool/access CRUD；guest、存储配置、防火墙、HA、replication、backup、外部 realm、多节点或 ZFS 行为仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。

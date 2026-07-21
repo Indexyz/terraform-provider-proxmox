@@ -361,9 +361,7 @@ func (c *Client) UpdatePool(ctx context.Context, req UpdatePoolRequest) error {
 }
 
 func (c *Client) DeletePool(ctx context.Context, poolID string) error {
-	form := url.Values{}
-	form.Set("poolid", poolID)
-	return c.do(ctx, http.MethodDelete, "/pools", nil, form, nil)
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/pools/%s", url.PathEscape(poolID)), nil, nil, nil)
 }
 
 func (c *Client) GetGroup(ctx context.Context, groupID string) (Group, error) {
@@ -416,9 +414,7 @@ func (c *Client) UpdateGroup(ctx context.Context, groupID string, comment *strin
 }
 
 func (c *Client) DeleteGroup(ctx context.Context, groupID string) error {
-	form := url.Values{}
-	form.Set("groupid", groupID)
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/access/groups/%s", url.PathEscape(groupID)), nil, form, nil)
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/access/groups/%s", url.PathEscape(groupID)), nil, nil, nil)
 }
 
 func (c *Client) usesTicketAuth() bool {

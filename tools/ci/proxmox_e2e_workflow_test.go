@@ -30,6 +30,18 @@ func TestProxmoxE2EWorkflowPinsPVE9Environment(t *testing.T) {
 	}
 }
 
+func TestProxmoxE2EWorkflowRunsOnlyOwnedE2ETests(t *testing.T) {
+	workflow, err := os.ReadFile("../../.github/workflows/test.yml")
+	if err != nil {
+		t.Fatalf("read test workflow: %v", err)
+	}
+
+	const command = "go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD)$' ./internal/provider/"
+	if !strings.Contains(string(workflow), command) {
+		t.Fatalf("Proxmox e2e workflow must run the explicit read-only and CRUD tests with coverage")
+	}
+}
+
 func TestProxmoxE2EWorkflowGrantsRunnerKVMAccess(t *testing.T) {
 	workflow, err := os.ReadFile("../../.github/workflows/test.yml")
 	if err != nil {

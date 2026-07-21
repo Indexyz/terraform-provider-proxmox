@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type User struct {
@@ -31,7 +32,7 @@ type userConfigKnown struct {
 	Expire    proxmoxOptionalInt64 `json:"expire"`
 	Firstname string               `json:"firstname"`
 	Lastname  string               `json:"lastname"`
-	Groups    string               `json:"groups"`
+	Groups    []string             `json:"groups"`
 	Keys      string               `json:"keys"`
 }
 
@@ -56,7 +57,7 @@ func (c *Client) GetUser(ctx context.Context, userID string) (User, error) {
 		Expire:    known.Expire,
 		Firstname: known.Firstname,
 		Lastname:  known.Lastname,
-		Groups:    known.Groups,
+		Groups:    strings.Join(sortedStrings(known.Groups), ","),
 		Keys:      known.Keys,
 	}, nil
 }

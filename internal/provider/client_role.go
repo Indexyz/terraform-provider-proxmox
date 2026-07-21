@@ -27,8 +27,11 @@ func (c *Client) GetRole(ctx context.Context, roleID string) (Role, error) {
 	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/access/roles/%s", url.PathEscape(roleID)), nil, nil, &raw); err != nil {
 		return Role{}, err
 	}
-	privs, _ := raw["privs"].(string)
-	return Role{RoleID: roleID, Privs: privs}, nil
+	privileges := make([]string, 0, len(raw))
+	for privilege := range raw {
+		privileges = append(privileges, privilege)
+	}
+	return Role{RoleID: roleID, Privs: strings.Join(sortedStrings(privileges), ",")}, nil
 }
 
 func (c *Client) CreateRole(ctx context.Context, roleID string, privs string) error {
