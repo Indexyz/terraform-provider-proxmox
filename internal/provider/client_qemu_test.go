@@ -489,6 +489,78 @@ func TestClientQemuVMConfigNotFound(t *testing.T) {
 	}
 }
 
+func TestClientQemuVMConfigPVE9MissingResponse(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"data":null,"message":"Configuration file 'nodes/pve-1/qemu-server/948674.conf' does not exist\n"}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ctx, ClientConfig{
+		Endpoint:       server.URL,
+		APITokenID:     "terraform@pve!provider",
+		APITokenSecret: "token-secret",
+		Timeout:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() unexpected error: %v", err)
+	}
+
+	_, err = client.GetQemuVMConfig(ctx, "pve-1", 948674)
+	if !errors.Is(err, errNotFound) {
+		t.Fatalf("expected PVE 9 missing config response to match errNotFound, got %v", err)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusInternalServerError || !strings.Contains(apiErr.Body, "948674.conf") {
+		t.Fatalf("expected underlying PVE API error detail, got %v", err)
+	}
+}
+
+func TestClientQemuVMConfigOtherPVE9ErrorsRemainAPIErrors(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"different vm":    `{"data":null,"message":"Configuration file 'nodes/pve-1/qemu-server/123.conf' does not exist\n"}`,
+		"different node":  `{"data":null,"message":"Configuration file 'nodes/pve-2/qemu-server/948674.conf' does not exist\n"}`,
+		"generic failure": `{"data":null,"message":"QEMU configuration service unavailable"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(body))
+			}))
+			defer server.Close()
+
+			client, err := NewClient(ctx, ClientConfig{
+				Endpoint:       server.URL,
+				APITokenID:     "terraform@pve!provider",
+				APITokenSecret: "token-secret",
+				Timeout:        time.Second,
+			})
+			if err != nil {
+				t.Fatalf("NewClient() unexpected error: %v", err)
+			}
+
+			_, err = client.GetQemuVMConfig(ctx, "pve-1", 948674)
+			if errors.Is(err, errNotFound) {
+				t.Fatalf("unexpected errNotFound classification: %v", err)
+			}
+			var apiErr *APIError
+			if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusInternalServerError {
+				t.Fatalf("expected underlying PVE API error, got %v", err)
+			}
+		})
+	}
+}
+
 func stringPtr(v string) *string    { return &v }
 func boolPtr(v bool) *bool          { return &v }
 func intPtr64(v int64) *int64       { return &v }

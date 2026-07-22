@@ -329,6 +329,11 @@ func (r UpdateQemuVMRequest) IsEmpty() bool {
 func (c *Client) GetQemuVMConfig(ctx context.Context, node string, vmID int64) (QemuVMConfig, error) {
 	var raw map[string]json.RawMessage
 	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/qemu/%d/config", url.PathEscape(node), vmID), nil, nil, &raw); err != nil {
+		var apiErr *APIError
+		missingConfig := fmt.Sprintf("nodes/%s/qemu-server/%d.conf' does not exist", node, vmID)
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusInternalServerError && strings.Contains(apiErr.Body, missingConfig) {
+			return QemuVMConfig{}, fmt.Errorf("%w: %w", errNotFound, err)
+		}
 		return QemuVMConfig{}, err
 	}
 
