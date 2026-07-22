@@ -48,6 +48,8 @@
 - 新增 PVE 9.2 `proxmox_ha_resource` 资源，按研究契约实现 canonical `vm:<vmid>`/`ct:<vmid>`、显式 requested `state`、`comment`、`failback`、`auto_rebalance`、`max_restart` 和 `max_relocate`；通过 collection GET 识别远端缺失并取得 fresh shared digest，使用 private managed fields 删除 Terraform 曾管理的可选字段，支持 import。Destroy 在删除前重读 collection 并固定发送 `purge=0`，只移除 HA 配置，不调用 guest 删除/停止、migrate/relocate、CRM 或 arm/disarm endpoint；补齐 exact-form HTTP、PVE effective defaults、validation/ownership/error context 测试、示例和生成文档。
 - 完成 v0.1.0 发布准备：整理正式 changelog 与迁移说明、同步 README 的 Go 1.26.4 构建要求、让 release workflow 按 tag 提取当前 changelog 段作为 GitHub Release notes，并移除未使用的 `main.commit` linker 注入。
 - 扩展单节点 PVE 9.2 e2e 覆盖：只读测试新增 node status/DNS/time、cluster resources/metrics、storage、pool、group、role 和 user 数据源；隔离 CRUD 测试使用随机 ID 覆盖 pool、group、role、user、API token 与 ACL 的 create/update/read/delete，并在测试结束时销毁对象。真实 PVE 9.2 本地验证将 e2e statement coverage 从 5.6% 提升到 20.1%，同时修复 PVE 9 user groups 数组解码、role privilege map 解码、pool computed members unknown state，以及 pool/group DELETE 请求契约。CI 继续使用精确 `-run` selector，避免误执行其他 acceptance tests。
+- 将 `internal/provider` 完整 Go statement coverage 从 46.6%（2,787/5,983）提升到 83.6%（5,019/6,002）。新增 schema-backed Terraform Plugin Framework 生命周期测试和本地 mock HTTP 合约，覆盖全部数据源以及 access、pool、firewall、backup、replication、metrics、HA、storage、snapshot、QEMU/LXC 等资源家族，不依赖 Terraform CLI 或真实 PVE；同时修复 guest firewall import 的 VMID 类型转换和 QEMU create/clone/delete task completion 等待。按要求仅报告覆盖率，不增加 CI threshold gate。
+- 将单节点 PVE 9.2 e2e 扩展为三个精确选择的 acceptance 测试：新增随机高 VMID 的空 QEMU source VM 与同节点 full clone，通过 Terraform Plugin Testing 验证 create/clone/delete UPID completion polling、稳定 state 字段和正常 destroy；PreCheck 使用相同环境创建真实 client、发现节点并拒绝复用已有 VMID，失败清理按 clone 后 source 顺序执行、忽略 404、核对随机 owned name 后才删除并验证缺失。该测试不添加 disk/storage/network，也不启动 VM；当前仅完成测试与 CI 合约，尚未声称对应 workflow run 已通过。
 
 ## 接下来
 
@@ -66,7 +68,7 @@
 ### 持续约束
 
 - 新增或修改 Provider schema 时运行 `make generate`，同步更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/` 和示例。
-- 当前 e2e 环境是单节点 Proxmox VE 9.2，运行扩展的只读数据源测试和随机命名的 pool/access CRUD；guest、存储配置、防火墙、HA、replication、backup、外部 realm、多节点或 ZFS 行为仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
+- 当前 e2e 环境是单节点 Proxmox VE 9.2，运行三个精确选择的测试：扩展只读数据源、随机命名的 pool/access CRUD，以及无 disk/storage/network/runtime start 的空 QEMU source VM/同节点 full clone task polling。存储配置、防火墙、HA、replication、backup、外部 realm、LXC、QEMU/LXC 运行时操作、多节点或 ZFS 行为仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。

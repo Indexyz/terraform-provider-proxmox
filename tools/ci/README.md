@@ -1,8 +1,8 @@
 # Proxmox E2E CI Tools
 
-These scripts support the GitHub Actions Proxmox e2e job. They prepare and boot a single-node Proxmox VE guest, then run an explicit read-only suite and an isolated CRUD suite against the real API.
+These scripts support the GitHub Actions Proxmox e2e job. They prepare and boot a single-node Proxmox VE guest, then run three explicit tests against the real API: read-only inventory, isolated access CRUD, and QEMU task waiting.
 
-The read-only test requires Proxmox VE 9 and covers version, node inventory/status/DNS/time, cluster resources and metrics servers, storage, pools, users, groups, roles, and the built-in `pam` realm. The CRUD test uses randomized identifiers to create, update, read, and destroy a pool, group, role, user, API token, and ACL. It does not manage guests, storage configuration, firewall settings, HA, replication, backup jobs, external realms, or other topology-dependent resources.
+The read-only test requires Proxmox VE 9 and covers version, node inventory/status/DNS/time, cluster resources and metrics servers, storage, pools, users, groups, roles, and the built-in `pam` realm. The CRUD test uses randomized identifiers to create, update, read, and destroy a pool, group, role, user, API token, and ACL. The QEMU test creates a randomized high-VMID empty source VM and a same-node full clone, verifies that create/clone task polling reaches readable stopped guests, and exercises Terraform destroy task polling. It does not attach disks, select storage, configure networking, or start either VM. Storage configuration, firewall settings, HA, replication, backup jobs, external realms, LXC guests, runtime operations, and multi-node behavior remain outside real-PVE validation.
 
 ## Pinned inputs and host requirements
 
@@ -50,12 +50,12 @@ PROXMOX_VE_USERNAME=root@pam \
 PROXMOX_VE_PASSWORD=proxmox-e2e-password \
 PROXMOX_VE_INSECURE=true \
 PROXMOX_VE_TIMEOUT=60 \
-TF_ACC=1 go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD)$' ./internal/provider/
+TF_ACC=1 go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD|QemuVMTaskWaiting)$' ./internal/provider/
 ```
 
-The preparation script reuses any non-empty `.e2e/proxmox/proxmox-e2e.qcow2`. The start script runs QEMU in the background, forwards `127.0.0.1:8006` to the guest API, records the process ID in `.e2e/proxmox/qemu.pid`, and accepts HTTP 200 or 401 as proof that the API endpoint is ready. The acceptance tests then verify authentication, the expanded read-only API surface, and isolated create/update/read/delete behavior. Terraform destroys the randomized CRUD objects at the end of the test.
+The preparation script reuses any non-empty `.e2e/proxmox/proxmox-e2e.qcow2`. The start script runs QEMU in the background, forwards `127.0.0.1:8006` to the guest API, records the process ID in `.e2e/proxmox/qemu.pid`, and accepts HTTP 200 or 401 as proof that the API endpoint is ready. The acceptance tests then verify authentication, the expanded read-only API surface, isolated access create/update/read/delete behavior, and QEMU create/clone/delete UPID completion polling. Terraform normally destroys all randomized objects. The QEMU test additionally registers failure cleanup that deletes the owned clone before its source, verifies deletion, ignores already-absent guests, and refuses to delete a VMID whose current name does not match the randomized test-owned name.
 
-Use the exact `-run` selector above so this environment runs only the two repository-owned e2e tests. `make testacc` runs every acceptance test and requires an explicitly chosen Proxmox environment and credentials. A failed local CRUD run can leave randomized test objects in the reusable guest; inspect and remove them before treating that disk as clean.
+Use the exact `-run` selector above so this environment runs only the three repository-owned e2e tests. `make testacc` runs every acceptance test and requires an explicitly chosen Proxmox environment and credentials. A failed local CRUD run can leave randomized access objects in the reusable guest. The QEMU cleanup is designed to remove its own guests after failures, but any cleanup error or ownership-name mismatch requires manual inspection before treating that disk as clean.
 
 ## Stop or rebuild the guest
 

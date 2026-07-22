@@ -36,9 +36,9 @@ func TestProxmoxE2EWorkflowRunsOnlyOwnedE2ETests(t *testing.T) {
 		t.Fatalf("read test workflow: %v", err)
 	}
 
-	const command = "go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD)$' ./internal/provider/"
+	const command = "go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD|QemuVMTaskWaiting)$' ./internal/provider/"
 	if !strings.Contains(string(workflow), command) {
-		t.Fatalf("Proxmox e2e workflow must run the explicit read-only and CRUD tests with coverage")
+		t.Fatalf("Proxmox e2e workflow must run the explicit read-only, CRUD, and QEMU task-waiting tests with coverage")
 	}
 }
 

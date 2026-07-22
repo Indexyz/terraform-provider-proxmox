@@ -139,7 +139,7 @@ jobs:
           PROXMOX_VE_PASSWORD: proxmox-e2e-password
           PROXMOX_VE_INSECURE: "true"
           PROXMOX_VE_TIMEOUT: "60"
-        run: go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD)$' ./internal/provider/
+        run: go test -v -cover -timeout 120m -run '^TestAccProxmoxE2E(ReadOnly|CRUD|QemuVMTaskWaiting)$' ./internal/provider/
       - name: Print Proxmox e2e diagnostics
         if: always()
         run: |

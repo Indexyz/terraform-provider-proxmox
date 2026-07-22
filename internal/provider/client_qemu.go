@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -344,7 +345,11 @@ func (c *Client) CreateQemuVM(ctx context.Context, node string, req CreateQemuVM
 	form := url.Values{}
 	form.Set("vmid", strconv.FormatInt(req.VMID, 10))
 	encodeQemuVMFields(form, req.qemuVMConfigRequest)
-	return c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu", url.PathEscape(node)), nil, form, nil)
+	var upid string
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu", url.PathEscape(node)), nil, form, &upid); err != nil {
+		return err
+	}
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func (c *Client) CloneQemuVM(ctx context.Context, req CloneQemuVMRequest) error {
@@ -359,7 +364,11 @@ func (c *Client) CloneQemuVM(ctx context.Context, req CloneQemuVMRequest) error 
 	setOptionalString(form, "storage", req.Storage)
 	setOptionalString(form, "format", req.Format)
 	setOptionalInt64(form, "bwlimit", req.BWLimit)
-	return c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu/%d/clone", url.PathEscape(req.SourceNode), req.SourceVMID), nil, form, nil)
+	var upid string
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu/%d/clone", url.PathEscape(req.SourceNode), req.SourceVMID), nil, form, &upid); err != nil {
+		return err
+	}
+	return c.waitForNodeTask(ctx, req.SourceNode, upid)
 }
 
 func (c *Client) UpdateQemuVM(ctx context.Context, node string, vmID int64, req UpdateQemuVMRequest) error {
@@ -369,7 +378,14 @@ func (c *Client) UpdateQemuVM(ctx context.Context, node string, vmID int64, req 
 }
 
 func (c *Client) DeleteQemuVM(ctx context.Context, node string, vmID int64) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/nodes/%s/qemu/%d", url.PathEscape(node), vmID), nil, nil, nil)
+	var upid string
+	if err := c.do(ctx, http.MethodDelete, fmt.Sprintf("/nodes/%s/qemu/%d", url.PathEscape(node), vmID), nil, nil, &upid); err != nil {
+		if errors.Is(err, errNotFound) {
+			return nil
+		}
+		return err
+	}
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {

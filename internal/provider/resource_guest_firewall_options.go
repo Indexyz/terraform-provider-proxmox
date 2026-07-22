@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -181,9 +182,19 @@ func (r *GuestFirewallOptionsResource) ImportState(ctx context.Context, req reso
 		resp.Diagnostics.AddError("Unexpected Import Identifier", "expected identifier in node/vm_id/guest_type form")
 		return
 	}
+	vmID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Unexpected Import Identifier", fmt.Sprintf("expected vm_id in node/vm_id/guest_type to be an integer: %v", err))
+		return
+	}
+	guestType, err := validateGuestType(parts[2])
+	if err != nil {
+		resp.Diagnostics.AddError("Unexpected Import Identifier", err.Error())
+		return
+	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("node"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vm_id"), parts[1])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("guest_type"), parts[2])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vm_id"), vmID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("guest_type"), guestType)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 

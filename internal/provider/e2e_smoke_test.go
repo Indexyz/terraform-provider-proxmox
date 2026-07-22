@@ -4,6 +4,8 @@
 package provider
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 func TestAccProxmoxE2EReadOnly(t *testing.T) {
@@ -176,6 +179,165 @@ func TestAccProxmoxE2ECRUD(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccProxmoxE2EQemuVMTaskWaiting(t *testing.T) {
+	suffix := strings.ToLower(acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
+	sourceName := "e2e-qemu-source-" + suffix
+	cloneName := "e2e-qemu-clone-" + suffix
+	sourceVMID := int64(acctest.RandIntRange(900000, 999999))
+	cloneVMID := sourceVMID + 1
+	var client *Client
+	var node string
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck: func() {
+			testAccPreCheck(t)
+
+			cfg, diags := providerConfigFromModel(ProxmoxProviderModel{}, "test")
+			if diags.HasError() {
+				t.Fatalf("build Proxmox client configuration from acceptance environment: %v", diags)
+			}
+
+			var err error
+			client, err = NewClient(context.Background(), cfg)
+			if err != nil {
+				t.Fatalf("build Proxmox client from acceptance environment: %v", err)
+			}
+
+			nodes, err := client.Nodes(context.Background())
+			if err != nil {
+				t.Fatalf("discover Proxmox node for QEMU acceptance test: %v", err)
+			}
+			if len(nodes) == 0 {
+				t.Fatal("discover Proxmox node for QEMU acceptance test: no nodes returned")
+			}
+			node = nodes[0].Name
+
+			for _, vmID := range []int64{cloneVMID, sourceVMID} {
+				if _, err := client.GetQemuVMConfig(context.Background(), node, vmID); err == nil {
+					t.Fatalf("QEMU VM %s/%d already exists; refusing to reuse its VMID", node, vmID)
+				} else if !errors.Is(err, errNotFound) {
+					t.Fatalf("verify QEMU VM %s/%d is absent before acceptance test: %v", node, vmID, err)
+				}
+			}
+
+			t.Cleanup(func() {
+				testAccCleanupOwnedQemuVM(t, client, node, cloneVMID, cloneName)
+				testAccCleanupOwnedQemuVM(t, client, node, sourceVMID, sourceName)
+			})
+		},
+		CheckDestroy: func(_ *terraform.State) error {
+			for _, vmID := range []int64{cloneVMID, sourceVMID} {
+				if _, err := client.GetQemuVMConfig(context.Background(), node, vmID); err == nil {
+					return fmt.Errorf("QEMU VM %s/%d still exists after Terraform destroy", node, vmID)
+				} else if !errors.Is(err, errNotFound) {
+					return fmt.Errorf("verify QEMU VM %s/%d was destroyed: %w", node, vmID, err)
+				}
+			}
+			return nil
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProxmoxE2EQemuVMTaskWaitingConfig(sourceVMID, cloneVMID, sourceName, cloneName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckResourceNode("proxmox_qemu_vm.source", &node),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.source", "vm_id", strconv.FormatInt(sourceVMID, 10)),
+					resource.TestCheckResourceAttrWith("proxmox_qemu_vm.source", "id", func(value string) error {
+						if value != fmt.Sprintf("%s/%d", node, sourceVMID) {
+							return fmt.Errorf("expected source id %q, got %q", fmt.Sprintf("%s/%d", node, sourceVMID), value)
+						}
+						return nil
+					}),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.source", "name", sourceName),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.source", "status", "stopped"),
+					testAccCheckResourceNode("proxmox_qemu_vm.clone", &node),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.clone", "vm_id", strconv.FormatInt(cloneVMID, 10)),
+					resource.TestCheckResourceAttrWith("proxmox_qemu_vm.clone", "id", func(value string) error {
+						if value != fmt.Sprintf("%s/%d", node, cloneVMID) {
+							return fmt.Errorf("expected clone id %q, got %q", fmt.Sprintf("%s/%d", node, cloneVMID), value)
+						}
+						return nil
+					}),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.clone", "name", cloneName),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.clone", "status", "stopped"),
+					resource.TestCheckResourceAttrWith("proxmox_qemu_vm.clone", "clone.source_node", func(value string) error {
+						if value != node {
+							return fmt.Errorf("expected clone source node %q, got %q", node, value)
+						}
+						return nil
+					}),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.clone", "clone.source_vmid", strconv.FormatInt(sourceVMID, 10)),
+					resource.TestCheckResourceAttr("proxmox_qemu_vm.clone", "clone.full", "true"),
+				),
+			},
+		},
+	})
+}
+
+func testAccCheckResourceNode(resourceName string, node *string) resource.TestCheckFunc {
+	return resource.TestCheckResourceAttrWith(resourceName, "node", func(value string) error {
+		if value != *node {
+			return fmt.Errorf("expected node %q, got %q", *node, value)
+		}
+		return nil
+	})
+}
+
+func testAccCleanupOwnedQemuVM(t *testing.T, client *Client, node string, vmID int64, ownedName string) {
+	t.Helper()
+
+	config, err := client.GetQemuVMConfig(context.Background(), node, vmID)
+	if errors.Is(err, errNotFound) {
+		return
+	}
+	if err != nil {
+		t.Errorf("read QEMU VM %s/%d during acceptance cleanup: %v", node, vmID, err)
+		return
+	}
+	if config.Name != ownedName {
+		t.Errorf("refusing to delete QEMU VM %s/%d during acceptance cleanup: expected owned name %q, got %q", node, vmID, ownedName, config.Name)
+		return
+	}
+
+	if err := client.DeleteQemuVM(context.Background(), node, vmID); err != nil && !errors.Is(err, errNotFound) {
+		t.Errorf("delete owned QEMU VM %s/%d during acceptance cleanup: %v", node, vmID, err)
+		return
+	}
+	if _, err := client.GetQemuVMConfig(context.Background(), node, vmID); err == nil {
+		t.Errorf("verify owned QEMU VM %s/%d deletion during acceptance cleanup: VM still exists", node, vmID)
+	} else if !errors.Is(err, errNotFound) {
+		t.Errorf("verify owned QEMU VM %s/%d deletion during acceptance cleanup: %v", node, vmID, err)
+	}
+}
+
+func testAccProxmoxE2EQemuVMTaskWaitingConfig(sourceVMID, cloneVMID int64, sourceName, cloneName string) string {
+	return fmt.Sprintf(`
+data "proxmox_nodes" "current" {}
+
+locals {
+  node = data.proxmox_nodes.current.nodes[0].name
+}
+
+resource "proxmox_qemu_vm" "source" {
+  node  = local.node
+  vm_id = %d
+  name  = %q
+}
+
+resource "proxmox_qemu_vm" "clone" {
+  node  = local.node
+  vm_id = %d
+  name  = %q
+
+  clone = {
+    source_node = local.node
+    source_vmid = proxmox_qemu_vm.source.vm_id
+    full        = true
+  }
+}
+`, sourceVMID, sourceName, cloneVMID, cloneName)
 }
 
 func testAccProxmoxE2ECRUDConfig(poolID, groupID, roleID, userID string, updated bool) string {

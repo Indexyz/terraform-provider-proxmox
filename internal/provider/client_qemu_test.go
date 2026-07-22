@@ -10,20 +10,29 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestClientQemuVMMethods(t *testing.T) {
-	t.Parallel()
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
 
 	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertTokenAuth(t, r)
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
 
 		switch {
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/config" && r.Method == http.MethodGet:
-			writeEnvelope(t, w, map[string]any{
+			handler.envelope(w, map[string]any{
 				"name":        "api-vm",
 				"description": "Managed by Terraform",
 				"tags":        "prod,terraform",
@@ -53,12 +62,12 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"boot":        "order=scsi0;net0",
 			})
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/status/current" && r.Method == http.MethodGet:
-			writeEnvelope(t, w, map[string]any{
+			handler.envelope(w, map[string]any{
 				"status": "running",
 				"uptime": "300",
 			})
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu" && r.Method == http.MethodPost:
-			assertFormValues(t, r, url.Values{
+			if !handler.form(w, r, url.Values{
 				"vmid":        {"101"},
 				"name":        {"api-vm"},
 				"description": {"Managed by Terraform"},
@@ -86,22 +95,30 @@ func TestClientQemuVMMethods(t *testing.T) {
 				"balloon":     {"2048"},
 				"shares":      {"2000"},
 				"hugepages":   {"2"},
-			})
-			writeEnvelope(t, w, nil)
+			}) {
+				return
+			}
+			handler.envelope(w, "UPID:pve-1:qemu-create")
+		case r.URL.Path == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:qemu-create/status" && r.Method == http.MethodGet:
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101/config" && r.Method == http.MethodPut:
-			assertFormValues(t, r, url.Values{
+			if !handler.form(w, r, url.Values{
 				"name":       {"api-vm"},
 				"onboot":     {"0"},
 				"protection": {"0"},
 				"scsihw":     {"megasas"},
 				"tablet":     {"0"},
 				"memory":     {"4096"},
-			})
-			writeEnvelope(t, w, nil)
+			}) {
+				return
+			}
+			handler.envelope(w, nil)
 		case r.URL.Path == "/api2/json/nodes/pve-1/qemu/101" && r.Method == http.MethodDelete:
-			writeEnvelope(t, w, nil)
+			handler.envelope(w, "UPID:pve-1:qemu-delete")
+		case r.URL.Path == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:qemu-delete/status" && r.Method == http.MethodGet:
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
 		default:
-			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
 		}
 	}))
 	defer server.Close()
@@ -218,6 +235,61 @@ func TestClientQemuVMMethods(t *testing.T) {
 	if err := client.DeleteQemuVM(ctx, "pve-1", 101); err != nil {
 		t.Fatalf("DeleteQemuVM() unexpected error: %v", err)
 	}
+
+	wantCalls := []string{
+		"GET /api2/json/nodes/pve-1/qemu/101/config",
+		"GET /api2/json/nodes/pve-1/qemu/101/status/current",
+		"POST /api2/json/nodes/pve-1/qemu",
+		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:qemu-create/status",
+		"PUT /api2/json/nodes/pve-1/qemu/101/config",
+		"DELETE /api2/json/nodes/pve-1/qemu/101",
+		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:qemu-delete/status",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("unexpected QEMU client call order: got %v want %v", calls, wantCalls)
+	}
+	handler.assert(t)
+}
+
+func TestClientCreateQemuVMTaskFailure(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	const upid = "UPID:pve-1:0000008A:00002020:65F00000:qmcreate:101:root@pam:"
+	handler := &lifecycleHandler{}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/qemu":
+			if !handler.form(w, r, url.Values{"vmid": {"101"}}) {
+				return
+			}
+			handler.envelope(w, upid)
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:0000008A:00002020:65F00000:qmcreate:101:root@pam:/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "ERROR: storage unavailable"})
+		default:
+			handler.fail(w, "unexpected QEMU task failure request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	err := testLifecycleClient(t, server).CreateQemuVM(context.Background(), "pve-1", CreateQemuVMRequest{VMID: 101})
+	if err == nil || !strings.Contains(err.Error(), upid) || !strings.Contains(err.Error(), "ERROR: storage unavailable") {
+		t.Fatalf("expected QEMU task identity and exit status, got %v", err)
+	}
+	wantCalls := []string{
+		"POST /api2/json/nodes/pve-1/qemu",
+		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:0000008A:00002020:65F00000:qmcreate:101:root@pam:/status",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("unexpected QEMU task failure call order: got %v want %v", calls, wantCalls)
+	}
+	handler.assert(t)
 }
 
 func TestDecodeQemuVMConfigProtectionBoolVariants(t *testing.T) {

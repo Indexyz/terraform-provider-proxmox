@@ -261,15 +261,18 @@ make generate
 测试覆盖重点：
 
 - `provider_unit_test.go`：配置合并、认证校验、资源/数据源导出。
-- `client_test.go`、`client_qemu_test.go`：HTTP 方法、认证 header/cookie、API error、基础和 QEMU endpoints。
+- `framework_lifecycle_test.go`、`lifecycle_http_test.go`：schema-backed plan/state/config、provider wiring 与本地 Proxmox HTTP 合约测试工具；普通 Go 测试不依赖 Terraform CLI 或真实 PVE。
+- `data_source_lifecycle_test.go`：使用真实 provider client 与本地 HTTP server 覆盖全部 20 个数据源的 Schema、Configure、Read、typed state 和代表性 API error。
+- `resource_*_lifecycle_test.go`：按 access/pool/firewall/cluster service/storage/snapshot/guest 家族覆盖 Create、Read、Update、Delete、import、missing/error、task polling、private managed fields、secret preservation 和安全删除请求。
+- `client_test.go`、`client_qemu_test.go`：HTTP 方法、认证 header/cookie、API error、基础和 QEMU endpoints；QEMU create/clone/delete 测试同时验证 UPID completion polling。
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
-- `e2e_smoke_test.go`：真实 Proxmox API e2e，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL。
+- `e2e_smoke_test.go`：三个真实 Proxmox API e2e 测试，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL，QEMU task-waiting 测试创建随机高 VMID 的空 source VM 与同节点 full clone，并验证 create/clone/delete UPID polling、正常 Terraform destroy 和带名称所有权校验的失败清理。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 
-GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 9.2-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；只读 acceptance 测试覆盖 node/cluster/access/storage 数据源，隔离 CRUD 测试使用随机 ID 创建、更新、读取并销毁 pool、group、role、user、API token 和 ACL。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
+GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵单元测试，以及单节点 Proxmox e2e job。e2e job 通过 `tools/ci/prepare-proxmox-e2e-image.sh` 准备 Proxmox VE 9.2-1 qcow2，再用 `tools/ci/start-proxmox-e2e.sh` 启动 QEMU 并轮询 `/api2/json/version`；精确 selector 只选择三个仓库自有 acceptance 测试：node/cluster/access/storage 只读数据源、随机 access CRUD，以及随机高 VMID 的空 QEMU source VM/同节点 full clone create/clone/delete task polling。QEMU 测试不附加 disk、不指定 storage、不配置 network，也不启动 VM；失败清理按 clone 后 source 顺序删除且先核对随机 owned name。真实 PVE 验证仍不覆盖存储配置、防火墙、HA、replication、backup、外部 realm、LXC、guest runtime 或多节点行为。本地依赖安装、复现、停止、重建和日志排障见 `tools/ci/README.md`。Release workflow 在 `v*` tag 上使用 GoReleaser 发布；另有 issue comment triage 和 inactive lock 维护工作流。
 
 ## 贡献边界
 
