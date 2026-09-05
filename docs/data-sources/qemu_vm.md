@@ -75,6 +75,7 @@ data "proxmox_qemu_vm" "example" {
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
 - `vcpus` (Number) Number of hotplugged vCPUs from `/config`.
 - `vga` (Attributes) Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
+- `vm_id_start` (Number) Create-time allocation floor for `vm_id` in the `proxmox_qemu_vm` resource. Proxmox does not expose allocation provenance, so data source reads always return null.
 
 <a id="nestedatt--clone"></a>
 ### Nested Schema for `clone`

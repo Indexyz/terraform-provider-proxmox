@@ -44,6 +44,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	rawValue, rawDiags := qemuVMRawStateValue(ctx, extraConfigRaw, networkRaw, diskRaw)
 	diags.Append(rawDiags...)
 	cloneValue := qemuVMCloneStateValue(prior)
+	vmIDStartValue := qemuVMIDStartStateValue(prior)
 	protection := false
 	if value := config.Protection.Ptr(); value != nil {
 		protection = *value
@@ -57,6 +58,7 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		ID:          types.StringValue(qemuVMID(node, vmID)),
 		Node:        types.StringValue(node),
 		VMID:        types.Int64Value(vmID),
+		VMIDStart:   vmIDStartValue,
 		Name:        stringOrNull(config.Name),
 		Description: stringOrNull(config.Description),
 		Tags:        stringOrNull(config.Tags),
@@ -157,6 +159,43 @@ func qemuVMCloneRequestFromModel(ctx context.Context, model qemuVMModel) (CloneQ
 		Format:       stringPointerValue(clone.Format),
 		BWLimit:      int64PointerValue(clone.BWLimit),
 	}, diags
+}
+
+// qemuVMIDMinimum and qemuVMIDMaximum mirror the Proxmox `pve-vmid` standard
+// option (PVE/JSONSchema.pm): IDs are 100..999999999.
+const (
+	qemuVMIDMinimum = 100
+	qemuVMIDMaximum = 999999999
+)
+
+// validateQemuVMIDAllocation checks the automatic `vm_id` allocation inputs.
+func validateQemuVMIDAllocation(model qemuVMModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	vmIDConfigured := !model.VMID.IsNull()
+	startConfigured := !model.VMIDStart.IsNull()
+
+	// Unknown values can still resolve to null (for example through optional
+	// module variables), so the conflict check is deferred until both are known.
+	if vmIDConfigured && startConfigured && !model.VMID.IsUnknown() && !model.VMIDStart.IsUnknown() {
+		diags.AddAttributeError(
+			path.Root("vm_id_start"),
+			"Conflicting VMID allocation settings",
+			"Configure only one of `vm_id` or `vm_id_start`: `vm_id` pins an exact VMID while `vm_id_start` allocates the first free VMID greater than or equal to the configured value.",
+		)
+	}
+
+	if startConfigured && !model.VMIDStart.IsUnknown() {
+		if value := model.VMIDStart.ValueInt64(); value < qemuVMIDMinimum || value > qemuVMIDMaximum {
+			diags.AddAttributeError(
+				path.Root("vm_id_start"),
+				"Invalid VMID allocation start",
+				fmt.Sprintf("`vm_id_start` must be between %d and %d, got %d.", qemuVMIDMinimum, qemuVMIDMaximum, value),
+			)
+		}
+	}
+
+	return diags
 }
 
 func validateQemuVMRawConflicts(ctx context.Context, model qemuVMModel) diag.Diagnostics {
@@ -425,6 +464,15 @@ func qemuVMCloneStateValue(prior *qemuVMModel) types.Object {
 		return types.ObjectNull(qemuVMCloneAttrTypes())
 	}
 	return prior.Clone
+}
+
+// qemuVMIDStartStateValue echoes the create-time allocation floor from the
+// prior model so it survives create, refresh, and update state writes.
+func qemuVMIDStartStateValue(prior *qemuVMModel) types.Int64 {
+	if prior == nil {
+		return types.Int64Null()
+	}
+	return prior.VMIDStart
 }
 
 func qemuVMEFIDiskStateValue(ctx context.Context, base map[string]string) (types.Object, map[string]string, diag.Diagnostics) {

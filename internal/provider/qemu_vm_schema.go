@@ -19,6 +19,7 @@ type qemuVMModel struct {
 	ID          types.String  `tfsdk:"id"`
 	Node        types.String  `tfsdk:"node"`
 	VMID        types.Int64   `tfsdk:"vm_id"`
+	VMIDStart   types.Int64   `tfsdk:"vm_id_start"`
 	Name        types.String  `tfsdk:"name"`
 	Description types.String  `tfsdk:"description"`
 	Tags        types.String  `tfsdk:"tags"`
@@ -618,6 +619,10 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 			Required:            true,
 			MarkdownDescription: "Numeric VMID of the QEMU virtual machine.",
 		},
+		"vm_id_start": datasourceschema.Int64Attribute{
+			Computed:            true,
+			MarkdownDescription: "Create-time allocation floor for `vm_id` in the `proxmox_qemu_vm` resource. Proxmox does not expose allocation provenance, so data source reads always return null.",
+		},
 		"name":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Virtual machine name from `/nodes/{node}/qemu/{vmid}/config`."},
 		"description": datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Optional VM description from `/config`."},
 		"tags":        datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Comma-separated Proxmox tags from `/config`."},
@@ -676,8 +681,17 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 			},
 		},
 		"vm_id": schema.Int64Attribute{
-			Required:            true,
-			MarkdownDescription: "Numeric VMID of the QEMU virtual machine.",
+			Optional:            true,
+			Computed:            true,
+			MarkdownDescription: "Numeric VMID of the QEMU virtual machine. When omitted, the provider allocates the next free cluster VMID through `GET /cluster/nextid` before the create or clone task starts.",
+			PlanModifiers: []planmodifier.Int64{
+				int64planmodifier.UseStateForUnknown(),
+				int64planmodifier.RequiresReplace(),
+			},
+		},
+		"vm_id_start": schema.Int64Attribute{
+			Optional:            true,
+			MarkdownDescription: "Lower bound for automatic `vm_id` allocation. Only valid when `vm_id` is omitted: the provider allocates the first free cluster VMID greater than or equal to this value through `GET /cluster/nextid`. Conflicts with `vm_id`.",
 			PlanModifiers: []planmodifier.Int64{
 				int64planmodifier.RequiresReplace(),
 			},

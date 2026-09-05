@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,7 +16,20 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
+
+// testResourceCreateResponse mirrors the framework server, which initializes
+// CreateResponse.State.Raw with a typed null object so that partial
+// SetAttribute writes (persistQemuVMIdentity) work like they do in production.
+func testResourceCreateResponse(schema resource.SchemaResponse) resource.CreateResponse {
+	return resource.CreateResponse{
+		State: tfsdk.State{
+			Schema: schema.Schema,
+			Raw:    tftypes.NewValue(schema.Schema.Type().TerraformType(context.Background()), nil),
+		},
+	}
+}
 
 func minimalQemuVMModel(node string, vmID int64) qemuVMModel {
 	return qemuVMModel{
@@ -107,7 +121,7 @@ func TestQemuVMResourceFrameworkLifecycle(t *testing.T) {
 	schema := testResourceSchema(t, res)
 	initial := minimalQemuVMModel("pve one", 401)
 	initial.Name = types.StringValue("wrapper-vm")
-	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	createResp := testResourceCreateResponse(schema)
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, initial)}, &createResp)
 	if createResp.Diagnostics.HasError() {
 		t.Fatalf("QEMU wrapper create diagnostics: %v", createResp.Diagnostics)
@@ -206,7 +220,7 @@ func TestQemuVMResourceCloneCreateSelection(t *testing.T) {
 	schema := testResourceSchema(t, res)
 	model := minimalQemuVMModel("target node", 402)
 	model.Clone = mustQemuVMCloneValue(t, qemuVMCloneModel{SourceNode: types.StringValue("source node"), SourceVMID: types.Int64Value(9000), Full: types.BoolValue(true)})
-	resp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	resp := testResourceCreateResponse(schema)
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("QEMU clone wrapper diagnostics: %v", resp.Diagnostics)
@@ -385,7 +399,7 @@ func TestLXCContainerResourceCloneSelectionAndRequiredCreateValidation(t *testin
 	schema := testResourceSchema(t, res)
 	model := minimalLXCContainerModel("target node", 502)
 	model.Clone = mustLXCContainerCloneValue(t, lxcContainerCloneModel{SourceNode: types.StringValue("source node"), SourceVMID: types.Int64Value(900), Full: types.BoolValue(true)})
-	resp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	resp := testResourceCreateResponse(schema)
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("LXC clone wrapper diagnostics: %v", resp.Diagnostics)
@@ -401,4 +415,268 @@ func TestLXCContainerResourceCloneSelectionAndRequiredCreateValidation(t *testin
 		t.Fatalf("expected required LXC create validation without HTTP calls: calls=%v diagnostics=%v", calls, missingResp.Diagnostics)
 	}
 	handler.assert(t)
+}
+
+func TestQemuVMResourceCreateAllocatesNextVMID(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid":
+			if r.URL.RawQuery != "" {
+				handler.fail(w, "unexpected nextid query: %q", r.URL.RawQuery)
+				return
+			}
+			handler.envelope(w, 105)
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu":
+			if !handler.form(w, r, url.Values{"vmid": {"105"}, "name": {"auto-vm"}}) {
+				return
+			}
+			handler.envelope(w, "UPID:pve one:qemu-create-nextid")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-nextid/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/105/config":
+			handler.envelope(w, map[string]any{"name": "auto-vm"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/105/status/current":
+			handler.envelope(w, map[string]any{"status": "stopped"})
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("pve one", 0)
+	model.VMID = types.Int64Unknown()
+	model.Name = types.StringValue("auto-vm")
+	resp := testResourceCreateResponse(schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("auto VMID create diagnostics: %v", resp.Diagnostics)
+	}
+	var created qemuVMModel
+	if diags := resp.State.Get(context.Background(), &created); diags.HasError() {
+		t.Fatalf("decode auto VMID create state: %v", diags)
+	}
+	if created.VMID.ValueInt64() != 105 || created.ID.ValueString() != "pve one/105" || !created.VMIDStart.IsNull() {
+		t.Fatalf("unexpected auto VMID state: %#v", created)
+	}
+	if len(calls) < 2 || calls[0] != "GET /api2/json/cluster/nextid" || calls[1] != "POST /api2/json/nodes/pve%20one/qemu" {
+		t.Fatalf("expected nextid call before create: %v", calls)
+	}
+	handler.assert(t)
+}
+
+func TestQemuVMResourceCreateAllocatesFromVMIDStart(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=200":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"vmid": "VM 200 already exists"}, "data": nil}); err != nil {
+				handler.fail(w, "encode response: %v", err)
+			}
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=201":
+			handler.envelope(w, 201)
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu":
+			if !handler.form(w, r, url.Values{"vmid": {"201"}}) {
+				return
+			}
+			handler.envelope(w, "UPID:pve one:qemu-create-nextid-start")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-nextid-start/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/201/config":
+			handler.envelope(w, map[string]any{"name": "start-vm"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/201/status/current":
+			handler.envelope(w, map[string]any{"status": "stopped"})
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("pve one", 0)
+	model.VMID = types.Int64Unknown()
+	model.VMIDStart = types.Int64Value(200)
+	resp := testResourceCreateResponse(schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("vm_id_start create diagnostics: %v", resp.Diagnostics)
+	}
+	var created qemuVMModel
+	if diags := resp.State.Get(context.Background(), &created); diags.HasError() {
+		t.Fatalf("decode vm_id_start create state: %v", diags)
+	}
+	if created.VMID.ValueInt64() != 201 || created.VMIDStart.ValueInt64() != 200 || created.ID.ValueString() != "pve one/201" {
+		t.Fatalf("unexpected vm_id_start state: %#v", created)
+	}
+	handler.assert(t)
+}
+
+func TestQemuVMResourceCreateKeepsPartialStateWhenReadFails(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/cluster/nextid":
+			handler.envelope(w, 105)
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu":
+			handler.envelope(w, "UPID:pve one:qemu-create-partial")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-partial/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/105/config":
+			http.Error(w, "config read failed", http.StatusInternalServerError)
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("pve one", 0)
+	model.VMID = types.Int64Unknown()
+	resp := testResourceCreateResponse(schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatalf("expected read failure diagnostics: %v", resp.Diagnostics)
+	}
+	var partial qemuVMModel
+	if diags := resp.State.Get(context.Background(), &partial); diags.HasError() {
+		t.Fatalf("decode partial state: %v", diags)
+	}
+	if partial.ID.ValueString() != "pve one/105" || partial.Node.ValueString() != "pve one" || partial.VMID.ValueInt64() != 105 {
+		t.Fatalf("expected tracked identity in partial state, got: %#v", partial)
+	}
+	if !containsDiagnostic(resp.Diagnostics, "config read failed") {
+		t.Fatalf("expected config read failure diagnostic: %v", resp.Diagnostics)
+	}
+	handler.assert(t)
+}
+
+func TestQemuVMResourceCloneKeepsPartialStateWhenUpdateFails(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=201":
+			handler.envelope(w, 201)
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/qemu/9000/clone":
+			handler.envelope(w, "UPID:source node:qemu-clone-partial")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/tasks/UPID:source%20node:qemu-clone-partial/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/201/config":
+			http.Error(w, "clone update failed", http.StatusInternalServerError)
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("target node", 0)
+	model.VMID = types.Int64Unknown()
+	model.VMIDStart = types.Int64Value(201)
+	model.Name = types.StringValue("cloned-vm")
+	model.Clone = mustQemuVMCloneValue(t, qemuVMCloneModel{SourceNode: types.StringValue("source node"), SourceVMID: types.Int64Value(9000), Full: types.BoolValue(true)})
+	resp := testResourceCreateResponse(schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatalf("expected clone update failure diagnostics: %v", resp.Diagnostics)
+	}
+	t.Logf("DIAGS: %v", resp.Diagnostics)
+	t.Logf("STATE RAW: %v", resp.State.Raw)
+	var partial qemuVMModel
+	if diags := resp.State.Get(context.Background(), &partial); diags.HasError() {
+		t.Fatalf("decode partial state: %v", diags)
+	}
+	if partial.ID.ValueString() != "target node/201" || partial.VMID.ValueInt64() != 201 || partial.VMIDStart.ValueInt64() != 201 || partial.Node.ValueString() != "target node" {
+		t.Fatalf("expected tracked identity in partial state, got: %#v", partial)
+	}
+	if !containsDiagnostic(resp.Diagnostics, "clone update failed") {
+		t.Fatalf("expected clone update failure diagnostic: %v", resp.Diagnostics)
+	}
+	handler.assert(t)
+}
+
+func TestQemuVMResourceValidateConfigVMIDAllocation(t *testing.T) {
+	res := &QemuVMResource{}
+	schema := testResourceSchema(t, res)
+
+	both := minimalQemuVMModel("pve one", 105)
+	both.VMIDStart = types.Int64Value(200)
+	bothResp := resource.ValidateConfigResponse{}
+	res.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: testResourceConfig(t, schema, both)}, &bothResp)
+	if !bothResp.Diagnostics.HasError() || !containsDiagnostic(bothResp.Diagnostics, "vm_id_start") {
+		t.Fatalf("expected vm_id/vm_id_start conflict diagnostic: %v", bothResp.Diagnostics)
+	}
+
+	outOfRange := minimalQemuVMModel("pve one", 0)
+	outOfRange.VMID = types.Int64Null()
+	outOfRange.VMIDStart = types.Int64Value(99)
+	rangeResp := resource.ValidateConfigResponse{}
+	res.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: testResourceConfig(t, schema, outOfRange)}, &rangeResp)
+	if !rangeResp.Diagnostics.HasError() || !containsDiagnostic(rangeResp.Diagnostics, "must be between") {
+		t.Fatalf("expected vm_id_start range diagnostic: %v", rangeResp.Diagnostics)
+	}
+
+	valid := minimalQemuVMModel("pve one", 0)
+	valid.VMID = types.Int64Null()
+	valid.VMIDStart = types.Int64Value(200)
+	validResp := resource.ValidateConfigResponse{}
+	res.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: testResourceConfig(t, schema, valid)}, &validResp)
+	if validResp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", validResp.Diagnostics)
+	}
+
+	// Unknown values may still resolve to null, so conflicts are deferred
+	// instead of failing valid module configurations during validation.
+	unknownVMID := minimalQemuVMModel("pve one", 0)
+	unknownVMID.VMID = types.Int64Unknown()
+	unknownVMID.VMIDStart = types.Int64Value(200)
+	unknownResp := resource.ValidateConfigResponse{}
+	res.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: testResourceConfig(t, schema, unknownVMID)}, &unknownResp)
+	if unknownResp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics for unknown vm_id: %v", unknownResp.Diagnostics)
+	}
+
+	unknownStart := minimalQemuVMModel("pve one", 105)
+	unknownStart.VMIDStart = types.Int64Unknown()
+	unknownStartResp := resource.ValidateConfigResponse{}
+	res.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: testResourceConfig(t, schema, unknownStart)}, &unknownStartResp)
+	if unknownStartResp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics for unknown vm_id_start: %v", unknownStartResp.Diagnostics)
+	}
 }

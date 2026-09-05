@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -299,6 +300,38 @@ func (c *Client) ClusterResources(ctx context.Context, resourceType string) ([]C
 	var resources []ClusterResource
 	err := c.do(ctx, http.MethodGet, "/cluster/resources", query, nil, &resources)
 	return resources, err
+}
+
+// GetNextVMID calls `GET /cluster/nextid` and returns the reported free VMID.
+// When assertID is not nil, the endpoint is asked to assert that this specific
+// VMID is free; Proxmox then returns the same ID or fails with HTTP 400
+// `VM <id> already exists` instead of returning a different ID.
+func (c *Client) GetNextVMID(ctx context.Context, assertID *int64) (int64, error) {
+	query := url.Values{}
+	if assertID != nil {
+		query.Set("vmid", strconv.FormatInt(*assertID, 10))
+	}
+
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, "/cluster/nextid", query, nil, &raw); err != nil {
+		return 0, fmt.Errorf("unable to read next free VMID: %w", err)
+	}
+
+	var number int64
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return number, nil
+	}
+
+	// Older Proxmox VE versions return the VMID as a JSON string.
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return 0, fmt.Errorf("unable to decode next free VMID response %s: %w", raw, err)
+	}
+	vmID, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("unable to parse next free VMID response %q: %w", text, err)
+	}
+	return vmID, nil
 }
 
 func (c *Client) GetPool(ctx context.Context, poolID string) (Pool, error) {

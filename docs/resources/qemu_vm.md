@@ -108,7 +108,6 @@ resource "proxmox_qemu_vm" "example" {
 ### Required
 
 - `node` (String) Proxmox node that owns the QEMU virtual machine.
-- `vm_id` (Number) Numeric VMID of the QEMU virtual machine.
 
 ### Optional
 
@@ -147,6 +146,8 @@ resource "proxmox_qemu_vm" "example" {
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
 - `vcpus` (Number) Number of hotplugged vCPUs managed through `/config`.
 - `vga` (Attributes) Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
+- `vm_id` (Number) Numeric VMID of the QEMU virtual machine. When omitted, the provider allocates the next free cluster VMID through `GET /cluster/nextid` before the create or clone task starts.
+- `vm_id_start` (Number) Lower bound for automatic `vm_id` allocation. Only valid when `vm_id` is omitted: the provider allocates the first free cluster VMID greater than or equal to this value through `GET /cluster/nextid`. Conflicts with `vm_id`.
 
 ### Read-Only
 

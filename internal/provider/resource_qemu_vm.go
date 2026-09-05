@@ -7,11 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -60,6 +63,7 @@ func (r *QemuVMResource) ValidateConfig(ctx context.Context, req resource.Valida
 	}
 
 	resp.Diagnostics.Append(validateQemuVMRawConflicts(ctx, config)...)
+	resp.Diagnostics.Append(validateQemuVMIDAllocation(config)...)
 }
 
 func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -67,6 +71,15 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if plan.VMID.IsNull() || plan.VMID.IsUnknown() {
+		vmID, err := r.allocateVMID(ctx, qemuInt64Value(plan.VMIDStart))
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Allocate Proxmox VMID", err.Error())
+			return
+		}
+		plan.VMID = types.Int64Value(vmID)
 	}
 
 	if !plan.Clone.IsNull() && !plan.Clone.IsUnknown() {
@@ -79,6 +92,12 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 			resp.Diagnostics.AddError("Unable to Clone Proxmox QEMU VM", err.Error())
 			return
 		}
+
+		// The guest now exists, so persist its identity before the remaining
+		// post-clone steps can fail. Without it, a failed update or read would
+		// leave the clone untracked and the next apply would allocate another
+		// VMID and create a second guest.
+		resp.Diagnostics.Append(persistQemuVMIdentity(ctx, &resp.State, plan)...)
 
 		updateReq, diags := qemuVMUpdateRequestFromModel(ctx, plan)
 		resp.Diagnostics.Append(diags...)
@@ -101,6 +120,10 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 			resp.Diagnostics.AddError("Unable to Create Proxmox QEMU VM", err.Error())
 			return
 		}
+
+		// Same as the clone branch: track the created guest before the
+		// post-create read can fail.
+		resp.Diagnostics.Append(persistQemuVMIdentity(ctx, &resp.State, plan)...)
 	}
 
 	state, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &plan)
@@ -198,6 +221,42 @@ func (r *QemuVMResource) ImportState(ctx context.Context, req resource.ImportSta
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), qemuVMID(node, vmID))...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("node"), node)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vm_id"), vmID)...)
+}
+
+// persistQemuVMIdentity writes the resource identity into the response state
+// right after the create or clone task succeeds, so a later post-create
+// failure still leaves the created guest tracked in Terraform state.
+func persistQemuVMIdentity(ctx context.Context, state *tfsdk.State, plan qemuVMModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	diags.Append(state.SetAttribute(ctx, path.Root("id"), qemuVMID(plan.Node.ValueString(), plan.VMID.ValueInt64()))...)
+	diags.Append(state.SetAttribute(ctx, path.Root("node"), plan.Node)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("vm_id"), plan.VMID)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("vm_id_start"), plan.VMIDStart)...)
+
+	return diags
+}
+
+// allocateVMID returns the next free cluster VMID through `GET /cluster/nextid`.
+// The endpoint cannot express a floor, so when start is positive the provider
+// proposes candidate IDs beginning at start and asserts availability until one
+// is free (a taken candidate fails with HTTP 400 `VM <id> already exists`).
+func (r *QemuVMResource) allocateVMID(ctx context.Context, start int64) (int64, error) {
+	if start <= 0 {
+		return r.client.GetNextVMID(ctx, nil)
+	}
+
+	for candidate := start; candidate <= qemuVMIDMaximum; candidate++ {
+		vmID, err := r.client.GetNextVMID(ctx, &candidate)
+		if err == nil {
+			return vmID, nil
+		}
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadRequest || !strings.Contains(apiErr.Body, "already exists") {
+			return 0, err
+		}
+	}
+	return 0, fmt.Errorf("no free VMID found in range [%d, %d]", start, qemuVMIDMaximum)
 }
 
 func (r *QemuVMResource) readQemuVMState(ctx context.Context, node string, vmID int64, prior *qemuVMModel) (qemuVMModel, diag.Diagnostics) {
