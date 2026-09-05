@@ -1,3 +1,15 @@
+## 0.2.0 (2026-09-06)
+
+FEATURES:
+
+- Add automatic QEMU VMID allocation through `/cluster/nextid` when `vm_id` is omitted, with an optional `vm_id_start` allocation floor and early identity persistence after successful create or clone tasks.
+
+FIXES:
+
+- Wait for QEMU create, clone, and delete tasks to finish before returning, and correctly parse imported guest firewall VMIDs.
+- Align PVE 9 user-group, role-privilege, pool-member, and pool/group deletion handling with the live API.
+- Treat PVE 9's exact HTTP 500 response for a missing QEMU config as not found while retaining the underlying API error context.
+
 ## 0.1.0 (2026-07-20)
 
 BREAKING CHANGES:
