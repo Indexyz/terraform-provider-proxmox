@@ -141,47 +141,6 @@ func (f proxmoxOptionalFloat64) Ptr() *float64 {
 }
 
 type QemuVMConfig struct {
-	Name        string
-	Description string
-	Tags        string
-	Template    proxmoxOptionalBool
-	Pool        string
-	OnBoot      proxmoxOptionalBool
-	Protection  proxmoxOptionalBool
-	SCSIHW      string
-	Tablet      proxmoxOptionalBool
-	Startup     string
-	Bios        string
-	Machine     string
-	Agent       string
-	Cores       proxmoxOptionalInt64
-	Sockets     proxmoxOptionalInt64
-	Memory      proxmoxOptionalInt64
-	NUMA        proxmoxOptionalBool
-	VCPUs       proxmoxOptionalInt64
-	CPUUnits    proxmoxOptionalInt64
-	CPULimit    proxmoxOptionalFloat64
-	Balloon     proxmoxOptionalInt64
-	Shares      proxmoxOptionalInt64
-	Hugepages   string
-	CPU         string
-	OSType      string
-	Boot        string
-	Hotplug     string
-	CICustom    string
-	CIPassword  string
-	CIType      string
-	CIUpgrade   proxmoxOptionalBool
-	CIUser      string
-	SSHKeys     string
-	IPConfig    map[string]string
-	Network     map[string]string
-	Disk        map[string]string
-	Serial      map[string]string
-	ExtraConfig map[string]string
-}
-
-type qemuVMConfigKnown struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Tags        string                 `json:"tags"`
@@ -215,6 +174,11 @@ type qemuVMConfigKnown struct {
 	CIUpgrade   proxmoxOptionalBool    `json:"ciupgrade"`
 	CIUser      string                 `json:"ciuser"`
 	SSHKeys     string                 `json:"sshkeys"`
+	IPConfig    map[string]string      `json:"-"`
+	Network     map[string]string      `json:"-"`
+	Disk        map[string]string      `json:"-"`
+	Serial      map[string]string      `json:"-"`
+	ExtraConfig map[string]string      `json:"-"`
 }
 
 type QemuVMStatus struct {
@@ -399,51 +363,16 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 		return QemuVMConfig{}, fmt.Errorf("unable to marshal raw QEMU config: %w", err)
 	}
 
-	var known qemuVMConfigKnown
-	if err := json.Unmarshal(payload, &known); err != nil {
+	var config QemuVMConfig
+	if err := json.Unmarshal(payload, &config); err != nil {
 		return QemuVMConfig{}, fmt.Errorf("unable to decode QEMU config: %w", err)
 	}
 
-	config := QemuVMConfig{
-		Name:        known.Name,
-		Description: known.Description,
-		Tags:        known.Tags,
-		Template:    known.Template,
-		Pool:        known.Pool,
-		OnBoot:      known.OnBoot,
-		Protection:  known.Protection,
-		SCSIHW:      known.SCSIHW,
-		Tablet:      known.Tablet,
-		Startup:     known.Startup,
-		Bios:        known.Bios,
-		Machine:     known.Machine,
-		Agent:       known.Agent,
-		Cores:       known.Cores,
-		Sockets:     known.Sockets,
-		Memory:      known.Memory,
-		NUMA:        known.NUMA,
-		VCPUs:       known.VCPUs,
-		CPUUnits:    known.CPUUnits,
-		CPULimit:    known.CPULimit,
-		Balloon:     known.Balloon,
-		Shares:      known.Shares,
-		Hugepages:   known.Hugepages,
-		CPU:         known.CPU,
-		OSType:      known.OSType,
-		Boot:        known.Boot,
-		Hotplug:     known.Hotplug,
-		CICustom:    known.CICustom,
-		CIPassword:  known.CIPassword,
-		CIType:      known.CIType,
-		CIUpgrade:   known.CIUpgrade,
-		CIUser:      known.CIUser,
-		SSHKeys:     known.SSHKeys,
-		IPConfig:    map[string]string{},
-		Network:     map[string]string{},
-		Disk:        map[string]string{},
-		Serial:      map[string]string{},
-		ExtraConfig: map[string]string{},
-	}
+	config.IPConfig = map[string]string{}
+	config.Network = map[string]string{}
+	config.Disk = map[string]string{}
+	config.Serial = map[string]string{}
+	config.ExtraConfig = map[string]string{}
 
 	knownKeys := map[string]struct{}{
 		"name": {}, "description": {}, "tags": {}, "template": {}, "pool": {}, "onboot": {}, "protection": {}, "scsihw": {}, "tablet": {}, "startup": {},
@@ -597,11 +526,7 @@ func setOptionalString(form url.Values, key string, value *string) {
 
 func setOptionalBool(form url.Values, key string, value *bool) {
 	if value != nil {
-		if *value {
-			form.Set(key, "1")
-		} else {
-			form.Set(key, "0")
-		}
+		form.Set(key, boolToFormValue(*value))
 	}
 }
 

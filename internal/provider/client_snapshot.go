@@ -38,7 +38,7 @@ func (c *Client) createSnapshot(ctx context.Context, kind snapshotKind, node str
 	if err := c.do(ctx, http.MethodPost, kind.basePath(node, vmID)+"/snapshot", nil, form, &upid); err != nil {
 		return err
 	}
-	return c.waitSnapshotTask(ctx, node, upid)
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func (c *Client) getSnapshot(ctx context.Context, kind snapshotKind, node string, vmID int64, name string) (snapshotListEntry, error) {
@@ -62,7 +62,7 @@ func (c *Client) updateSnapshot(ctx context.Context, kind snapshotKind, node str
 	if err := c.do(ctx, http.MethodPut, endpoint, nil, form, &upid); err != nil {
 		return err
 	}
-	return c.waitSnapshotTask(ctx, node, upid)
+	return c.waitForNodeTask(ctx, node, upid)
 }
 
 func (c *Client) deleteSnapshot(ctx context.Context, kind snapshotKind, node string, vmID int64, name string) error {
@@ -73,16 +73,6 @@ func (c *Client) deleteSnapshot(ctx context.Context, kind snapshotKind, node str
 			return nil
 		}
 		return err
-	}
-	return c.waitSnapshotTask(ctx, node, upid)
-}
-
-// waitSnapshotTask polls a snapshot task to completion. It reuses the LXC
-// container task polling because snapshot endpoints return UPIDs scoped to
-// the same node task tracker.
-func (c *Client) waitSnapshotTask(ctx context.Context, node, upid string) error {
-	if upid == "" {
-		return nil
 	}
 	return c.waitForNodeTask(ctx, node, upid)
 }

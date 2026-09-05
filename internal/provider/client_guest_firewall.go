@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,19 +15,6 @@ import (
 // GuestFirewallOptions models per-VM or per-container firewall options.
 // Both QEMU and LXC share the same field set at .../firewall/options.
 type GuestFirewallOptions struct {
-	Enable      proxmoxOptionalBool
-	DHCP        proxmoxOptionalBool
-	IPFilter    proxmoxOptionalBool
-	MACFilter   proxmoxOptionalBool
-	LogLevelIn  string
-	LogLevelOut string
-	PolicyIn    string
-	PolicyOut   string
-	NDP         proxmoxOptionalBool
-	RADV        proxmoxOptionalBool
-}
-
-type guestFirewallOptionsKnown struct {
 	Enable      proxmoxOptionalBool `json:"enable"`
 	DHCP        proxmoxOptionalBool `json:"dhcp"`
 	IPFilter    proxmoxOptionalBool `json:"ipfilter"`
@@ -56,19 +42,11 @@ type GuestFirewallOptionsRequest struct {
 }
 
 func (c *Client) GetGuestFirewallOptions(ctx context.Context, kind, node string, vmID int64) (GuestFirewallOptions, error) {
-	var raw map[string]json.RawMessage
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/%s/%d/firewall/options", url.PathEscape(node), kind, vmID), nil, nil, &raw); err != nil {
+	var options GuestFirewallOptions
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/%s/%d/firewall/options", url.PathEscape(node), kind, vmID), nil, nil, &options); err != nil {
 		return GuestFirewallOptions{}, err
 	}
-	payload, err := json.Marshal(raw)
-	if err != nil {
-		return GuestFirewallOptions{}, fmt.Errorf("unable to marshal raw guest firewall options: %w", err)
-	}
-	var known guestFirewallOptionsKnown
-	if err := json.Unmarshal(payload, &known); err != nil {
-		return GuestFirewallOptions{}, fmt.Errorf("unable to decode guest firewall options: %w", err)
-	}
-	return GuestFirewallOptions(known), nil
+	return options, nil
 }
 
 func (c *Client) UpdateGuestFirewallOptions(ctx context.Context, kind, node string, vmID int64, req GuestFirewallOptionsRequest) error {

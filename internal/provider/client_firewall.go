@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,28 +15,6 @@ import (
 // NodeFirewallOptions models the per-node firewall options at
 // /nodes/{node}/firewall/options.
 type NodeFirewallOptions struct {
-	Enable                           proxmoxOptionalBool
-	LogLevelIn                       string
-	LogLevelOut                      string
-	LogLevelForward                  string
-	LogNFConntrack                   proxmoxOptionalBool
-	NFConntrackAllowInvalid          proxmoxOptionalBool
-	NFConntrackMax                   proxmoxOptionalInt64
-	NFConntrackTCPTimeoutEstablished proxmoxOptionalInt64
-	NFConntrackTCPSynRecvTimeout     proxmoxOptionalInt64
-	NFConntrackHelpers               string
-	Ndp                              proxmoxOptionalBool
-	Nosmurfs                         proxmoxOptionalBool
-	ProtectionSynflood               proxmoxOptionalBool
-	ProtectionSynfloodBurst          proxmoxOptionalInt64
-	ProtectionSynfloodRate           proxmoxOptionalInt64
-	SmurfLogLevel                    string
-	TCPFlagsLogLevel                 string
-	TCPFlags                         proxmoxOptionalBool
-	Nftables                         proxmoxOptionalBool
-}
-
-type nodeFirewallOptionsKnown struct {
 	Enable                           proxmoxOptionalBool  `json:"enable"`
 	LogLevelIn                       string               `json:"log_level_in"`
 	LogLevelOut                      string               `json:"log_level_out"`
@@ -83,19 +60,11 @@ type NodeFirewallOptionsRequest struct {
 }
 
 func (c *Client) GetNodeFirewallOptions(ctx context.Context, node string) (NodeFirewallOptions, error) {
-	var raw map[string]json.RawMessage
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/firewall/options", url.PathEscape(node)), nil, nil, &raw); err != nil {
+	var options NodeFirewallOptions
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/firewall/options", url.PathEscape(node)), nil, nil, &options); err != nil {
 		return NodeFirewallOptions{}, err
 	}
-	payload, err := json.Marshal(raw)
-	if err != nil {
-		return NodeFirewallOptions{}, fmt.Errorf("unable to marshal raw firewall options: %w", err)
-	}
-	var known nodeFirewallOptionsKnown
-	if err := json.Unmarshal(payload, &known); err != nil {
-		return NodeFirewallOptions{}, fmt.Errorf("unable to decode firewall options: %w", err)
-	}
-	return NodeFirewallOptions(known), nil
+	return options, nil
 }
 
 func (c *Client) UpdateNodeFirewallOptions(ctx context.Context, node string, req NodeFirewallOptionsRequest) error {

@@ -15,35 +15,6 @@ import (
 )
 
 type LXCContainerConfig struct {
-	Hostname     string
-	Description  string
-	Tags         string
-	Arch         string
-	Startup      string
-	Features     string
-	OSType       string
-	RootFS       string
-	Nameserver   string
-	Searchdomain string
-	Timezone     string
-	OnBoot       proxmoxOptionalBool
-	Protection   proxmoxOptionalBool
-	Unprivileged proxmoxOptionalBool
-	Console      proxmoxOptionalBool
-	TTY          proxmoxOptionalInt64
-	CMode        string
-	Hookscript   string
-	Cores        proxmoxOptionalInt64
-	CPULimit     proxmoxOptionalFloat64
-	CPUUnits     proxmoxOptionalInt64
-	Memory       proxmoxOptionalInt64
-	Swap         proxmoxOptionalInt64
-	Network      map[string]string
-	MountPoint   map[string]string
-	ExtraConfig  map[string]string
-}
-
-type lxcContainerConfigKnown struct {
 	Hostname     string                 `json:"hostname"`
 	Description  string                 `json:"description"`
 	Tags         string                 `json:"tags"`
@@ -67,6 +38,9 @@ type lxcContainerConfigKnown struct {
 	CPUUnits     proxmoxOptionalInt64   `json:"cpuunits"`
 	Memory       proxmoxOptionalInt64   `json:"memory"`
 	Swap         proxmoxOptionalInt64   `json:"swap"`
+	Network      map[string]string      `json:"-"`
+	MountPoint   map[string]string      `json:"-"`
+	ExtraConfig  map[string]string      `json:"-"`
 }
 
 type LXCContainerStatus struct {
@@ -203,39 +177,14 @@ func decodeLXCContainerConfig(raw map[string]json.RawMessage) (LXCContainerConfi
 		return LXCContainerConfig{}, fmt.Errorf("unable to marshal raw LXC config: %w", err)
 	}
 
-	var known lxcContainerConfigKnown
-	if err := json.Unmarshal(payload, &known); err != nil {
+	var config LXCContainerConfig
+	if err := json.Unmarshal(payload, &config); err != nil {
 		return LXCContainerConfig{}, fmt.Errorf("unable to decode LXC config: %w", err)
 	}
 
-	config := LXCContainerConfig{
-		Hostname:     known.Hostname,
-		Description:  known.Description,
-		Tags:         known.Tags,
-		Arch:         known.Arch,
-		Startup:      known.Startup,
-		Features:     known.Features,
-		OSType:       known.OSType,
-		RootFS:       known.RootFS,
-		Nameserver:   known.Nameserver,
-		Searchdomain: known.Searchdomain,
-		Timezone:     known.Timezone,
-		OnBoot:       known.OnBoot,
-		Protection:   known.Protection,
-		Unprivileged: known.Unprivileged,
-		Console:      known.Console,
-		TTY:          known.TTY,
-		CMode:        known.CMode,
-		Hookscript:   known.Hookscript,
-		Cores:        known.Cores,
-		CPULimit:     known.CPULimit,
-		CPUUnits:     known.CPUUnits,
-		Memory:       known.Memory,
-		Swap:         known.Swap,
-		Network:      map[string]string{},
-		MountPoint:   map[string]string{},
-		ExtraConfig:  map[string]string{},
-	}
+	config.Network = map[string]string{}
+	config.MountPoint = map[string]string{}
+	config.ExtraConfig = map[string]string{}
 
 	knownKeys := map[string]struct{}{
 		"hostname": {}, "description": {}, "tags": {}, "arch": {}, "startup": {}, "features": {}, "ostype": {}, "rootfs": {},

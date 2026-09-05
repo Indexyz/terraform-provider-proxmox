@@ -14,38 +14,6 @@ import (
 )
 
 type Storage struct {
-	Storage     string
-	Type        string
-	Content     string
-	Nodes       string
-	Disable     proxmoxOptionalBool
-	Shared      proxmoxOptionalBool
-	Path        string
-	Pool        string
-	VGName      string
-	ThinPool    string
-	Server      string
-	Export      string
-	Share       string
-	Username    string
-	Password    string
-	Monhost     string
-	Datastore   string
-	Namespace   string
-	Fingerprint string
-	SMBVersion  string
-	Options     string
-	Format      string
-	Mkdir       proxmoxOptionalBool
-	Sparse      proxmoxOptionalBool
-	NoCOW       proxmoxOptionalBool
-	KRBD        proxmoxOptionalBool
-	Blocksize   string
-	FSName      string
-	ExtraConfig map[string]string
-}
-
-type storageConfigKnown struct {
 	Storage     string              `json:"storage"`
 	Type        string              `json:"type"`
 	Content     string              `json:"content"`
@@ -74,6 +42,7 @@ type storageConfigKnown struct {
 	KRBD        proxmoxOptionalBool `json:"krbd"`
 	Blocksize   string              `json:"blocksize"`
 	FSName      string              `json:"fs-name"`
+	ExtraConfig map[string]string   `json:"-"`
 }
 
 type StorageRequest struct {
@@ -181,41 +150,11 @@ func decodeStorageConfig(raw map[string]json.RawMessage) (Storage, error) {
 	if err != nil {
 		return Storage{}, fmt.Errorf("unable to marshal raw storage config: %w", err)
 	}
-	var known storageConfigKnown
-	if err := json.Unmarshal(payload, &known); err != nil {
+	var config Storage
+	if err := json.Unmarshal(payload, &config); err != nil {
 		return Storage{}, fmt.Errorf("unable to decode storage config: %w", err)
 	}
-	config := Storage{
-		Storage:     known.Storage,
-		Type:        known.Type,
-		Content:     known.Content,
-		Nodes:       known.Nodes,
-		Disable:     known.Disable,
-		Shared:      known.Shared,
-		Path:        known.Path,
-		Pool:        known.Pool,
-		VGName:      known.VGName,
-		ThinPool:    known.ThinPool,
-		Server:      known.Server,
-		Export:      known.Export,
-		Share:       known.Share,
-		Username:    known.Username,
-		Password:    known.Password,
-		Monhost:     known.Monhost,
-		Datastore:   known.Datastore,
-		Namespace:   known.Namespace,
-		Fingerprint: known.Fingerprint,
-		SMBVersion:  known.SMBVersion,
-		Options:     known.Options,
-		Format:      known.Format,
-		Mkdir:       known.Mkdir,
-		Sparse:      known.Sparse,
-		NoCOW:       known.NoCOW,
-		KRBD:        known.KRBD,
-		Blocksize:   known.Blocksize,
-		FSName:      known.FSName,
-		ExtraConfig: map[string]string{},
-	}
+	config.ExtraConfig = map[string]string{}
 	for key, value := range raw {
 		if _, ok := storageKnownKeys[key]; ok {
 			continue
