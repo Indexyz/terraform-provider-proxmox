@@ -53,6 +53,7 @@
 - 为 `proxmox_qemu_vm` 新增基于 `GET /cluster/nextid` 的 VMID 自动分配：`vm_id` 改为 Optional + Computed（`UseStateForUnknown` + `RequiresReplace`），省略时在 create/clone 任务启动前分配下一个空闲集群 VMID；新增 Optional `vm_id_start`（RequiresReplace）作为分配下限，因该 endpoint 不支持扫描起点，通过 propose-assert 循环断言候选 ID 空闲（被占用返回 HTTP 400 `already exists` 则递增重试），并与 `vm_id` 互斥（任一为 unknown 时延迟判定）、限定 100–999999999 范围；client 新增容忍 string/number 响应解码的 `GetNextVMID`；分配结果写入 state，`vm_id_start` 通过 prior model echo 保留；create/clone 任务成功后立即将 id/node/vm_id/vm_id_start 写入 response state（persistQemuVMIdentity），避免后续 clone post-update 或 read 失败时已创建 guest 脱离 Terraform 跟踪、下次 apply 重新分配造成重复 VM；data source 按既有 clone provenance 模式输出 computed null `vm_id_start`。补齐 client/query/400 透传、自动分配与 start 循环生命周期、conflict/range ValidateConfig 测试、示例与生成文档；契约研究见 [`research/proxmox-nextid-allocation.md`](../research/proxmox-nextid-allocation.md)。
 - 解码层简化：合并 5 个 wire/public 孪生结构（`nodeFirewallOptionsKnown`、`guestFirewallOptionsKnown`、`qemuVMConfigKnown`、`lxcContainerConfigKnown`、`storageConfigKnown`）到对应公开结构体（json tag 直接标注、非 wire map 字段 `json:"-"`）；node/guest 防火墙选项 Get 改为直接 unmarshal（对齐 `ClusterFirewallOptions` 既有模式），QEMU/LXC/storage 保留 raw map 与 ExtraConfig 未知键分类、删除逐字段拷贝块；删除 `waitSnapshotTask` 纯转发中继（调用方改用 `waitForNodeTask`）；`setOptionalBool` 复用 `boolToFormValue`。经 AST 探针验证三组 tag 与 knownKeys 排除集一一对应（33/23/28），行为等价；全套件 234 PASS，gofmt/vet/deadcode 干净，净减约 250 行。
 - 完成 v0.2.0 发布准备：整理 QEMU VMID 自动分配、PVE 9 API 兼容修复与任务等待修复的正式 changelog，发布标签继续由 GoReleaser workflow 构建并签名。
+- 新增 `proxmox_qemu_vms` 列表数据源：基于 `GET /cluster/resources?type=vm`（该 endpoint 无服务端 qemu/lxc 过滤，客户端按 `type` 字段剔除 LXC），提供 `template`/`name`/`node` 客户端精确过滤（`template` 字段缺失按 API 默认 `0` 视为非模板参与过滤、输出保留 null），`vms` 输出按 `vm_id` 数值升序排序（规避服务端 vmid 字符串字典序），空结果为合法空列表（唯一性断言交给 Terraform `one()`）；同时修复 `ClusterResource.Template`/`Shared` 因 PVE 数字 `0|1` 序列化导致 `*bool` 解码失败的潜在缺陷（改用 `proxmoxOptionalBool`，该缺陷此前未暴露是因为 e2e smoke 仅查询 `type=node`）；补齐 client 解码（数值/布尔容忍）、过滤矩阵、缺失 template 字段、`99`/`100` 排序陷阱、filter echo 等测试、示例与生成文档。研究契约以 git.proxmox.com pve-manager HEAD（`PVE/API2/Cluster.pm` + `PVE/API2Tools.pm`）钉扎，research 与实现均经 gpt-reviewer 审阅通过，见 [`research/proxmox-qemu-vms.md`](../research/proxmox-qemu-vms.md)。
 
 ## 接下来
 
@@ -62,6 +63,7 @@
 
 ### 后续中大型功能
 
+- `proxmox_lxc_containers` 列表数据源：复用 `proxmox_qemu_vms` 的 client 查询与客户端过滤模式，面向 LXC 模板/容器搜索。
 - Authentication realm 高级后续：按独立设计补充 list data source、LDAP group/sync 高级字段、client certificate 和 TFA；`/sync` 属命令式操作，不在普通 realm CRUD 中隐式执行。
 - HA rules：在 `proxmox_ha_resource` 之后实现单一 typed variant resource，覆盖 PVE 9 `node-affinity`/`resource-affinity`、shared digest、feasibility error 与 import；不提供 legacy HA group 或 generic raw map。
 - Node networking：覆盖 `/nodes/{node}/network`，将 pending 配置与 apply/reload 生命周期分离，避免单个接口资源自动 reload 导致中间状态或管理网络断连。

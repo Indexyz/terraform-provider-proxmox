@@ -85,6 +85,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_pool`
 - `proxmox_pools`
 - `proxmox_qemu_vm`
+- `proxmox_qemu_vms`
 - `proxmox_realm`
 - `proxmox_role`
 - `proxmox_roles`
@@ -123,7 +124,7 @@ The CI tooling is a separate Go module, and the real Proxmox smoke test requires
 
 ## QEMU/KVM Workflow
 
-Use `proxmox_cluster_resources` for cluster-wide inventory, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for managed QEMU configuration including clone, common, cloud-init, network, disk, EFI, TPM, and raw escape-hatch workflows. Manage VM snapshots separately with `proxmox_qemu_snapshot`.
+Use `proxmox_cluster_resources` for cluster-wide inventory, `proxmox_qemu_vms` to search guests and templates by name/node/template flag, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for managed QEMU configuration including clone, common, cloud-init, network, disk, EFI, TPM, and raw escape-hatch workflows. Manage VM snapshots separately with `proxmox_qemu_snapshot`.
 
 When extending `proxmox_qemu_vm` beyond the minimal surface, keep these boundaries intact:
 

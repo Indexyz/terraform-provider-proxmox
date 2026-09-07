@@ -65,6 +65,14 @@ func TestDataSourceSuccessfulReads(t *testing.T) {
 			attribute: path.Root("resources").AtListIndex(0).AtName("id"), want: "node/pve",
 		},
 		{
+			name: "qemu vms", dataSource: NewQemuVMsDataSource(), config: map[string]any{"template": true},
+			responses: map[string]any{"/api2/json/cluster/resources?type=vm": []map[string]any{
+				{"id": "qemu/101", "vmid": 101, "name": "app-vm", "node": "pve", "type": "qemu", "template": 0, "status": "running"},
+				{"id": "qemu/100", "vmid": 100, "name": "unit-template", "node": "pve", "type": "qemu", "template": 1, "status": "stopped", "maxcpu": 2, "maxmem": 2048, "maxdisk": 8589934592},
+			}},
+			attribute: path.Root("vms").AtListIndex(0).AtName("name"), want: "unit-template",
+		},
+		{
 			name: "metrics", dataSource: NewClusterMetricsServersDataSource(), config: map[string]any{},
 			responses: map[string]any{"/api2/json/cluster/metrics/server": []map[string]any{{"id": "graphite", "type": "graphite", "server": "metrics.test", "port": 2003, "disable": 0}}},
 			attribute: path.Root("servers").AtListIndex(0).AtName("id"), want: "graphite",
