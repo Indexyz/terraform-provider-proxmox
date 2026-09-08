@@ -1,3 +1,14 @@
+## 0.3.0 (2026-09-08)
+
+FEATURES:
+
+- Add the `proxmox_qemu_vms` data source to search QEMU guests and templates cluster-wide by exact `name`, `node`, and `template` flag, with numerically sorted results ready for `clone.source_vmid`.
+- Extend the `proxmox_storages` data source with `type` and `largest` filters and a computed `capacity_bytes` per storage, aggregating the highest reported capacity across cluster nodes.
+
+FIXES:
+
+- Decode the numeric `template` and `shared` flags returned by `/cluster/resources` as booleans; plain `*bool` decoding failed on any response containing guest or storage entries.
+
 ## 0.2.0 (2026-09-06)
 
 FEATURES:
