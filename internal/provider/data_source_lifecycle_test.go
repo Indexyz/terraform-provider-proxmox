@@ -84,7 +84,10 @@ func TestDataSourceSuccessfulReads(t *testing.T) {
 		},
 		{
 			name: "storages", dataSource: NewStoragesDataSource(), config: map[string]any{},
-			responses: map[string]any{"/api2/json/storage": []map[string]any{{"storage": "local", "type": "dir", "content": "iso", "disable": 0, "shared": 0}}},
+			responses: map[string]any{
+				"/api2/json/storage":                        []map[string]any{{"storage": "local", "type": "dir", "content": "iso", "disable": 0, "shared": 0}},
+				"/api2/json/cluster/resources?type=storage": []map[string]any{{"id": "storage/pve/local", "storage": "local", "node": "pve", "type": "storage", "plugintype": "dir", "maxdisk": 100}},
+			},
 			attribute: path.Root("storages").AtListIndex(0).AtName("storage"), want: "local",
 		},
 		{
