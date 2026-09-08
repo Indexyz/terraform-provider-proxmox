@@ -217,7 +217,10 @@ func runStoragesRead(t *testing.T, config map[string]any, responses map[string]a
 	ds := NewStoragesDataSource()
 	var schemaResp datasource.SchemaResponse
 	ds.Schema(context.Background(), datasource.SchemaRequest{}, &schemaResp)
-	configurable := ds.(datasource.DataSourceWithConfigure)
+	configurable, ok := ds.(datasource.DataSourceWithConfigure)
+	if !ok {
+		t.Fatalf("%T does not implement DataSourceWithConfigure", ds)
+	}
 	var configureResp datasource.ConfigureResponse
 	configurable.Configure(context.Background(), datasource.ConfigureRequest{ProviderData: testLifecycleClient(t, server)}, &configureResp)
 	if configureResp.Diagnostics.HasError() {
@@ -244,7 +247,10 @@ func runStoragesRead(t *testing.T, config map[string]any, responses map[string]a
 	}
 
 	if _, configured := config["largest"]; configured {
-		want := config["largest"].(bool)
+		want, ok := config["largest"].(bool)
+		if !ok {
+			t.Fatalf("unexpected largest filter value %#v", config["largest"])
+		}
 		if state.Largest.IsNull() || state.Largest.ValueBool() != want {
 			t.Fatalf("expected largest filter %v to echo into state, got %v", want, state.Largest)
 		}
@@ -252,7 +258,11 @@ func runStoragesRead(t *testing.T, config map[string]any, responses map[string]a
 		t.Fatalf("expected unset largest filter to stay null, got %v", state.Largest)
 	}
 	if value, configured := config["type"]; configured {
-		if state.Type.IsNull() || state.Type.ValueString() != value.(string) {
+		want, ok := value.(string)
+		if !ok {
+			t.Fatalf("unexpected type filter value %#v", value)
+		}
+		if state.Type.IsNull() || state.Type.ValueString() != want {
 			t.Fatalf("expected type filter %q to echo into state, got %v", value, state.Type)
 		}
 	} else if !state.Type.IsNull() {

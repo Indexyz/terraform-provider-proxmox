@@ -177,7 +177,10 @@ func TestClusterResourcesDataSourceDecodesNumericFlags(t *testing.T) {
 	ds := NewClusterResourcesDataSource()
 	var schemaResp datasource.SchemaResponse
 	ds.Schema(context.Background(), datasource.SchemaRequest{}, &schemaResp)
-	configurable := ds.(datasource.DataSourceWithConfigure)
+	configurable, ok := ds.(datasource.DataSourceWithConfigure)
+	if !ok {
+		t.Fatalf("%T does not implement DataSourceWithConfigure", ds)
+	}
 	var configureResp datasource.ConfigureResponse
 	configurable.Configure(context.Background(), datasource.ConfigureRequest{ProviderData: testLifecycleClient(t, server)}, &configureResp)
 	if configureResp.Diagnostics.HasError() {
@@ -234,7 +237,10 @@ func runQemuVMsRead(t *testing.T, config map[string]any, responses map[string]an
 	ds := NewQemuVMsDataSource()
 	var schemaResp datasource.SchemaResponse
 	ds.Schema(context.Background(), datasource.SchemaRequest{}, &schemaResp)
-	configurable := ds.(datasource.DataSourceWithConfigure)
+	configurable, ok := ds.(datasource.DataSourceWithConfigure)
+	if !ok {
+		t.Fatalf("%T does not implement DataSourceWithConfigure", ds)
+	}
 	var configureResp datasource.ConfigureResponse
 	configurable.Configure(context.Background(), datasource.ConfigureRequest{ProviderData: testLifecycleClient(t, server)}, &configureResp)
 	if configureResp.Diagnostics.HasError() {
@@ -264,7 +270,10 @@ func runQemuVMsRead(t *testing.T, config map[string]any, responses map[string]an
 	}
 
 	if _, configured := config["template"]; configured {
-		want := config["template"].(bool)
+		want, ok := config["template"].(bool)
+		if !ok {
+			t.Fatalf("unexpected template filter value %#v", config["template"])
+		}
 		if state.Template.IsNull() || state.Template.ValueBool() != want {
 			t.Fatalf("expected template filter %v to echo into state, got %v", want, state.Template)
 		}
@@ -279,7 +288,11 @@ func runQemuVMsRead(t *testing.T, config map[string]any, responses map[string]an
 		{"node", state.Node},
 	} {
 		if value, configured := config[filter.key]; configured {
-			if filter.got.IsNull() || filter.got.ValueString() != value.(string) {
+			want, ok := value.(string)
+			if !ok {
+				t.Fatalf("unexpected %s filter value %#v", filter.key, value)
+			}
+			if filter.got.IsNull() || filter.got.ValueString() != want {
 				t.Fatalf("expected %s filter %q to echo into state, got %v", filter.key, value, filter.got)
 			}
 		} else if !filter.got.IsNull() {
