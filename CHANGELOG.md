@@ -1,3 +1,22 @@
+## 0.4.0 (2026-09-09)
+
+FEATURES:
+
+- Add `proxmox_nocloud_iso` to generate a `CIDATA` ISO containing generic `user-data`, `meta-data`, and `network-config`, upload it with API-token authentication, and manage its exact storage volume through retryable cleanup.
+- Add QEMU `start_on_create` and `stop_on_destroy` lifecycle hooks: start only after clone and configuration finish, and await stop before deletion. Refresh and ordinary updates never restart a stopped guest.
+- Add `nocloud_cdrom_slot` to opt into seed attachment safety, including exact ISO visibility on the VM node, same-slot replacement of the VM's Proxmox-generated cloud-init drive, and rejection of disk overwrites or multiple seeds. Include a generation-based provisioning guide with VM replacement and ordered ISO cleanup.
+
+FIXES:
+
+- Retain accepted create, clone, upload, and ISO deletion tasks across interrupted waits; reconcile tasks on their actual owner node and reject invalid task acknowledgements or status responses instead of reporting false success.
+- Send the correct `target` parameter when cloning QEMU guests across nodes, and preserve stop or delete polling errors so failed operations remain retryable.
+- Preserve configured QEMU disk-map keys, including an explicitly empty map, when cloning templates with inherited disks. Send only changed disk and network slots during updates, avoiding unintended writes of inherited attachments and Terraform Core state inconsistencies.
+
+NOTES:
+
+- `stop_on_destroy` performs a hard power-off, not a graceful guest shutdown. Marked seed changes to a different ISO require VM replacement; the guide uses `replace_triggered_by` to preserve dependency ordering.
+- Sensitive cloud-init content remains plaintext in Terraform state, the uploaded ISO, and private temporary staging files. Protect these locations and sanitize logs. Guest DHCP, cloud-init activation, Runner operation, and multi-node behavior still require the [real-environment acceptance checklist](https://github.com/Indexyz/terraform-provider-proxmox/blob/v0.4.0/docs/guides/nocloud-runner-vm.md#real-environment-acceptance-checklist).
+
 ## 0.3.0 (2026-09-08)
 
 FEATURES:
