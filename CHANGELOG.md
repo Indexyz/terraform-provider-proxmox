@@ -1,3 +1,18 @@
+## 0.5.0 (2026-09-09)
+
+FEATURES:
+
+- Add declarative `power` to `proxmox_qemu_vm` and `proxmox_lxc_container`: applies reconcile stopped guests to running and running guests to stopped, while refresh stays side-effect free and only mirrors observed drift.
+- `power = false` shuts guests down gracefully with `power_shutdown_timeout` seconds (default 60, range 1–600) before Proxmox force-stops them server-side, and config PUTs are sent while the guest is stopped.
+
+FIXES:
+
+- Track LXC containers in state before the power-on start task, so a failed start leaves the container retryable instead of orphaned.
+
+NOTES:
+
+- `power` is mutually exclusive with `start_on_create` on QEMU; `stop_on_destroy` behavior is unchanged, and paused QEMU guests count as powered on. Applies overwrite out-of-band power operations — unset `power` to stop managing it. Actual guest shutdown timing was verified against API mocks only; see the [real-environment acceptance checklist](https://github.com/Indexyz/terraform-provider-proxmox/blob/v0.5.0/docs/guides/nocloud-runner-vm.md#real-environment-acceptance-checklist).
+
 ## 0.4.0 (2026-09-09)
 
 FEATURES:

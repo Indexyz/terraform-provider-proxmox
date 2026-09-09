@@ -70,6 +70,8 @@
 
 - 完成 v0.4.0 发布准备：整理 VM 启停生命周期、NoCloud ISO 交付、标记槽位附着安全、异步任务恢复与真实 Terraform Core 状态一致性修复的正式 changelog；发布继续通过 `v*` 标签触发现有 GoReleaser 构建、校验和与 GPG 签名，明确硬断电、敏感明文材料和仍需实机验证的 DHCP/cloud-init/Runner/多节点边界。
 
+- 完成 v0.5.0 发布准备：整理声明式 `power` 交付（两资源调和语义、单次 shutdown 超时 + forceStop 线路契约、LXC 启动失败先持久化身份修复）的正式 changelog；发布继续通过 `v*` 标签触发现有 GoReleaser 构建、校验和与 GPG 签名，标注实机关机时序仍未验证。
+
 ## 接下来
 
 ### 优先实现
