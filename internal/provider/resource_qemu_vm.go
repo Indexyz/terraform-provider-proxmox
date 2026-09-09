@@ -79,6 +79,7 @@ func (r *QemuVMResource) ValidateConfig(ctx context.Context, req resource.Valida
 	resp.Diagnostics.Append(validateQemuVMRawConflicts(ctx, config)...)
 	resp.Diagnostics.Append(validateQemuVMIDAllocation(config)...)
 	resp.Diagnostics.Append(validateQemuVMNoCloudSlotConfig(config)...)
+	resp.Diagnostics.Append(validateQemuVMPowerConfig(config)...)
 }
 
 func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -233,10 +234,19 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 	}
 
-	// start_on_create is a create-time hook, not declarative power state: the
-	// guest is started exactly once after creation/clone and configuration
-	// succeed. A failure here leaves the tracked guest in state for recovery.
-	if !plan.StartOnCreate.IsNull() && !plan.StartOnCreate.IsUnknown() && plan.StartOnCreate.ValueBool() {
+	// Declarative `power` reconciles the desired state at create time: true
+	// starts the guest after creation/clone and configuration succeed, false
+	// leaves it stopped. Unset keeps the one-time `start_on_create` hook
+	// behavior. A failure here leaves the tracked guest in state for
+	// recovery, with its desired power retained for the retry.
+	startGuest := false
+	switch {
+	case !plan.Power.IsNull() && !plan.Power.IsUnknown():
+		startGuest = plan.Power.ValueBool()
+	case !plan.StartOnCreate.IsNull() && !plan.StartOnCreate.IsUnknown():
+		startGuest = plan.StartOnCreate.ValueBool()
+	}
+	if startGuest {
 		if err := r.client.StartQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64()); err != nil {
 			resp.Diagnostics.AddError("Unable to Start Proxmox QEMU VM", err.Error())
 			return
@@ -360,6 +370,35 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 		}
 	}
 
+	// Declarative power reconciliation happens after the current-config and
+	// CD-ROM safety checks and before the update request: a desired stop
+	// applies to the still-running guest before the config PUT (config
+	// changes belong to a stopped guest), a desired start runs after the PUT
+	// (config-then-start, matching create order), and an already matching
+	// state takes no power action. A status read failure aborts before any
+	// mutation.
+	var startAfterPut bool
+	if !plan.Power.IsNull() && !plan.Power.IsUnknown() {
+		status, err := r.client.GetQemuVMStatus(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Read Proxmox QEMU VM Status Before Power Reconcile", err.Error())
+			return
+		}
+		switch {
+		case !qemuVMPoweredOn(status) && plan.Power.ValueBool():
+			startAfterPut = true
+		case qemuVMPoweredOn(status) && !plan.Power.ValueBool():
+			timeout := powerShutdownTimeoutDefault
+			if !plan.PowerShutdownTimeout.IsNull() && !plan.PowerShutdownTimeout.IsUnknown() {
+				timeout = int(plan.PowerShutdownTimeout.ValueInt64())
+			}
+			if err := r.client.ShutdownQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), timeout); err != nil {
+				resp.Diagnostics.AddError("Unable to Shut Down Proxmox QEMU VM", err.Error())
+				return
+			}
+		}
+	}
+
 	updateReq, diags := qemuVMUpdateRequestFromModel(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -400,12 +439,24 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	if startAfterPut {
+		if err := r.client.StartQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError("Unable to Start Proxmox QEMU VM", err.Error())
+			return
+		}
+	}
+
 	// The post-update read projects the disk map onto the plan's intended
 	// managed key set rather than the old state's: a newly declared managed
 	// slot must survive the update in state, while a slot the plan no longer
 	// declares drops out. Everything else still echoes the prior state.
+	// Power mirrors observed reality through the plan's desired power as the
+	// reconcile switch, and the timeout echoes the plan so an in-place
+	// change converges in the same apply.
 	planPrior := state
 	planPrior.Disk = plan.Disk
+	planPrior.Power = plan.Power
+	planPrior.PowerShutdownTimeout = plan.PowerShutdownTimeout
 	refreshed, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &planPrior)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -530,6 +581,8 @@ func persistQemuVMIdentity(ctx context.Context, state *tfsdk.State, plan qemuVMM
 	diags.Append(state.SetAttribute(ctx, path.Root("vm_id_start"), plan.VMIDStart)...)
 	diags.Append(state.SetAttribute(ctx, path.Root("start_on_create"), plan.StartOnCreate)...)
 	diags.Append(state.SetAttribute(ctx, path.Root("stop_on_destroy"), plan.StopOnDestroy)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("power"), plan.Power)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("power_shutdown_timeout"), plan.PowerShutdownTimeout)...)
 	diags.Append(state.SetAttribute(ctx, path.Root("nocloud_cdrom_slot"), plan.NoCloudCDROMSlot)...)
 
 	return diags

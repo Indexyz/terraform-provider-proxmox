@@ -59,6 +59,11 @@ type qemuVMModel struct {
 	StartOnCreate types.Bool    `tfsdk:"start_on_create"`
 	StopOnDestroy types.Bool    `tfsdk:"stop_on_destroy"`
 
+	// Power is the declarative desired power state reconciled during apply;
+	// PowerShutdownTimeout only applies when Power is false.
+	Power                types.Bool  `tfsdk:"power"`
+	PowerShutdownTimeout types.Int64 `tfsdk:"power_shutdown_timeout"`
+
 	// NoCloudCDROMSlot marks which existing typed disk slot carries the
 	// NoCloud seed ISO; strict seed layout checks only apply when it is set.
 	NoCloudCDROMSlot types.String `tfsdk:"nocloud_cdrom_slot"`
@@ -676,6 +681,14 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 			Computed:            true,
 			MarkdownDescription: "Destroy-time stop hook of the `proxmox_qemu_vm` resource. Terraform lifecycle hooks are not stored in Proxmox, so data source reads always return null.",
 		},
+		"power": datasourceschema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "Desired power state of the `proxmox_qemu_vm` resource. The declarative power reconcile is a Terraform-side policy not stored in Proxmox, so data source reads always return null and never infer power from the observed status.",
+		},
+		"power_shutdown_timeout": datasourceschema.Int64Attribute{
+			Computed:            true,
+			MarkdownDescription: "Shutdown timeout of the `proxmox_qemu_vm` resource in seconds. Terraform-side policy is not stored in Proxmox, so data source reads always return null.",
+		},
 		"nocloud_cdrom_slot": datasourceschema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "NoCloud seed slot marker of the `proxmox_qemu_vm` resource. The marker is a Terraform-side create-time input not stored in Proxmox, so data source reads always return null.",
@@ -759,6 +772,14 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 			Optional:            true,
 			MarkdownDescription: "Stop a running guest and await the stop task before deleting it on destroy. The stop is a hard power-off (`qm stop` semantics), not a graceful guest shutdown: the guest is given no chance to flush or shut down cleanly. Already stopped or missing guests are destroyed without a stop attempt. A failed or timed-out stop aborts deletion so the guest stays tracked for retry; a 404 while polling the stop task is an error too, and a later retry re-checks the guest by config read. Changing this option only updates state and takes effect on the next destroy.",
 		},
+		"power": schema.BoolAttribute{
+			Optional:            true,
+			MarkdownDescription: "Desired guest power state, reconciled during apply. `true` starts an observed stopped guest; `false` shuts an observed running guest down through the single Proxmox shutdown task, which waits `power_shutdown_timeout` seconds for a graceful shutdown and then forces the guest off server-side. QEMU `paused` counts as powered on: `power = true` never resumes a paused guest, and `power = false` force-stops it server-side. Apply reconciles drift: a guest stopped out of band is started by the next apply with `power = true`, and a guest started out of band is shut down by the next apply with `power = false`. Refresh alone never acts, and `status`/`uptime` stay observed-only. Unset, the provider manages no power state and never infers `power` for imported or data source reads. Conflicts with `start_on_create`; use `onboot` for host-boot autostart.",
+		},
+		"power_shutdown_timeout": schema.Int64Attribute{
+			Optional:            true,
+			MarkdownDescription: "Seconds the Proxmox shutdown task waits for a graceful shutdown before forcing the guest off, used only when `power = false`. Defaults to the Proxmox default of 60 when unset. Must be between 1 and 600.",
+		},
 		"nocloud_cdrom_slot": schema.StringAttribute{
 			Optional:            true,
 			MarkdownDescription: "Declares the typed disk slot that carries the NoCloud seed ISO attached through `disk[slot].volume`, for example `ide2`. This is not a second attachment owner: it names the existing CD-ROM slot so the strict seed checks apply to this workflow without restricting ordinary CD-ROM users. The marked slot must plan a real ISO CD-ROM volume; its storage must be visible, active, and support `iso` content on the VM's node and the exact volume must exist there, at most one seed may remain attached, and in-place updates never overwrite an inherited disk or foreign medium. Changing this marker requires replacement; it is a create-time input, so updates and refreshes never start the guest.",
@@ -766,7 +787,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 				stringplanmodifier.RequiresReplace(),
 			},
 		},
-		"status": schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state."},
+		"status": schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Power is only managed through the explicit `power` attribute during apply; refresh alone never acts."},
 		"uptime": schema.Int64Attribute{Computed: true, MarkdownDescription: "Observed guest uptime in seconds from `/status/current`."},
 	}
 }

@@ -49,6 +49,11 @@ type lxcContainerModel struct {
 	Clone        types.Object  `tfsdk:"clone"`
 	Status       types.String  `tfsdk:"status"`
 	Uptime       types.Int64   `tfsdk:"uptime"`
+
+	// Power is the declarative desired power state reconciled during apply;
+	// PowerShutdownTimeout only applies when Power is false.
+	Power                types.Bool  `tfsdk:"power"`
+	PowerShutdownTimeout types.Int64 `tfsdk:"power_shutdown_timeout"`
 }
 
 type lxcContainerRawModel struct {
@@ -230,6 +235,14 @@ func lxcContainerDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"clone":        lxcContainerCloneDataSourceAttribute(),
 		"status":       datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`."},
 		"uptime":       datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Observed container uptime in seconds from `/status/current`."},
+		"power": datasourceschema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "Desired power state of the `proxmox_lxc_container` resource. The declarative power reconcile is a Terraform-side policy not stored in Proxmox, so data source reads always return null and never infer power from the observed status.",
+		},
+		"power_shutdown_timeout": datasourceschema.Int64Attribute{
+			Computed:            true,
+			MarkdownDescription: "Shutdown timeout of the `proxmox_lxc_container` resource in seconds. Terraform-side policy is not stored in Proxmox, so data source reads always return null.",
+		},
 	}
 }
 
@@ -283,7 +296,15 @@ func lxcContainerResourceAttributes() map[string]schema.Attribute {
 		"mount_point":  schema.MapAttribute{Optional: true, Computed: true, ElementType: types.ObjectType{AttrTypes: lxcContainerMountPointAttrTypes()}, MarkdownDescription: "Typed LXC mount points keyed by Proxmox slot name such as `mp0`. Unsupported grammar remains available through `raw.extra_config[\"mpN\"]`."},
 		"raw":          lxcContainerRawResourceAttribute(),
 		"clone":        lxcContainerCloneResourceAttribute(),
-		"status":       schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`. Terraform does not manage power state."},
+		"status":       schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`."},
 		"uptime":       schema.Int64Attribute{Computed: true, MarkdownDescription: "Observed container uptime in seconds from `/status/current`."},
+		"power": schema.BoolAttribute{
+			Optional:            true,
+			MarkdownDescription: "Desired container power state, reconciled during apply. `true` starts an observed stopped container; `false` shuts an observed running container down through the single Proxmox shutdown task, which waits `power_shutdown_timeout` seconds for a graceful shutdown and then forces the container off server-side. Apply reconciles drift: a container stopped out of band is started by the next apply with `power = true`, and a container started out of band is shut down by the next apply with `power = false`. Refresh alone never acts, and `status`/`uptime` stay observed-only. Unset, the provider manages no power state and never infers `power` for imported or data source reads. Use `onboot` for host-boot autostart.",
+		},
+		"power_shutdown_timeout": schema.Int64Attribute{
+			Optional:            true,
+			MarkdownDescription: "Seconds the Proxmox shutdown task waits for a graceful shutdown before forcing the container off, used only when `power = false`. Defaults to the Proxmox default of 60 when unset. Must be between 1 and 600.",
+		},
 	}
 }

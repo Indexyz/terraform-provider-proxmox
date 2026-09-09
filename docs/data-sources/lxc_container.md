@@ -51,6 +51,8 @@ data "proxmox_lxc_container" "example" {
 - `onboot` (Boolean) Whether the container should start automatically on boot.
 - `ostemplate` (String) Create-time OS template. Proxmox does not report this from `/config`, so data source reads leave it null.
 - `ostype` (String) Configured container operating system type from `/config`.
+- `power` (Boolean) Desired power state of the `proxmox_lxc_container` resource. The declarative power reconcile is a Terraform-side policy not stored in Proxmox, so data source reads always return null and never infer power from the observed status.
+- `power_shutdown_timeout` (Number) Shutdown timeout of the `proxmox_lxc_container` resource in seconds. Terraform-side policy is not stored in Proxmox, so data source reads always return null.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this container.
 - `raw` (Attributes) Escape hatch for LXC `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `rootfs` (String) Root filesystem configuration from `/config`.

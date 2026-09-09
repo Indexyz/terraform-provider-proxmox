@@ -132,12 +132,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_group` | 管理 access group。 |
 | `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
 | `proxmox_ha_resource` | 管理现有 QEMU/LXC guest 的 PVE 9 HA enrollment、显式 requested state 和恢复策略；destroy 固定 `purge=0`，只退出 HA 管理。 |
-| `proxmox_lxc_container` | 管理 LXC 容器、clone 和 typed/raw 配置。 |
+| `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
-| `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
+| `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子、显式 `power` 电源协调和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
 | `proxmox_nocloud_iso` | 生成并管理 cloud-init NoCloud seed ISO（`CIDATA` 卷标）的 storage content；全部创建输入 RequiresReplace，已存在目标文件拒绝而不采纳。 |
 | `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；secret 使用 WriteOnly + version 轮换。 |
 | `proxmox_replication_job` | 管理 cluster storage replication 计划，不隐式运行复制或清理数据。 |
@@ -180,11 +180,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
   - 无 `clone`：`POST /nodes/{node}/qemu` 创建。
   - 有 `clone`：先 clone，再把其它可管理配置通过 `/config` 更新到克隆出的 VM。
 - Read 同时读取 `/config` 和 `/status/current`。
-- `status`、`uptime`、`template` 是观察值；Provider 不管理电源状态或模板转换。
+- `status`、`uptime`、`template` 是观察值；模板转换不被管理。电源状态仅在显式设置 `power` 时声明式协调（见下一条）；refresh 始终只观察、绝不触发动作。
 - `clone` 是 create-time 输入，变更需要替换；对 imported resource 或没有 prior state 的 refresh，Provider 不能从 Proxmox 推断 clone provenance，因此读回为空。
 - QEMU 配置分为顶层常用字段、`common`、`cloud_init`、`network`、`disk`、`efi_disk`、`tpm_state`、`raw`。
 - `raw.extra_config` 是未 typed 的 Proxmox `/config` escape hatch；`ValidateConfig` 会禁止同一个 Proxmox key 同时由 typed 字段和 raw 管理。
 - `start_on_create` 在 create/clone 与 `/config` 更新成功后启动一次并等待任务；`stop_on_destroy` 在删除前对运行中 guest 执行硬断电（`qm stop` 语义，非优雅关机）并等待任务。两者都是 Terraform 侧 create/destroy 钩子而非声明式电源状态；更新选项或 refresh 已停止 guest 绝不触发动作；停止失败、超时或 stop 任务轮询 404 一律中止删除，后续重试由 config GET 判定真实缺失。
+- 显式 `power` 是声明式电源协调（`proxmox_qemu_vm` 与 `proxmox_lxc_container`，与 `start_on_create` 互斥、与 `stop_on_destroy` 共存）：`true`/`false` 分别表示期望运行/停止，仅在 apply/create/update 中 reconcile 漂移。期望 true 且观测停止 → 先 PUT 后 start；期望 false 且观测运行 → 在 PUT 之前调用单次 `POST .../status/shutdown`（`timeout` + `forceStop=1`，`power_shutdown_timeout` 默认 60、范围 1–600，优雅等待与强制停机都在服务端同一任务内完成）；已匹配不动作；status 读取失败先于任何变更中止。QEMU `paused` 视为通电：`power = true` 不会恢复 paused guest，`power = false` 由服务端强制停机。Read 保持 side-effect free：仅在 prior 声明过 power 时镜像观测电源状态，未声明/导入/数据源读出 null；`power_shutdown_timeout` 按 config echo 回显。未设置 `power` 时更新流程不新增 status 读取。
 - Create 会先做 CD-ROM 附着安全检查：计划内 CD-ROM（`media = "cdrom"` 或 `.iso` 卷）仅允许 ide/sata/scsi 槽位。严格 seed 检查仅在设置 `nocloud_cdrom_slot` 标记时生效（该标记是 create-time 输入，变更 RequiresReplace，声明哪个 typed disk 槽位是 NoCloud seed）：标记槽位必须计划真实 ISO 卷，最多一个 seed，seed storage 必须在 VM 所在节点可见、active、支持 `iso` content，并通过节点 ISO content 集合读取确认精确卷存在（同名校名存储在其他节点缺文件时先于 clone 失败；403/500 仍按错误处理而非缺席）。未标记的普通多 ISO/native cloudinit 用法不受 seed 布局限制。clone/标记化 update 在应用 `/config` 前读取原始 wire disk 配置：目标槽位仅允许已持同一卷、空盘位、该 VM 的 Proxmox 生成 cloud-init 盘（`storage:vm-<vmid>-cloudinit` 或文件型 `storage:<vmid>/vm-<vmid>-cloudinit.<fmt>`，要求 `media=cdrom` 与精确 owner VMID）显式同槽替换；标记工作流额外拒绝伪介质值（`none`/`cdrom`）清除继承的硬盘/外来介质、拒绝有效 wire 配置中残留第二个 ISO/cloud-init 盘（含 typed parser 未完全识别的 raw 盘）；标记化 update 拒绝就地更换任何不同真实介质（含先前 apply 中本资源附着过的旧 seed：refresh 后的 state 只是观测现实，不构成附着所有权），仅允许同卷、空盘位、该 VM 同槽 PVE cloud-init 盘变更，拒绝错误明确指向以 VM 替换（如 lifecycle replace_triggered_by）完成 seed 更替而非采纳/覆盖。失败保留克隆身份，先于 PUT/start。clone 目的地使用官方 `target` 表单键（跨节点 clone 要求源 VM 磁盘在共享存储上，任务仍在源节点轮询）。QEMU VM 的 in-place Update PUT 采用增量写入：typed `disk` 与 `network` 映射仅发送相对 prior state 新增或变化的槽位，未变化的继承观测值（模板克隆的根盘/NIC）不再作为变更意图回发（全部计划期/live typed+raw 安全检查在收窄前覆盖完整有效附着集合，create/clone 后初始附着不受影响，serial/ipconfig/标量/raw 不在收窄范围）；资源盘状态投影以 prior 已知盘键集合为准，prior 已知空映射（`disk = {}`）保留为已知空映射，仅 prior 缺失/unknown 保留完整观测盘清单（data source 仍可查询完整 guest 盘清单）。
 
 ### `proxmox_nocloud_iso`
@@ -282,6 +283,7 @@ make generate
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
 - `resource_qemu_vm_cdrom_test.go`：CD-ROM 附着安全的全链路 mock 测试（seed 上传 → clone → 同槽替换 Proxmox cloud-init → start → 硬断电销毁 → ISO 清理）与外来介质/双 seed/硬盘覆盖/槽位与节点存储拒绝矩阵。
+- `power_lifecycle_test.go`：声明式 `power` 的 client exact-form（QEMU shutdown 与 LXC start/stop/shutdown 的 UPID ack 契约）、create/update reconcile 调用顺序、refresh 镜像、互斥与超时范围校验和 data source null 断言。
 - `terraform_core_generation_test.go`：构建 provider 二进制并用真实 Terraform CLI（dev_overrides）对本地 mock PVE API 执行指南的代次链路：generation 1 apply → generation 2 替换 → destroy，断言真实 Terraform core 依赖图导出的顺序（seed 上传先于 clone、替换时旧 VM 先销毁、旧 seed 仅在替换 VM 重新指向并启动后才删除、销毁时 VM 先于 seed 删除），而非手工调用资源回调。
 - `resource_nocloud_iso_lifecycle_test.go`：NoCloud ISO 的 multipart 上传、task owner 轮询、retained task 对账、existing-file 拒绝与幂等清理。
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
@@ -299,7 +301,7 @@ GitHub Actions `Tests` workflow 包含 build、generate、Terraform CLI 矩阵�
 - Lyre audio topology 只能是 server relay；不要添加、恢复或保留 peer mesh audio mode、peer-to-peer audio negotiation 或 mesh compatibility fallback。
 - 只做当前需求需要的最小改动，不做无关重构；防御性检查只放在真正的外部边界。
 - 不吞掉底层错误信息；跨配置、网络、系统调用、runtime 边界时保留 cause/context 链。
-- QEMU VM 的 `status`、`uptime`、`template` 保持观察值，不从读取结果推断 declarative power/template 管理。
+- QEMU VM 与 LXC 容器的 `status`、`uptime`、`template` 保持观察值，不从读取结果推断 declarative power/template 管理；显式 `power` 属性是唯一文档化例外，只在 apply/create/update 中协调，refresh 永不动作。
 - Clone 配置保持 create-mode 输入；不要把 clone provenance 当作可从 Proxmox 反查的长期 drift source。
 - Typed nested block 与 `raw.extra_config` 不应管理同一个 Proxmox key 或 slot。
 - 更新代码后同步维护 `docs/roadmap.md`，记录已完成和下一步。

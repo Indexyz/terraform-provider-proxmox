@@ -61,6 +61,8 @@ data "proxmox_qemu_vm" "example" {
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type from `/config`.
 - `pool` (String) Pool assignment from `/config`.
+- `power` (Boolean) Desired power state of the `proxmox_qemu_vm` resource. The declarative power reconcile is a Terraform-side policy not stored in Proxmox, so data source reads always return null and never infer power from the observed status.
+- `power_shutdown_timeout` (Number) Shutdown timeout of the `proxmox_qemu_vm` resource in seconds. Terraform-side policy is not stored in Proxmox, so data source reads always return null.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type from `/config`.

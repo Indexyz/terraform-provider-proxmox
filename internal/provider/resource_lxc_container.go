@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -62,6 +63,7 @@ func (r *LXCContainerResource) ValidateConfig(ctx context.Context, req resource.
 
 	resp.Diagnostics.Append(validateLXCContainerRawConflicts(ctx, config)...)
 	resp.Diagnostics.Append(validateLXCContainerMapKeys(config)...)
+	resp.Diagnostics.Append(validateLXCContainerPowerConfig(config)...)
 }
 
 func (r *LXCContainerResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -108,6 +110,25 @@ func (r *LXCContainerResource) Create(ctx context.Context, req resource.CreateRe
 
 		if err := r.client.CreateLXCContainer(ctx, plan.Node.ValueString(), createReq); err != nil {
 			resp.Diagnostics.AddError("Unable to Create Proxmox LXC Container", err.Error())
+			return
+		}
+	}
+
+	// Identity and desired power are persisted before the start task: a
+	// failed start keeps the created container tracked so the next apply
+	// reconciles it instead of creating a duplicate (mirrors
+	// persistQemuVMIdentity).
+	resp.Diagnostics.Append(persistLXCContainerIdentity(ctx, &resp.State, plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Declarative `power = true` starts the container after the create or
+	// clone and its `/config` update succeed; `power = false` and unset leave
+	// it stopped. A failure here keeps the container tracked for recovery.
+	if !plan.Power.IsNull() && !plan.Power.IsUnknown() && plan.Power.ValueBool() {
+		if err := r.client.StartLXCContainer(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError("Unable to Start Proxmox LXC Container", err.Error())
 			return
 		}
 	}
@@ -171,9 +192,42 @@ func (r *LXCContainerResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	// Declarative power reconciliation mirrors the QEMU ordering: a desired
+	// stop applies to the still-running container before the config PUT, a
+	// desired start runs after the PUT, an already matching state takes no
+	// power action, and a status read failure aborts before any mutation.
+	var startAfterPut bool
+	if !plan.Power.IsNull() && !plan.Power.IsUnknown() {
+		status, err := r.client.GetLXCContainerStatus(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Read Proxmox LXC Container Status Before Power Reconcile", err.Error())
+			return
+		}
+		switch {
+		case status.Status != "running" && plan.Power.ValueBool():
+			startAfterPut = true
+		case status.Status == "running" && !plan.Power.ValueBool():
+			timeout := powerShutdownTimeoutDefault
+			if !plan.PowerShutdownTimeout.IsNull() && !plan.PowerShutdownTimeout.IsUnknown() {
+				timeout = int(plan.PowerShutdownTimeout.ValueInt64())
+			}
+			if err := r.client.ShutdownLXCContainer(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), timeout); err != nil {
+				resp.Diagnostics.AddError("Unable to Shut Down Proxmox LXC Container", err.Error())
+				return
+			}
+		}
+	}
+
 	if !updateReq.IsEmpty() {
 		if err := r.client.UpdateLXCContainer(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), updateReq); err != nil {
 			resp.Diagnostics.AddError("Unable to Update Proxmox LXC Container", err.Error())
+			return
+		}
+	}
+
+	if startAfterPut {
+		if err := r.client.StartLXCContainer(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError("Unable to Start Proxmox LXC Container", err.Error())
 			return
 		}
 	}
@@ -209,6 +263,23 @@ func (r *LXCContainerResource) ImportState(ctx context.Context, req resource.Imp
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), lxcContainerID(node, vmID))...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("node"), node)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vm_id"), vmID)...)
+}
+
+// persistLXCContainerIdentity writes the resource identity and declarative
+// power intent into the response state right after the create or clone and
+// its `/config` update succeed, so a failed post-create step (the start
+// task) still leaves the created container tracked with its desired power
+// for the next apply to reconcile.
+func persistLXCContainerIdentity(ctx context.Context, state *tfsdk.State, plan lxcContainerModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	diags.Append(state.SetAttribute(ctx, path.Root("id"), lxcContainerID(plan.Node.ValueString(), plan.VMID.ValueInt64()))...)
+	diags.Append(state.SetAttribute(ctx, path.Root("node"), plan.Node)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("vm_id"), plan.VMID)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("power"), plan.Power)...)
+	diags.Append(state.SetAttribute(ctx, path.Root("power_shutdown_timeout"), plan.PowerShutdownTimeout)...)
+
+	return diags
 }
 
 func (r *LXCContainerResource) readLXCContainerState(ctx context.Context, node string, vmID int64, prior *lxcContainerModel) (lxcContainerModel, diag.Diagnostics) {

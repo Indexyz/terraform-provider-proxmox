@@ -50,6 +50,11 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	vmIDStartValue := qemuVMIDStartStateValue(prior)
 	startOnCreateValue, stopOnDestroyValue := qemuVMLifecycleStateValue(prior)
 	noCloudCDROMSlotValue := qemuVMNoCloudCDROMSlotStateValue(prior)
+	powerValue := qemuVMPowerStateValue(prior, qemuVMPoweredOn(status))
+	powerShutdownTimeoutValue := types.Int64Null()
+	if prior != nil {
+		powerShutdownTimeoutValue = prior.PowerShutdownTimeout
+	}
 	protection := false
 	if value := config.Protection.Ptr(); value != nil {
 		protection = *value
@@ -102,6 +107,9 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Clone:         cloneValue,
 		StartOnCreate: startOnCreateValue,
 		StopOnDestroy: stopOnDestroyValue,
+
+		Power:                powerValue,
+		PowerShutdownTimeout: powerShutdownTimeoutValue,
 
 		NoCloudCDROMSlot: noCloudCDROMSlotValue,
 
@@ -177,6 +185,60 @@ const (
 	qemuVMIDMinimum = 100
 	qemuVMIDMaximum = 999999999
 )
+
+// The declarative shutdown timeout bounds `power_shutdown_timeout`; the
+// default is the Proxmox shutdown endpoint's own server-side default.
+const (
+	powerShutdownTimeoutMinimum = 1
+	powerShutdownTimeoutMaximum = 600
+	powerShutdownTimeoutDefault = 60
+)
+
+// qemuVMPoweredOn reports whether a QEMU guest is powered on. QEMU reports
+// `running` and `paused` as powered on: a paused guest still holds its
+// memory, and the shutdown endpoint's forceStop=1 stops paused guests
+// server-side instead of failing. Everything else (stopped/stopping) is off.
+func qemuVMPoweredOn(status QemuVMStatus) bool {
+	return status.Status == "running" || status.Status == "paused"
+}
+
+// qemuVMPowerStateValue mirrors the observed power state into `power` when
+// the prior model declares a desired power (the reconcile switch); reads
+// without a prior power (data sources, imports, unmanaged guests) return
+// null, so power is never inferred from runtime observations.
+func qemuVMPowerStateValue(prior *qemuVMModel, poweredOn bool) types.Bool {
+	if prior == nil || prior.Power.IsNull() || prior.Power.IsUnknown() {
+		return types.BoolNull()
+	}
+	return types.BoolValue(poweredOn)
+}
+
+// validateQemuVMPowerConfig checks the declarative power inputs: `power`
+// supersedes the create-time `start_on_create` hook (they are mutually
+// exclusive), and the shutdown timeout is bounded to 1..600 seconds.
+func validateQemuVMPowerConfig(model qemuVMModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if !model.Power.IsNull() && !model.Power.IsUnknown() && !model.StartOnCreate.IsNull() && !model.StartOnCreate.IsUnknown() {
+		diags.AddAttributeError(
+			path.Root("power"),
+			"Conflicting power management settings",
+			"Configure only one of `power` or `start_on_create`: `power` declaratively reconciles the guest power state on every apply, while `start_on_create` is a one-time create hook.",
+		)
+	}
+
+	if !model.PowerShutdownTimeout.IsNull() && !model.PowerShutdownTimeout.IsUnknown() {
+		if value := model.PowerShutdownTimeout.ValueInt64(); value < powerShutdownTimeoutMinimum || value > powerShutdownTimeoutMaximum {
+			diags.AddAttributeError(
+				path.Root("power_shutdown_timeout"),
+				"Invalid power shutdown timeout",
+				fmt.Sprintf("`power_shutdown_timeout` must be between %d and %d seconds, got %d.", powerShutdownTimeoutMinimum, powerShutdownTimeoutMaximum, value),
+			)
+		}
+	}
+
+	return diags
+}
 
 // validateQemuVMIDAllocation checks the automatic `vm_id` allocation inputs.
 func validateQemuVMIDAllocation(model qemuVMModel) diag.Diagnostics {

@@ -304,7 +304,7 @@ func TestLXCContainerResourceFrameworkLifecycle(t *testing.T) {
 	initial.OSTemplate = types.StringValue("local:vztmpl/debian.tar.zst")
 	initial.RootFS = types.StringValue("local-lvm:8")
 	initial.Hostname = types.StringValue("wrapper-ct")
-	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	createResp := testResourceCreateResponse(t, schema)
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, initial)}, &createResp)
 	if createResp.Diagnostics.HasError() {
 		t.Fatalf("LXC wrapper create diagnostics: %v", createResp.Diagnostics)

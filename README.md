@@ -6,7 +6,7 @@ The current baseline is designed against the official [Proxmox VE documentation]
 
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
-- Declarative QEMU VM and LXC container management, including clone workflows, typed device configuration, snapshots, and raw configuration escape hatches
+- Declarative QEMU VM and LXC container management, including clone workflows, typed device configuration, snapshots, raw configuration escape hatches, and opt-in declarative `power` reconciliation (graceful shutdown with a server-side forced-stop fallback)
 - Storage, pool, Proxmox VE 9 high-availability enrollment, external authentication realm, RBAC, API token, ACL, and cluster/node/guest firewall management
 - Inventory data sources for guests, storage, pools, access control objects, node settings, metrics servers, and cluster resources
 
@@ -132,7 +132,7 @@ For cloud-init NoCloud delivery, `proxmox_nocloud_iso` generates a `CIDATA` seed
 When extending `proxmox_qemu_vm` beyond the minimal surface, keep these boundaries intact:
 
 - `proxmox_cluster_resources` remains the bulk inventory surface; advanced VM management belongs on `proxmox_qemu_vm`.
-- `status` and `uptime` stay observed-only. Declarative power management is a separate concern and must not be inferred from runtime reads.
+- `status` and `uptime` stay observed-only. Runtime reads never infer power management; the explicit `power` attribute is the only declarative knob, and it acts solely during apply/create/update, never on refresh.
 - Clone inputs are create-mode only. They should select the initial provisioning path without becoming a permanent source of drift after the VM exists.
 - Disk, network, and cloud-init domains should use stable slot identities (`scsi0`, `net0`, `ipconfig0`) instead of list-order identity.
 - Typed nested blocks should cover the common cases, while raw escape hatches remain available only for uncovered long-tail Proxmox keys.

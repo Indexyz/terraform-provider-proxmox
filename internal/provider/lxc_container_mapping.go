@@ -85,7 +85,49 @@ func lxcContainerStateFromAPI(ctx context.Context, node string, vmID int64, conf
 		Clone:        lxcContainerCloneStateValue(prior),
 		Status:       stringOrNull(status.Status),
 		Uptime:       int64OrNull(status.Uptime.Ptr()),
+
+		Power:                lxcContainerPowerStateValue(prior, status.Status == "running"),
+		PowerShutdownTimeout: lxcContainerPowerShutdownTimeoutValue(prior),
 	}, diags
+}
+
+// lxcContainerPowerStateValue mirrors the observed power state into `power`
+// when the prior model declares a desired power (the reconcile switch); reads
+// without a prior power (data sources, imports, unmanaged containers) return
+// null, so power is never inferred from runtime observations. A container is
+// powered on only while its status is `running`.
+func lxcContainerPowerStateValue(prior *lxcContainerModel, poweredOn bool) types.Bool {
+	if prior == nil || prior.Power.IsNull() || prior.Power.IsUnknown() {
+		return types.BoolNull()
+	}
+	return types.BoolValue(poweredOn)
+}
+
+// lxcContainerPowerShutdownTimeoutValue echoes the Terraform-side shutdown
+// timeout from the prior model; reads without prior state return null.
+func lxcContainerPowerShutdownTimeoutValue(prior *lxcContainerModel) types.Int64 {
+	if prior == nil {
+		return types.Int64Null()
+	}
+	return prior.PowerShutdownTimeout
+}
+
+// validateLXCContainerPowerConfig bounds the declarative shutdown timeout;
+// LXC has no create-time power hooks, so no conflict check exists.
+func validateLXCContainerPowerConfig(model lxcContainerModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if !model.PowerShutdownTimeout.IsNull() && !model.PowerShutdownTimeout.IsUnknown() {
+		if value := model.PowerShutdownTimeout.ValueInt64(); value < powerShutdownTimeoutMinimum || value > powerShutdownTimeoutMaximum {
+			diags.AddAttributeError(
+				path.Root("power_shutdown_timeout"),
+				"Invalid power shutdown timeout",
+				fmt.Sprintf("`power_shutdown_timeout` must be between %d and %d seconds, got %d.", powerShutdownTimeoutMinimum, powerShutdownTimeoutMaximum, value),
+			)
+		}
+	}
+
+	return diags
 }
 
 func lxcContainerID(node string, vmID int64) string {

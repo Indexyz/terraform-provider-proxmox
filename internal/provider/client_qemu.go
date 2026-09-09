@@ -427,6 +427,26 @@ func (c *Client) StopQemuVM(ctx context.Context, node string, vmID int64) error 
 	return c.waitForNodeTask(ctx, node, upid)
 }
 
+// ShutdownQemuVM issues `POST /nodes/{node}/qemu/{vmid}/status/shutdown`
+// with `timeout` and `forceStop=1` and awaits the shutdown task. The
+// graceful-then-forced escalation is server-side in that single task: PVE
+// first requests a graceful shutdown, waits `timeout` seconds, and then
+// makes sure the VM stops (including paused VMs). A task failure after the
+// timeout propagates as-is.
+func (c *Client) ShutdownQemuVM(ctx context.Context, node string, vmID int64, timeout int) error {
+	form := url.Values{}
+	form.Set("timeout", strconv.Itoa(timeout))
+	form.Set("forceStop", "1")
+	var upid string
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu/%d/status/shutdown", url.PathEscape(node), vmID), nil, form, &upid); err != nil {
+		return err
+	}
+	if err := validateQemuTaskAck(upid, fmt.Sprintf("shutdown task for VM %d on node %q", vmID, node)); err != nil {
+		return err
+	}
+	return c.waitForNodeTask(ctx, node, upid)
+}
+
 func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 	payload, err := json.Marshal(raw)
 	if err != nil {

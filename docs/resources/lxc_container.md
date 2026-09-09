@@ -73,6 +73,8 @@ resource "proxmox_lxc_container" "example" {
 - `onboot` (Boolean) Whether the container should start automatically on boot.
 - `ostemplate` (String) Create-time OS template such as `local:vztmpl/debian-12-standard.tar.zst`. Changes require replacement.
 - `ostype` (String) Configured container operating system type managed through `/config`.
+- `power` (Boolean) Desired container power state, reconciled during apply. `true` starts an observed stopped container; `false` shuts an observed running container down through the single Proxmox shutdown task, which waits `power_shutdown_timeout` seconds for a graceful shutdown and then forces the container off server-side. Apply reconciles drift: a container stopped out of band is started by the next apply with `power = true`, and a container started out of band is shut down by the next apply with `power = false`. Refresh alone never acts, and `status`/`uptime` stay observed-only. Unset, the provider manages no power state and never infers `power` for imported or data source reads. Use `onboot` for host-boot autostart.
+- `power_shutdown_timeout` (Number) Seconds the Proxmox shutdown task waits for a graceful shutdown before forcing the container off, used only when `power = false`. Defaults to the Proxmox default of 60 when unset. Must be between 1 and 600.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this container.
 - `raw` (Attributes) Escape hatch for LXC `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `rootfs` (String) Root filesystem configuration. Changes require replacement.
@@ -87,7 +89,7 @@ resource "proxmox_lxc_container" "example" {
 ### Read-Only
 
 - `id` (String) Terraform identifier in `node/vm_id` form.
-- `status` (String) Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`. Terraform does not manage power state.
+- `status` (String) Observed runtime status from `/nodes/{node}/lxc/{vmid}/status/current`.
 - `uptime` (Number) Observed container uptime in seconds from `/status/current`.
 
 <a id="nestedatt--clone"></a>

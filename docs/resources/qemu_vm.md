@@ -157,6 +157,8 @@ resource "proxmox_qemu_vm" "example" {
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type managed through `/config`.
 - `pool` (String) Pool assignment managed through clone mode and `/config`.
+- `power` (Boolean) Desired guest power state, reconciled during apply. `true` starts an observed stopped guest; `false` shuts an observed running guest down through the single Proxmox shutdown task, which waits `power_shutdown_timeout` seconds for a graceful shutdown and then forces the guest off server-side. QEMU `paused` counts as powered on: `power = true` never resumes a paused guest, and `power = false` force-stops it server-side. Apply reconciles drift: a guest stopped out of band is started by the next apply with `power = true`, and a guest started out of band is shut down by the next apply with `power = false`. Refresh alone never acts, and `status`/`uptime` stay observed-only. Unset, the provider manages no power state and never infers `power` for imported or data source reads. Conflicts with `start_on_create`; use `onboot` for host-boot autostart.
+- `power_shutdown_timeout` (Number) Seconds the Proxmox shutdown task waits for a graceful shutdown before forcing the guest off, used only when `power = false`. Defaults to the Proxmox default of 60 when unset. Must be between 1 and 600.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
 - `scsihw` (String) SCSI controller hardware type managed through `/config`.
@@ -177,7 +179,7 @@ resource "proxmox_qemu_vm" "example" {
 ### Read-Only
 
 - `id` (String) Terraform identifier in `node/vm_id` form.
-- `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state.
+- `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Power is only managed through the explicit `power` attribute during apply; refresh alone never acts.
 - `template` (Boolean) Whether the guest is a template, as observed from `/config`. Terraform does not manage template conversion.
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
 

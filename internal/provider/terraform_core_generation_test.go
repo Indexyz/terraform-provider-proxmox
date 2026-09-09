@@ -272,6 +272,27 @@ func (p *terraformCorePVE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		p.mu.Unlock()
 		p.envelope(w, upid)
+	case r.Method == http.MethodPost && strings.HasPrefix(path, "/api2/json/nodes/pve-1/qemu/") && strings.HasSuffix(path, "/status/shutdown"):
+		if err := r.ParseForm(); err != nil {
+			p.fail(w, "parse shutdown form: %v", err)
+			return
+		}
+		p.mu.Lock()
+		vmID, _ := p.vmIDFromPath(path)
+		// The declarative power-off always pins the wire contract of the
+		// single shutdown task: server-side graceful wait, then forced stop.
+		if got, want := r.Form.Encode(), "forceStop=1&timeout=90"; got != want {
+			p.mu.Unlock()
+			p.fail(w, "unexpected shutdown form of guest %d: %q", vmID, got)
+			return
+		}
+		p.event("shutdown:%d", vmID)
+		upid := p.nextUPID("qmshutdown")
+		if vm, ok := p.vmFromPath(path); ok {
+			vm.Running = false
+		}
+		p.mu.Unlock()
+		p.envelope(w, upid)
 	case r.Method == http.MethodDelete && strings.HasPrefix(path, "/api2/json/nodes/pve-1/qemu/"):
 		p.mu.Lock()
 		vmID, _ := p.vmIDFromPath(path)
@@ -337,6 +358,19 @@ func (p *terraformCorePVE) swapIde2(vmID int64, volume string) error {
 		return fmt.Errorf("guest %d missing from mock PVE", vmID)
 	}
 	vm.Ide2 = volume
+	return nil
+}
+
+// setRunning flips a guest's power state out of band, the way an operator
+// stopping or starting a guest directly on the PVE host would.
+func (p *terraformCorePVE) setRunning(vmID int64, running bool) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	vm, ok := p.vms[vmID]
+	if !ok {
+		return fmt.Errorf("guest %d missing from mock PVE", vmID)
+	}
+	vm.Running = running
 	return nil
 }
 
@@ -796,6 +830,186 @@ func TestTerraformCoreGenerationReplacementOrdering(t *testing.T) {
 	destroyed := pve.snapshot()
 	requireTerraformCoreOrder(t, destroyed, "stop:100", "vm-delete:100")
 	requireTerraformCoreOrder(t, destroyed, "vm-delete:100", "iso-delete:runner-seed-0000000002.iso")
+	if !pve.quiesced() {
+		t.Fatalf("mock PVE still holds managed objects after destroy")
+	}
+
+	pve.assertNoFailures(t)
+}
+
+// The bounded declarative-power scenario: a clone managed with `power`
+// instead of the lifecycle hooks, exercised through the real Terraform CLI
+// against the same mock PVE API.
+const terraformCorePowerMainTFTemplate = `terraform {
+  required_providers {
+    proxmox = {
+      source = "indexyz/proxmox"
+    }
+  }
+}
+
+variable "api_token_secret" {
+  type      = string
+  sensitive = true
+}
+
+provider "proxmox" {
+  endpoint         = "{{ENDPOINT}}"
+  api_token_id     = "terraform@pve!provider"
+  api_token_secret = var.api_token_secret
+}
+
+data "proxmox_qemu_vms" "template" {
+  name     = "ubuntu-nocloud-template"
+  template = true
+}
+
+locals {
+  template = one(data.proxmox_qemu_vms.template.vms)
+}
+
+resource "proxmox_qemu_vm" "powered" {
+  node  = "pve-1"
+  vm_id = 102
+  name  = "tf-powered"
+
+  clone = {
+    source_node = try(local.template.node, null)
+    source_vmid = try(local.template.vm_id, null)
+    full        = true
+  }
+
+{{POWER_BLOCK}}
+}
+`
+
+const terraformCorePowerOn = "  power = true"
+
+const terraformCorePowerOff = `  power                  = false
+  power_shutdown_timeout = 90`
+
+// TestTerraformCorePowerReconcile drives the declarative `power` semantics
+// through the real Terraform CLI: the first apply starts the guest, an
+// out-of-band stop is reconciled back to running by the next apply, and
+// switching to `power = false` shuts the running guest down (graceful with
+// timeout, then forced stop, server-side) before the config PUT.
+func TestTerraformCorePowerReconcile(t *testing.T) {
+	terraformBin, err := exec.LookPath("terraform")
+	if err != nil {
+		t.Skip("terraform CLI not available in PATH; harness cannot run")
+	}
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go toolchain not available in PATH; harness cannot build the provider")
+	}
+
+	modOut, err := exec.Command(goBin, "env", "GOMOD").Output()
+	if err != nil {
+		t.Fatalf("resolve module root: %v", err)
+	}
+	moduleRoot := filepath.Dir(strings.TrimSpace(string(modOut)))
+
+	pve := newTerraformCorePVE()
+	server := httptest.NewServer(pve)
+	defer server.Close()
+
+	base := t.TempDir()
+	binDir := filepath.Join(base, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create provider bin dir: %v", err)
+	}
+	binPath := filepath.Join(binDir, "terraform-provider-proxmox")
+	build := exec.Command(goBin, "build", "-o", binPath, ".")
+	build.Dir = moduleRoot
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build provider binary: %v\n%s", err, out)
+	}
+
+	workdir := filepath.Join(base, "config")
+	if err := os.MkdirAll(workdir, 0o755); err != nil {
+		t.Fatalf("create terraform workdir: %v", err)
+	}
+	writePowerMainTF := func(powerBlock string) {
+		t.Helper()
+		mainTF := strings.NewReplacer(
+			"{{ENDPOINT}}", server.URL,
+			"{{POWER_BLOCK}}", powerBlock,
+		).Replace(terraformCorePowerMainTFTemplate)
+		if err := os.WriteFile(filepath.Join(workdir, "main.tf"), []byte(mainTF), 0o600); err != nil {
+			t.Fatalf("write main.tf: %v", err)
+		}
+	}
+	writePowerMainTF(terraformCorePowerOn)
+	if err := os.WriteFile(filepath.Join(workdir, "terraform.rc"), []byte(fmt.Sprintf("provider_installation {\n  dev_overrides {\n    \"registry.terraform.io/indexyz/proxmox\" = %q\n  }\n}\n", binDir)), 0o600); err != nil {
+		t.Fatalf("write terraform.rc: %v", err)
+	}
+
+	harnessEnv := append(os.Environ(),
+		"TF_CLI_CONFIG_FILE="+filepath.Join(workdir, "terraform.rc"),
+		"TF_VAR_api_token_secret=token-secret",
+	)
+	runTerraform := func(args ...string) {
+		t.Helper()
+		t.Logf("terraform %v", args)
+		cmd := exec.Command(terraformBin, args...)
+		cmd.Dir = workdir
+		cmd.Env = harnessEnv
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("terraform %v: %v\n%s", args, err, out)
+		}
+	}
+	countEvents := func(events []string, prefix string) int {
+		count := 0
+		for _, event := range events {
+			if strings.HasPrefix(event, prefix) {
+				count++
+			}
+		}
+		return count
+	}
+
+	// Generation 1 with power = true: the guest is started after the clone
+	// and its config update.
+	runTerraform("apply", "-auto-approve", "-input=false")
+	gen1 := pve.snapshot()
+	requireTerraformCoreOrder(t, gen1, "clone:102", "start:102")
+	requireTerraformCoreAbsent(t, gen1, "stop:")
+	requireTerraformCoreAbsent(t, gen1, "shutdown:")
+	requireTerraformCoreVMID(t, workdir, "powered", 102)
+
+	// An operator stops the guest out of band; the next apply reconciles it
+	// back to running. Refresh alone only mirrors the drift into state.
+	if err := pve.setRunning(102, false); err != nil {
+		t.Fatalf("stop guest out of band: %v", err)
+	}
+	runTerraform("apply", "-auto-approve", "-input=false")
+	reconciled := pve.snapshot()
+	if got := countEvents(reconciled, "start:102"); got != 2 {
+		t.Fatalf("expected the out-of-band stop to be reconciled by a second start, got %d start events: %v", got, reconciled)
+	}
+	requireTerraformCoreAbsent(t, reconciled, "shutdown:")
+
+	// Switching to power = false with a shutdown timeout shuts the running
+	// guest down through the single server-side escalation task; no start
+	// may follow.
+	writePowerMainTF(terraformCorePowerOff)
+	runTerraform("apply", "-auto-approve", "-input=false")
+	poweredOff := pve.snapshot()
+	if got := countEvents(poweredOff, "shutdown:102"); got != 1 {
+		t.Fatalf("expected exactly one shutdown event, got %d: %v", got, poweredOff)
+	}
+	if got := countEvents(poweredOff, "start:102"); got != 2 {
+		t.Fatalf("power = false must not start the guest, got %d start events: %v", got, poweredOff)
+	}
+
+	// Destroy: the guest is already off, so only the delete remains.
+	pve.resetEvents()
+	runTerraform("destroy", "-auto-approve", "-input=false")
+	destroyed := pve.snapshot()
+	if got := countEvents(destroyed, "vm-delete:102"); got != 1 {
+		t.Fatalf("expected exactly one vm-delete event, got %d: %v", got, destroyed)
+	}
 	if !pve.quiesced() {
 		t.Fatalf("mock PVE still holds managed objects after destroy")
 	}
