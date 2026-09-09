@@ -104,6 +104,26 @@ func (c *Client) GetStorage(ctx context.Context, id string) (Storage, error) {
 	return decodeStorageConfig(raw)
 }
 
+// NodeStorage is one entry of the per-node storage index
+// (`GET /nodes/{node}/storage`), reporting runtime visibility of a storage on
+// that node: content types, enabled state, and whether it is currently active
+// (accessible).
+type NodeStorage struct {
+	Storage string              `json:"storage"`
+	Type    string              `json:"type"`
+	Content string              `json:"content"`
+	Nodes   string              `json:"nodes"`
+	Active  proxmoxOptionalBool `json:"active"`
+	Enabled proxmoxOptionalBool `json:"enabled"`
+	Shared  proxmoxOptionalBool `json:"shared"`
+}
+
+func (c *Client) NodeStorages(ctx context.Context, node string) ([]NodeStorage, error) {
+	var storages []NodeStorage
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/nodes/%s/storage", url.PathEscape(node)), nil, nil, &storages)
+	return storages, err
+}
+
 func (c *Client) Storages(ctx context.Context) ([]Storage, error) {
 	var rawList []map[string]json.RawMessage
 	if err := c.do(ctx, http.MethodGet, "/storage", nil, nil, &rawList); err != nil {

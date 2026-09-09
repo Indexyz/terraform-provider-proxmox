@@ -19,15 +19,17 @@
 | `internal/provider/client_qemu.go` | QEMU VM API 方法，以及 Proxmox `/config` 原始响应解码。 |
 | `internal/provider/resource_group.go` | `proxmox_group` 资源。 |
 | `internal/provider/resource_pool.go` | `proxmox_pool` 资源及 pool 成员协调逻辑。 |
-| `internal/provider/resource_qemu_vm.go` | `proxmox_qemu_vm` 资源生命周期、导入、配置验证。 |
+| `internal/provider/resource_qemu_vm.go` | `proxmox_qemu_vm` 资源生命周期、导入、配置验证、CD-ROM 附着安全检查。 |
+| `internal/provider/resource_nocloud_iso.go` | `proxmox_nocloud_iso` 资源生命周期、上传任务对账、内容存在性判定。 |
+| `internal/provider/nocloud_iso.go` | 纯 Go ISO9660 `CIDATA` seed 生成器。 |
 | `internal/provider/qemu_vm_schema.go` | QEMU VM resource/data source 共享 schema 和 Terraform model。 |
 | `internal/provider/qemu_vm_mapping.go` | QEMU VM Terraform model、API request、API state 之间的转换；typed/raw 冲突检测。 |
 | `internal/provider/data_source_*.go` | Proxmox inventory、access、pool、storage、QEMU、LXC 和 node 数据源。 |
 | `internal/provider/*_test.go` | Provider、client、resource/data source、QEMU 映射、e2e smoke 测试。 |
-| `docs/guides/` | 从 `templates/guides/` 渲染的用户指南；当前包含 Provider 配置、认证、权限规划和常见错误排障。 |
+| `docs/guides/` | 从 `templates/guides/` 渲染的用户指南；当前包含 Provider 配置排障和 NoCloud seeded VM 供应链。 |
 | `docs/superpowers/` | 已有 spec/plan 归档；当前包含 GitHub Actions Proxmox e2e 的设计与实施计划。 |
 | `templates/guides/` | 手工维护的指南模板；`make generate` 时渲染到 `docs/guides/`，避免 tfplugindocs 清理生成目录时丢失。 |
-| `examples/` | tfplugindocs 示例来源；包含 provider、20 个 data source、25 个 resource 示例。 |
+| `examples/` | tfplugindocs 示例来源；包含 provider、21 个 data source、26 个 resource 示例。 |
 | `tools/tools.go` | `go generate` 工具入口：copywrite、Terraform 示例格式化、tfplugindocs 文档生成。 |
 | `tools/ci/` | GitHub Actions Proxmox e2e VM 镜像准备、启动脚本和脚本测试。 |
 
@@ -114,7 +116,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 
 ## 资源
 
-当前注册 **25 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **26 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -135,7 +137,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
-| `proxmox_qemu_vm` | 管理 QEMU VM、clone 和 typed/raw 配置。 |
+| `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
+| `proxmox_nocloud_iso` | 生成并管理 cloud-init NoCloud seed ISO（`CIDATA` 卷标）的 storage content；全部创建输入 RequiresReplace，已存在目标文件拒绝而不采纳。 |
 | `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；secret 使用 WriteOnly + version 轮换。 |
 | `proxmox_replication_job` | 管理 cluster storage replication 计划，不隐式运行复制或清理数据。 |
 | `proxmox_role` | 管理 RBAC 角色和权限集合。 |
@@ -181,6 +184,17 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 - `clone` 是 create-time 输入，变更需要替换；对 imported resource 或没有 prior state 的 refresh，Provider 不能从 Proxmox 推断 clone provenance，因此读回为空。
 - QEMU 配置分为顶层常用字段、`common`、`cloud_init`、`network`、`disk`、`efi_disk`、`tpm_state`、`raw`。
 - `raw.extra_config` 是未 typed 的 Proxmox `/config` escape hatch；`ValidateConfig` 会禁止同一个 Proxmox key 同时由 typed 字段和 raw 管理。
+- `start_on_create` 在 create/clone 与 `/config` 更新成功后启动一次并等待任务；`stop_on_destroy` 在删除前对运行中 guest 执行硬断电（`qm stop` 语义，非优雅关机）并等待任务。两者都是 Terraform 侧 create/destroy 钩子而非声明式电源状态；更新选项或 refresh 已停止 guest 绝不触发动作；停止失败、超时或 stop 任务轮询 404 一律中止删除，后续重试由 config GET 判定真实缺失。
+- Create 会先做 CD-ROM 附着安全检查：计划内 CD-ROM（`media = "cdrom"` 或 `.iso` 卷）仅允许 ide/sata/scsi 槽位。严格 seed 检查仅在设置 `nocloud_cdrom_slot` 标记时生效（该标记是 create-time 输入，变更 RequiresReplace，声明哪个 typed disk 槽位是 NoCloud seed）：标记槽位必须计划真实 ISO 卷，最多一个 seed，seed storage 必须在 VM 所在节点可见、active、支持 `iso` content，并通过节点 ISO content 集合读取确认精确卷存在（同名校名存储在其他节点缺文件时先于 clone 失败；403/500 仍按错误处理而非缺席）。未标记的普通多 ISO/native cloudinit 用法不受 seed 布局限制。clone/标记化 update 在应用 `/config` 前读取原始 wire disk 配置：目标槽位仅允许已持同一卷、空盘位、该 VM 的 Proxmox 生成 cloud-init 盘（`storage:vm-<vmid>-cloudinit` 或文件型 `storage:<vmid>/vm-<vmid>-cloudinit.<fmt>`，要求 `media=cdrom` 与精确 owner VMID）显式同槽替换；标记工作流额外拒绝伪介质值（`none`/`cdrom`）清除继承的硬盘/外来介质、拒绝有效 wire 配置中残留第二个 ISO/cloud-init 盘（含 typed parser 未完全识别的 raw 盘）；标记化 update 拒绝就地更换任何不同真实介质（含先前 apply 中本资源附着过的旧 seed：refresh 后的 state 只是观测现实，不构成附着所有权），仅允许同卷、空盘位、该 VM 同槽 PVE cloud-init 盘变更，拒绝错误明确指向以 VM 替换（如 lifecycle replace_triggered_by）完成 seed 更替而非采纳/覆盖。失败保留克隆身份，先于 PUT/start。clone 目的地使用官方 `target` 表单键（跨节点 clone 要求源 VM 磁盘在共享存储上，任务仍在源节点轮询）。QEMU VM 的 in-place Update PUT 采用增量写入：typed `disk` 与 `network` 映射仅发送相对 prior state 新增或变化的槽位，未变化的继承观测值（模板克隆的根盘/NIC）不再作为变更意图回发（全部计划期/live typed+raw 安全检查在收窄前覆盖完整有效附着集合，create/clone 后初始附着不受影响，serial/ipconfig/标量/raw 不在收窄范围）；资源盘状态投影以 prior 已知盘键集合为准，prior 已知空映射（`disk = {}`）保留为已知空映射，仅 prior 缺失/unknown 保留完整观测盘清单（data source 仍可查询完整 guest 盘清单）。
+
+### `proxmox_nocloud_iso`
+
+实现文件：`internal/provider/resource_nocloud_iso.go`、`nocloud_iso.go`、`client_storage_content.go`
+
+- 标识为 `node/storage/volume_id`；全部创建输入 RequiresReplace，内容输入写入 state 明文（sensitive 不加密）。
+- 内存外的真实生成路径：`user-data`/`meta-data`/`network-config` 先以明文写入 ISO9660 writer 的私有 `0700` 临时 staging 目录（位置跟随 `TMPDIR`），最终镜像在内存组装后经 `/nodes/{node}/storage/{storage}/upload` multipart 上传；正常路径全清理 staging 且清理错误并入返回错误，provider 崩溃/强杀可能在临时目录残留明文。任务按 UPID 实际 owner 节点轮询，accepted UPID 先写入 private state 再等待，失败可对账重试。
+- 上传节点与 VM 节点都要求目标 storage 可见、enabled、active 且支持 `iso` content；存在性判定以 content collection 读取为准。
+- 删除仅针对 state 记录的精确卷；VM 依赖 `volume_id` 引用保证销毁顺序，示例指南要求 ISO 资源 `create_before_destroy` 以避免在 VM 仍引用时删除 ISO。
 
 ## QEMU typed/raw 映射规则
 
@@ -242,7 +256,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 24 个资源和 20 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 26 个资源和 21 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -262,11 +276,14 @@ make generate
 
 - `provider_unit_test.go`：配置合并、认证校验、资源/数据源导出。
 - `framework_lifecycle_test.go`、`lifecycle_http_test.go`：schema-backed plan/state/config、provider wiring 与本地 Proxmox HTTP 合约测试工具；普通 Go 测试不依赖 Terraform CLI 或真实 PVE。
-- `data_source_lifecycle_test.go`：使用真实 provider client 与本地 HTTP server 覆盖全部 20 个数据源的 Schema、Configure、Read、typed state 和代表性 API error。
+- `data_source_lifecycle_test.go`：使用真实 provider client 与本地 HTTP server 覆盖全部注册数据源的 Schema、Configure、Read、typed state 和代表性 API error。
 - `resource_*_lifecycle_test.go`：按 access/pool/firewall/cluster service/storage/snapshot/guest 家族覆盖 Create、Read、Update、Delete、import、missing/error、task polling、private managed fields、secret preservation 和安全删除请求。
 - `client_test.go`、`client_qemu_test.go`：HTTP 方法、认证 header/cookie、API error、基础和 QEMU endpoints；QEMU create/clone/delete 测试同时验证 UPID completion polling。
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。
 - `resource_qemu_vm_test.go`、`data_source_qemu_vm_test.go`、`qemu_vm_mapping_test.go`：QEMU schema、state/request 映射、typed/raw 冲突、parse/encode。
+- `resource_qemu_vm_cdrom_test.go`：CD-ROM 附着安全的全链路 mock 测试（seed 上传 → clone → 同槽替换 Proxmox cloud-init → start → 硬断电销毁 → ISO 清理）与外来介质/双 seed/硬盘覆盖/槽位与节点存储拒绝矩阵。
+- `terraform_core_generation_test.go`：构建 provider 二进制并用真实 Terraform CLI（dev_overrides）对本地 mock PVE API 执行指南的代次链路：generation 1 apply → generation 2 替换 → destroy，断言真实 Terraform core 依赖图导出的顺序（seed 上传先于 clone、替换时旧 VM 先销毁、旧 seed 仅在替换 VM 重新指向并启动后才删除、销毁时 VM 先于 seed 删除），而非手工调用资源回调。
+- `resource_nocloud_iso_lifecycle_test.go`：NoCloud ISO 的 multipart 上传、task owner 轮询、retained task 对账、existing-file 拒绝与幂等清理。
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `e2e_smoke_test.go`：三个真实 Proxmox API e2e 测试，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL，QEMU task-waiting 测试创建随机高 VMID 的空 source VM 与同节点 full clone，并验证 create/clone/delete UPID polling、正常 Terraform destroy 和带名称所有权校验的失败清理。

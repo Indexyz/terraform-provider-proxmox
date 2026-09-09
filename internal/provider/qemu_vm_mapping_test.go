@@ -164,6 +164,37 @@ func TestQemuVMStateFromAPIOmittedSCSIHWIsNull(t *testing.T) {
 	}
 }
 
+func TestQemuVMStateFromAPIEchoesLifecycleHooks(t *testing.T) {
+	t.Parallel()
+
+	// Data source reads (no prior state) must return null lifecycle hooks.
+	dataSourceState, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "hooked-vm"}, QemuVMStatus{}, nil)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !dataSourceState.StartOnCreate.IsNull() || !dataSourceState.StopOnDestroy.IsNull() {
+		t.Fatalf("expected null lifecycle hooks without prior state, got %#v", dataSourceState)
+	}
+	if !dataSourceState.NoCloudCDROMSlot.IsNull() {
+		t.Fatalf("expected null NoCloud slot marker without prior state, got %#v", dataSourceState.NoCloudCDROMSlot)
+	}
+
+	prior := minimalQemuVMModel("pve-1", 101)
+	prior.StartOnCreate = types.BoolValue(true)
+	prior.StopOnDestroy = types.BoolValue(true)
+	prior.NoCloudCDROMSlot = types.StringValue("ide2")
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, QemuVMConfig{Name: "hooked-vm"}, QemuVMStatus{}, &prior)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+	if !state.StartOnCreate.ValueBool() || !state.StopOnDestroy.ValueBool() {
+		t.Fatalf("expected lifecycle hooks echoed from prior state, got %#v", state)
+	}
+	if state.NoCloudCDROMSlot.ValueString() != "ide2" {
+		t.Fatalf("expected NoCloud slot marker echoed from prior state, got %#v", state.NoCloudCDROMSlot)
+	}
+}
+
 func TestQemuVMStateFromAPIPreservesCloneState(t *testing.T) {
 	t.Parallel()
 
@@ -1480,6 +1511,198 @@ func TestValidateQemuVMRawConflictsReservesMemoryFields(t *testing.T) {
 			}
 			if got := diags[0].Summary(); got != "Conflicting raw.extra_config entry" {
 				t.Fatalf("unexpected diagnostic summary: %q", got)
+			}
+		})
+	}
+}
+
+// TestQemuVMStateFromAPIProjectsManagedDiskMap proves the resource-state
+// projection boundary: a plan configuring only the seed slot keeps the
+// template's inherited system disk out of the managed disk map, while the
+// observed wire config stays intact - managed slots carry their actual wire
+// values, unparseable slots stay observable through raw.extra_config, and a
+// read without a configured disk map (data source) keeps the full inventory.
+func TestQemuVMStateFromAPIProjectsManagedDiskMap(t *testing.T) {
+	t.Parallel()
+
+	config := QemuVMConfig{
+		Name: "clone-vm",
+		Disk: map[string]string{
+			"ide2":    "local:iso/runner-seed.iso,media=cdrom",
+			"scsi0":   "local-lvm:vm-101-disk-0,size=8G",
+			"virtio5": "local-lvm:vm-101-disk-5,wwn=needs-raw",
+		},
+	}
+	prior := minimalQemuVMModel("pve-1", 101)
+	prior.Disk = mustQemuVMDiskMapValue(t, map[string]qemuVMDiskModel{
+		"ide2": cdromDiskEntry("local:iso/old-seed.iso"),
+	})
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, config, QemuVMStatus{Status: "stopped"}, &prior)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	disks := decodeQemuVMDiskMap(t, state.Disk)
+	if len(disks) != 1 {
+		t.Fatalf("expected only the managed ide2 slot in resource state, got %v", disks)
+	}
+	if got := disks["ide2"]; got.Volume.ValueString() != "local:iso/runner-seed.iso" || got.Media.ValueString() != "cdrom" {
+		t.Fatalf("managed slot must carry the observed wire value, got %#v", got)
+	}
+	if _, inherited := disks["scsi0"]; inherited {
+		t.Fatalf("inherited template disk scsi0 must stay out of managed resource state")
+	}
+
+	raw := decodeQemuVMRaw(t, state.Raw)
+	gotRaw := decodeStringMap(t, raw.ExtraConfig)
+	if gotRaw["virtio5"] != "local-lvm:vm-101-disk-5,wwn=needs-raw" {
+		t.Fatalf("unparseable disk slots must stay observable through raw.extra_config, got %#v", gotRaw)
+	}
+	if len(config.Disk) != 3 {
+		t.Fatalf("projection must not mutate the observed config, got %v", config.Disk)
+	}
+
+	full, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, config, QemuVMStatus{Status: "stopped"}, nil)
+	if diags.HasError() {
+		t.Fatalf("data source mapping diagnostics: %v", diags)
+	}
+	fullDisks := decodeQemuVMDiskMap(t, full.Disk)
+	if _, ok := fullDisks["ide2"]; !ok {
+		t.Fatalf("unconstrained read must keep the full disk inventory, got %v", fullDisks)
+	}
+	if _, ok := fullDisks["scsi0"]; !ok {
+		t.Fatalf("unconstrained read must keep the full disk inventory, got %v", fullDisks)
+	}
+}
+
+// TestQemuVMStateFromAPIUnconstrainedDiskInventory proves the paths without
+// a configured disk map - import (null prior disk map) and the unconfigured
+// computed path (unknown prior disk map) - keep the full observable disk
+// inventory instead of projecting it away.
+func TestQemuVMStateFromAPIUnconstrainedDiskInventory(t *testing.T) {
+	t.Parallel()
+
+	config := QemuVMConfig{Disk: map[string]string{
+		"ide2":  "local:iso/seed.iso,media=cdrom",
+		"scsi0": "local-lvm:vm-101-disk-0,size=8G",
+	}}
+
+	importPrior := minimalQemuVMModel("pve-1", 101)
+	computedPrior := minimalQemuVMModel("pve-1", 101)
+	computedPrior.Disk = types.MapUnknown(types.ObjectType{AttrTypes: qemuVMDiskAttrTypes()})
+
+	for name, prior := range map[string]*qemuVMModel{
+		"import with null disk map":         &importPrior,
+		"unconfigured computed unknown map": &computedPrior,
+		"no prior model (data source)":      nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, config, QemuVMStatus{Status: "stopped"}, prior)
+			if diags.HasError() {
+				t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+			}
+			disks := decodeQemuVMDiskMap(t, state.Disk)
+			if len(disks) != 2 {
+				t.Fatalf("expected full disk inventory, got %v", disks)
+			}
+			if got := disks["scsi0"]; got.Volume.ValueString() != "local-lvm:vm-101-disk-0" || got.Size.ValueString() != "8G" {
+				t.Fatalf("unexpected inherited disk state: %#v", got)
+			}
+		})
+	}
+}
+
+// TestQemuVMStateFromAPIObservesManagedSlotDrift proves managed slots are
+// read from the live wire, never echoed from the requested values: an
+// out-of-band medium swap shows up as drift and a managed slot that vanished
+// from the wire is projected out of state.
+func TestQemuVMStateFromAPIObservesManagedSlotDrift(t *testing.T) {
+	t.Parallel()
+
+	prior := minimalQemuVMModel("pve-1", 101)
+	prior.Disk = mustQemuVMDiskMapValue(t, map[string]qemuVMDiskModel{
+		"ide2":  cdromDiskEntry("local:iso/seed-gen1.iso"),
+		"sata3": {Storage: types.StringValue("local-lvm"), Volume: types.StringValue("local-lvm:vm-101-disk-3"), Size: types.StringValue("32G"), Media: types.StringValue("disk")},
+	})
+	config := QemuVMConfig{Disk: map[string]string{
+		"ide2":  "local:iso/out-of-band.iso,media=cdrom",
+		"scsi0": "local-lvm:vm-101-disk-0,size=8G",
+	}}
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, config, QemuVMStatus{Status: "stopped"}, &prior)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	disks := decodeQemuVMDiskMap(t, state.Disk)
+	if got := disks["ide2"]; got.Volume.ValueString() != "local:iso/out-of-band.iso" {
+		t.Fatalf("managed slot drift must be observed from the wire, got %#v", got)
+	}
+	if _, gone := disks["sata3"]; gone {
+		t.Fatalf("managed slot missing from the wire must be projected out of state, got %v", disks)
+	}
+	if _, inherited := disks["scsi0"]; inherited {
+		t.Fatalf("inherited template disk must stay out of managed resource state")
+	}
+}
+
+// TestQemuVMStateFromAPIKnownEmptyDiskMapStaysEmpty proves a prior plan with
+// the constrained empty key set `disk = {}` stays a known empty map in
+// resource state: the inherited template scsi0 is omitted, and the result is
+// neither null (which would look like an unconstrained import) nor the full
+// observed inventory, both of which Terraform Core rejects as an
+// inconsistent apply result.
+func TestQemuVMStateFromAPIKnownEmptyDiskMapStaysEmpty(t *testing.T) {
+	t.Parallel()
+
+	prior := minimalQemuVMModel("pve-1", 101)
+	prior.Disk = mustQemuVMDiskMapValue(t, map[string]qemuVMDiskModel{})
+	config := QemuVMConfig{Disk: map[string]string{
+		"ide2":  "local:iso/runner-seed.iso,media=cdrom",
+		"scsi0": "local-lvm:vm-101-disk-0,size=8G",
+	}}
+
+	state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, config, QemuVMStatus{Status: "stopped"}, &prior)
+	if diags.HasError() {
+		t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+	}
+
+	if state.Disk.IsNull() {
+		t.Fatalf("known empty configured disk map must stay a known empty map, got null")
+	}
+	if state.Disk.IsUnknown() {
+		t.Fatalf("known empty configured disk map must stay a known empty map, got unknown")
+	}
+	if disks := decodeQemuVMDiskMap(t, state.Disk); len(disks) != 0 {
+		t.Fatalf("inherited scsi0/ide2 must stay out of the empty managed key set, got %v", disks)
+	}
+	wantType := types.ObjectType{AttrTypes: qemuVMDiskAttrTypes()}
+	if elemType, ok := state.Disk.ElementType(context.Background()).(types.ObjectType); !ok || !elemType.Equal(wantType) {
+		t.Fatalf("known empty disk map must keep the disk element type, got %#v", state.Disk.ElementType(context.Background()))
+	}
+
+	// The constrained key set also wins over an absent observed inventory:
+	// a guest that reports no disks (or an unreadable inventory) must not
+	// turn the known empty managed map back into null or the unknown value.
+	for name, observedConfig := range map[string]QemuVMConfig{
+		"absent observed inventory": {},
+		"unparseable observed slots only": {Disk: map[string]string{
+			"scsi0": "local-lvm:vm-101-disk-0,size=8G",
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			state, diags := qemuVMStateFromAPI(context.Background(), "pve-1", 101, observedConfig, QemuVMStatus{Status: "stopped"}, &prior)
+			if diags.HasError() {
+				t.Fatalf("qemuVMStateFromAPI() unexpected diagnostics: %v", diags)
+			}
+			if state.Disk.IsNull() || state.Disk.IsUnknown() {
+				t.Fatalf("known empty configured disk map must stay known and empty over %s, got %#v", name, state.Disk)
+			}
+			if disks := decodeQemuVMDiskMap(t, state.Disk); len(disks) != 0 {
+				t.Fatalf("known empty managed key set must stay empty, got %v", disks)
 			}
 		})
 	}

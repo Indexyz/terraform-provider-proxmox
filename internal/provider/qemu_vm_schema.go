@@ -16,48 +16,55 @@ import (
 )
 
 type qemuVMModel struct {
-	ID          types.String  `tfsdk:"id"`
-	Node        types.String  `tfsdk:"node"`
-	VMID        types.Int64   `tfsdk:"vm_id"`
-	VMIDStart   types.Int64   `tfsdk:"vm_id_start"`
-	Name        types.String  `tfsdk:"name"`
-	Description types.String  `tfsdk:"description"`
-	Tags        types.String  `tfsdk:"tags"`
-	Template    types.Bool    `tfsdk:"template"`
-	Pool        types.String  `tfsdk:"pool"`
-	OnBoot      types.Bool    `tfsdk:"onboot"`
-	Protection  types.Bool    `tfsdk:"protection"`
-	SCSIHW      types.String  `tfsdk:"scsihw"`
-	Tablet      types.Bool    `tfsdk:"tablet"`
-	Startup     types.String  `tfsdk:"startup"`
-	Bios        types.String  `tfsdk:"bios"`
-	Machine     types.String  `tfsdk:"machine"`
-	Agent       types.String  `tfsdk:"agent"`
-	Cores       types.Int64   `tfsdk:"cores"`
-	Sockets     types.Int64   `tfsdk:"sockets"`
-	Memory      types.Int64   `tfsdk:"memory"`
-	NUMA        types.Bool    `tfsdk:"numa"`
-	VCPUs       types.Int64   `tfsdk:"vcpus"`
-	CPUUnits    types.Int64   `tfsdk:"cpuunits"`
-	CPULimit    types.Float64 `tfsdk:"cpulimit"`
-	Balloon     types.Int64   `tfsdk:"balloon"`
-	Shares      types.Int64   `tfsdk:"shares"`
-	Hugepages   types.String  `tfsdk:"hugepages"`
-	CPU         types.String  `tfsdk:"cpu"`
-	OSType      types.String  `tfsdk:"ostype"`
-	Boot        types.String  `tfsdk:"boot"`
-	Common      types.Object  `tfsdk:"common"`
-	CloudInit   types.Object  `tfsdk:"cloud_init"`
-	Network     types.Map     `tfsdk:"network"`
-	Disk        types.Map     `tfsdk:"disk"`
-	Serial      types.Map     `tfsdk:"serial"`
-	EFIDisk     types.Object  `tfsdk:"efi_disk"`
-	TPMState    types.Object  `tfsdk:"tpm_state"`
-	VGA         types.Object  `tfsdk:"vga"`
-	Raw         types.Object  `tfsdk:"raw"`
-	Clone       types.Object  `tfsdk:"clone"`
-	Status      types.String  `tfsdk:"status"`
-	Uptime      types.Int64   `tfsdk:"uptime"`
+	ID            types.String  `tfsdk:"id"`
+	Node          types.String  `tfsdk:"node"`
+	VMID          types.Int64   `tfsdk:"vm_id"`
+	VMIDStart     types.Int64   `tfsdk:"vm_id_start"`
+	Name          types.String  `tfsdk:"name"`
+	Description   types.String  `tfsdk:"description"`
+	Tags          types.String  `tfsdk:"tags"`
+	Template      types.Bool    `tfsdk:"template"`
+	Pool          types.String  `tfsdk:"pool"`
+	OnBoot        types.Bool    `tfsdk:"onboot"`
+	Protection    types.Bool    `tfsdk:"protection"`
+	SCSIHW        types.String  `tfsdk:"scsihw"`
+	Tablet        types.Bool    `tfsdk:"tablet"`
+	Startup       types.String  `tfsdk:"startup"`
+	Bios          types.String  `tfsdk:"bios"`
+	Machine       types.String  `tfsdk:"machine"`
+	Agent         types.String  `tfsdk:"agent"`
+	Cores         types.Int64   `tfsdk:"cores"`
+	Sockets       types.Int64   `tfsdk:"sockets"`
+	Memory        types.Int64   `tfsdk:"memory"`
+	NUMA          types.Bool    `tfsdk:"numa"`
+	VCPUs         types.Int64   `tfsdk:"vcpus"`
+	CPUUnits      types.Int64   `tfsdk:"cpuunits"`
+	CPULimit      types.Float64 `tfsdk:"cpulimit"`
+	Balloon       types.Int64   `tfsdk:"balloon"`
+	Shares        types.Int64   `tfsdk:"shares"`
+	Hugepages     types.String  `tfsdk:"hugepages"`
+	CPU           types.String  `tfsdk:"cpu"`
+	OSType        types.String  `tfsdk:"ostype"`
+	Boot          types.String  `tfsdk:"boot"`
+	Common        types.Object  `tfsdk:"common"`
+	CloudInit     types.Object  `tfsdk:"cloud_init"`
+	Network       types.Map     `tfsdk:"network"`
+	Disk          types.Map     `tfsdk:"disk"`
+	Serial        types.Map     `tfsdk:"serial"`
+	EFIDisk       types.Object  `tfsdk:"efi_disk"`
+	TPMState      types.Object  `tfsdk:"tpm_state"`
+	VGA           types.Object  `tfsdk:"vga"`
+	Raw           types.Object  `tfsdk:"raw"`
+	Clone         types.Object  `tfsdk:"clone"`
+	StartOnCreate types.Bool    `tfsdk:"start_on_create"`
+	StopOnDestroy types.Bool    `tfsdk:"stop_on_destroy"`
+
+	// NoCloudCDROMSlot marks which existing typed disk slot carries the
+	// NoCloud seed ISO; strict seed layout checks only apply when it is set.
+	NoCloudCDROMSlot types.String `tfsdk:"nocloud_cdrom_slot"`
+
+	Status types.String `tfsdk:"status"`
+	Uptime types.Int64  `tfsdk:"uptime"`
 }
 
 type qemuVMCommonModel struct {
@@ -433,7 +440,7 @@ func qemuVMDiskResourceAttribute() schema.MapNestedAttribute {
 		Optional:            true,
 		Computed:            true,
 		PlanModifiers:       []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
-		MarkdownDescription: "Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`.",
+		MarkdownDescription: "Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates may only replace the same volume, an empty bay, or this VM's same-slot Proxmox cloud-init drive. Any other medium swap is refused - including a seed this resource attached in an earlier apply, because refreshed state observes reality but does not prove ownership - and requires replacing the VM (for example through `lifecycle` `replace_triggered_by`). Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source.",
 		NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
 			"storage":     schema.StringAttribute{Optional: true, Computed: true},
 			"volume":      schema.StringAttribute{Optional: true, Computed: true},
@@ -594,7 +601,7 @@ func qemuVMCloneResourceAttribute() schema.SingleNestedAttribute {
 		MarkdownDescription: "Create-time clone mode. When configured, the provider clones from `source_vmid` instead of using the plain create path. Changes require replacement. The provider cannot infer clone provenance for imported resources or refreshes without prior state, so this block reads back as null in those cases.",
 		PlanModifiers:       []planmodifier.Object{objectplanmodifier.RequiresReplaceIfConfigured()},
 		Attributes: map[string]schema.Attribute{
-			"source_node":   schema.StringAttribute{Optional: true, MarkdownDescription: "Source node that owns `source_vmid`. Defaults to the managed `node` when omitted."},
+			"source_node":   schema.StringAttribute{Optional: true, MarkdownDescription: "Source node that owns `source_vmid`. Defaults to the managed `node` when omitted. A source node different from the managed `node` is a cross-node clone: Proxmox only allows it when the source VM's disks live on shared storage, the request sends the destination as the `target` form field, and the clone task is polled on the source node."},
 			"source_vmid":   schema.Int64Attribute{Required: true, MarkdownDescription: "Source VMID to clone from.", PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 			"full":          schema.BoolAttribute{Optional: true, MarkdownDescription: "Whether to request a full clone."},
 			"snapshot_name": schema.StringAttribute{Optional: true, MarkdownDescription: "Optional source snapshot name to clone from."},
@@ -661,6 +668,18 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"clone":       qemuVMCloneDataSourceAttribute(),
 		"status":      datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`."},
 		"uptime":      datasourceschema.Int64Attribute{Computed: true, MarkdownDescription: "Observed guest uptime in seconds from `/status/current`."},
+		"start_on_create": datasourceschema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "Create-time start hook of the `proxmox_qemu_vm` resource. Terraform lifecycle hooks are not stored in Proxmox, so data source reads always return null.",
+		},
+		"stop_on_destroy": datasourceschema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "Destroy-time stop hook of the `proxmox_qemu_vm` resource. Terraform lifecycle hooks are not stored in Proxmox, so data source reads always return null.",
+		},
+		"nocloud_cdrom_slot": datasourceschema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "NoCloud seed slot marker of the `proxmox_qemu_vm` resource. The marker is a Terraform-side create-time input not stored in Proxmox, so data source reads always return null.",
+		},
 	}
 }
 
@@ -732,7 +751,22 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"vga":         qemuVMVGAResourceAttribute(),
 		"raw":         qemuVMRawResourceAttribute(),
 		"clone":       qemuVMCloneResourceAttribute(),
-		"status":      schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state."},
-		"uptime":      schema.Int64Attribute{Computed: true, MarkdownDescription: "Observed guest uptime in seconds from `/status/current`."},
+		"start_on_create": schema.BoolAttribute{
+			Optional:            true,
+			MarkdownDescription: "Start the guest after create or clone finishes, including the post-clone `/config` update, and await the start task. This is a create-time hook, not a declarative power state: updating this option or refreshing a stopped guest never starts or recreates the VM. Use `onboot` for host-boot autostart. A failed start leaves the created guest tracked in state for recovery.",
+		},
+		"stop_on_destroy": schema.BoolAttribute{
+			Optional:            true,
+			MarkdownDescription: "Stop a running guest and await the stop task before deleting it on destroy. The stop is a hard power-off (`qm stop` semantics), not a graceful guest shutdown: the guest is given no chance to flush or shut down cleanly. Already stopped or missing guests are destroyed without a stop attempt. A failed or timed-out stop aborts deletion so the guest stays tracked for retry; a 404 while polling the stop task is an error too, and a later retry re-checks the guest by config read. Changing this option only updates state and takes effect on the next destroy.",
+		},
+		"nocloud_cdrom_slot": schema.StringAttribute{
+			Optional:            true,
+			MarkdownDescription: "Declares the typed disk slot that carries the NoCloud seed ISO attached through `disk[slot].volume`, for example `ide2`. This is not a second attachment owner: it names the existing CD-ROM slot so the strict seed checks apply to this workflow without restricting ordinary CD-ROM users. The marked slot must plan a real ISO CD-ROM volume; its storage must be visible, active, and support `iso` content on the VM's node and the exact volume must exist there, at most one seed may remain attached, and in-place updates never overwrite an inherited disk or foreign medium. Changing this marker requires replacement; it is a create-time input, so updates and refreshes never start the guest.",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
+			},
+		},
+		"status": schema.StringAttribute{Computed: true, MarkdownDescription: "Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`. Terraform does not manage power state."},
+		"uptime": schema.Int64Attribute{Computed: true, MarkdownDescription: "Observed guest uptime in seconds from `/status/current`."},
 	}
 }

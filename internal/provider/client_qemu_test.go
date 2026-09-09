@@ -251,6 +251,67 @@ func TestClientQemuVMMethods(t *testing.T) {
 	handler.assert(t)
 }
 
+func TestClientCloneQemuVMFormContract(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	tests := []struct {
+		name       string
+		targetNode string
+		wantTarget string
+	}{
+		{name: "cross-node clone sends target", targetNode: "pve-two", wantTarget: "pve-two"},
+		{name: "same-node clone sends target too", targetNode: "pve-1", wantTarget: "pve-1"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := &lifecycleHandler{}
+			var calls []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !handler.auth(w, r) {
+					return
+				}
+				calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+				switch {
+				case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/qemu/9000/clone":
+					// The destination node is the `target` form field per the
+					// official clone API; the URL node stays the source and
+					// owns the task. `node` is the routing parameter and must
+					// not be sent as a form key.
+					if !handler.form(w, r, url.Values{"newid": {"430"}, "target": {test.wantTarget}, "full": {"1"}}) {
+						return
+					}
+					if _, ok := r.Form["node"]; ok {
+						handler.fail(w, "clone form must not carry the routing parameter node")
+						return
+					}
+					handler.envelope(w, "UPID:pve-1:qemu-clone-target")
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:qemu-clone-target/status":
+					handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+				default:
+					handler.fail(w, "unexpected clone request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
+
+			client := testLifecycleClient(t, server)
+			req := CloneQemuVMRequest{SourceNode: "pve-1", SourceVMID: 9000, TargetNode: test.targetNode, NewID: 430, Full: boolPtr(true)}
+			if err := client.CloneQemuVM(context.Background(), req); err != nil {
+				t.Fatalf("CloneQemuVM() unexpected error: %v", err)
+			}
+			wantCalls := []string{
+				"POST /api2/json/nodes/pve-1/qemu/9000/clone",
+				"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:qemu-clone-target/status",
+			}
+			if !reflect.DeepEqual(calls, wantCalls) {
+				t.Fatalf("unexpected clone call order: got %v want %v", calls, wantCalls)
+			}
+			handler.assert(t)
+		})
+	}
+}
+
 func TestClientCreateQemuVMTaskFailure(t *testing.T) {
 	oldPollInterval := nodeTaskPollInterval
 	nodeTaskPollInterval = 0
@@ -288,6 +349,96 @@ func TestClientCreateQemuVMTaskFailure(t *testing.T) {
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("unexpected QEMU task failure call order: got %v want %v", calls, wantCalls)
+	}
+	handler.assert(t)
+}
+
+func TestClientStartStopQemuVM(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/qemu/101/status/start":
+			if !handler.form(w, r, url.Values{}) {
+				return
+			}
+			handler.envelope(w, "UPID:pve-1:qmstart:101")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:qmstart:101/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/202/status/stop":
+			if !handler.form(w, r, url.Values{}) {
+				return
+			}
+			handler.envelope(w, "UPID:pve one:qmstop:202")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qmstop:202/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		default:
+			handler.fail(w, "unexpected QEMU start/stop request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := testLifecycleClient(t, server)
+	if err := client.StartQemuVM(ctx, "pve-1", 101); err != nil {
+		t.Fatalf("StartQemuVM() unexpected error: %v", err)
+	}
+	if err := client.StopQemuVM(ctx, "pve one", 202); err != nil {
+		t.Fatalf("StopQemuVM() unexpected error: %v", err)
+	}
+	wantCalls := []string{
+		"POST /api2/json/nodes/pve-1/qemu/101/status/start",
+		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:qmstart:101/status",
+		"POST /api2/json/nodes/pve%20one/qemu/202/status/stop",
+		"GET /api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qmstop:202/status",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("unexpected QEMU start/stop call order: got %v want %v", calls, wantCalls)
+	}
+	handler.assert(t)
+}
+
+func TestClientStartStopQemuVMRequireTaskUPID(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch r.URL.EscapedPath() {
+		case "/api2/json/nodes/pve-1/qemu/101/status/start", "/api2/json/nodes/pve-1/qemu/101/status/stop":
+			handler.envelope(w, nil)
+		default:
+			handler.fail(w, "unexpected QEMU ack request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := testLifecycleClient(t, server)
+	startErr := client.StartQemuVM(ctx, "pve-1", 101)
+	if startErr == nil || !strings.Contains(startErr.Error(), "start task") || !strings.Contains(startErr.Error(), "no UPID") {
+		t.Fatalf("expected missing start UPID error, got %v", startErr)
+	}
+	stopErr := client.StopQemuVM(ctx, "pve-1", 101)
+	if stopErr == nil || !strings.Contains(stopErr.Error(), "stop task") || !strings.Contains(stopErr.Error(), "no UPID") {
+		t.Fatalf("expected missing stop UPID error, got %v", stopErr)
+	}
+	wantCalls := []string{
+		"POST /api2/json/nodes/pve-1/qemu/101/status/start",
+		"POST /api2/json/nodes/pve-1/qemu/101/status/stop",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("empty acknowledgement must not poll task status: got %v want %v", calls, wantCalls)
 	}
 	handler.assert(t)
 }
@@ -565,3 +716,136 @@ func stringPtr(v string) *string    { return &v }
 func boolPtr(v bool) *bool          { return &v }
 func intPtr64(v int64) *int64       { return &v }
 func float64Ptr(v float64) *float64 { return &v }
+
+func TestClientStartStopQemuVMRejectMalformedAck(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch r.URL.EscapedPath() {
+		case "/api2/json/nodes/pve-1/qemu/101/status/start":
+			// Garbage acknowledgement with no owner node.
+			handler.envelope(w, "not-a-upid")
+		case "/api2/json/nodes/pve-1/qemu/101/status/stop":
+			// Structurally valid prefix but an empty owner node.
+			handler.envelope(w, "UPID::qmstop:101")
+		default:
+			handler.fail(w, "unexpected malformed ack request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := testLifecycleClient(t, server)
+	startErr := client.StartQemuVM(ctx, "pve-1", 101)
+	if startErr == nil || !strings.Contains(startErr.Error(), "start task") || !strings.Contains(startErr.Error(), "invalid UPID") {
+		t.Fatalf("expected malformed start acknowledgement error, got %v", startErr)
+	}
+	stopErr := client.StopQemuVM(ctx, "pve-1", 101)
+	if stopErr == nil || !strings.Contains(stopErr.Error(), "stop task") || !strings.Contains(stopErr.Error(), "invalid UPID") {
+		t.Fatalf("expected ownerless stop acknowledgement error, got %v", stopErr)
+	}
+	wantCalls := []string{
+		"POST /api2/json/nodes/pve-1/qemu/101/status/start",
+		"POST /api2/json/nodes/pve-1/qemu/101/status/stop",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("malformed acknowledgement must not poll task status: got %v want %v", calls, wantCalls)
+	}
+	handler.assert(t)
+}
+
+func TestClientDeleteQemuVMRequiresTaskUPID(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name     string
+		ack      any
+		contains string
+	}{
+		{"null data", nil, "no UPID"},
+		{"empty string", "", "no UPID"},
+		{"malformed upid", "not-a-upid", "invalid UPID"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := &lifecycleHandler{}
+			var calls []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !handler.auth(w, r) {
+					return
+				}
+				calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+				switch r.URL.EscapedPath() {
+				case "/api2/json/nodes/pve-1/qemu/101":
+					handler.envelope(w, test.ack)
+				default:
+					handler.fail(w, "unexpected QEMU delete request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
+
+			client := testLifecycleClient(t, server)
+			err := client.DeleteQemuVM(ctx, "pve-1", 101)
+			if err == nil || !strings.Contains(err.Error(), "delete task for VM 101") || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("expected invalid delete acknowledgement error, got %v", err)
+			}
+			wantCalls := []string{"DELETE /api2/json/nodes/pve-1/qemu/101"}
+			if !reflect.DeepEqual(calls, wantCalls) {
+				t.Fatalf("invalid delete acknowledgement must not poll task status: got %v want %v", calls, wantCalls)
+			}
+			handler.assert(t)
+		})
+	}
+}
+
+func TestClientNodeTaskStatusRejectsUnknownAndMissingStatus(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	tests := []struct {
+		name     string
+		status   map[string]any
+		contains string
+	}{
+		{"unknown status", map[string]any{"status": "restarting", "exitstatus": ""}, "unknown status"},
+		{"missing status", map[string]any{"exitstatus": "OK"}, "missing a status"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := &lifecycleHandler{}
+			var calls []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !handler.auth(w, r) {
+					return
+				}
+				calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+				switch {
+				case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/qemu":
+					handler.envelope(w, "UPID:pve-1:qmcreate-unknown")
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:qmcreate-unknown/status":
+					handler.envelope(w, test.status)
+				default:
+					handler.fail(w, "unexpected task status request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
+
+			err := testLifecycleClient(t, server).CreateQemuVM(context.Background(), "pve-1", CreateQemuVMRequest{VMID: 101})
+			if err == nil || !strings.Contains(err.Error(), test.contains) || !strings.Contains(err.Error(), "qmcreate-unknown") {
+				t.Fatalf("expected %q diagnostics with task identity, got %v", test.contains, err)
+			}
+			wantCalls := []string{
+				"POST /api2/json/nodes/pve-1/qemu",
+				"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:qmcreate-unknown/status",
+			}
+			if !reflect.DeepEqual(calls, wantCalls) {
+				t.Fatalf("bad task status must error after a single poll: got %v want %v", calls, wantCalls)
+			}
+			handler.assert(t)
+		})
+	}
+}

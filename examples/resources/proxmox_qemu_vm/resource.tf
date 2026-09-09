@@ -30,6 +30,19 @@ resource "proxmox_qemu_vm" "example" {
   boot        = "order=scsi0;net0"
   scsihw      = "virtio-scsi-pci"
 
+  # Create/destroy-time hooks, never declarative power state. The destroy
+  # stop is a hard power-off. See docs/guides/nocloud-runner-vm.md for the
+  # full NoCloud template -> seed -> clone -> destroy chain.
+  start_on_create = true
+  stop_on_destroy = true
+
+  # Declares ide2 as the NoCloud seed slot. This scopes the strict seed
+  # checks to this workflow: the seed storage must be visible, active, and
+  # support iso content on the VM's node, the exact seed volume must exist
+  # there, and no second ISO/cloud-init drive may remain attached. Changing
+  # the marker requires replacement.
+  nocloud_cdrom_slot = "ide2"
+
   vga = {
     type   = "std"
     memory = 16
@@ -72,6 +85,15 @@ resource "proxmox_qemu_vm" "example" {
       size    = "32G"
       discard = "on"
       ssd     = true
+    }
+
+    # CD-ROM media, for example a proxmox_nocloud_iso seed volume. With
+    # nocloud_cdrom_slot set, the attachment is strictly safety-checked
+    # against the inherited disks and the VM node's ISO storage; unmarked
+    # CD-ROM attachments stay unrestricted.
+    ide2 = {
+      media  = "cdrom"
+      volume = "local:iso/ubuntu-seed.iso"
     }
   }
 

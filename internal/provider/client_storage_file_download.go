@@ -64,9 +64,8 @@ func (c *Client) GetStorageFile(ctx context.Context, node, storage, volume strin
 }
 
 func (c *Client) DeleteStorageFile(ctx context.Context, node, storage, volume string) error {
-	var upid string
-	apiPath := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", url.PathEscape(node), url.PathEscape(storage), url.PathEscape(volume))
-	if err := c.do(ctx, http.MethodDelete, apiPath, nil, nil, &upid); err != nil {
+	upid, err := c.deleteStorageFile(ctx, node, storage, volume)
+	if err != nil {
 		if errors.Is(err, errNotFound) {
 			return nil
 		}

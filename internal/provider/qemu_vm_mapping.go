@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -33,6 +34,8 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	diags.Append(networkDiags...)
 	diskValue, diskRaw, diskDiags := qemuVMDiskStateValue(ctx, config.Disk)
 	diags.Append(diskDiags...)
+	diskValue, projectDiags := projectQemuVMDiskState(ctx, diskValue, prior)
+	diags.Append(projectDiags...)
 	serialValue, serialDiags := qemuVMSerialStateValue(ctx, config.Serial)
 	diags.Append(serialDiags...)
 	tpmStateValue, extraConfigRaw, tpmStateDiags := qemuVMTPMStateValue(ctx, config.ExtraConfig)
@@ -45,6 +48,8 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	diags.Append(rawDiags...)
 	cloneValue := qemuVMCloneStateValue(prior)
 	vmIDStartValue := qemuVMIDStartStateValue(prior)
+	startOnCreateValue, stopOnDestroyValue := qemuVMLifecycleStateValue(prior)
+	noCloudCDROMSlotValue := qemuVMNoCloudCDROMSlotStateValue(prior)
 	protection := false
 	if value := config.Protection.Ptr(); value != nil {
 		protection = *value
@@ -55,48 +60,53 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	}
 
 	return qemuVMModel{
-		ID:          types.StringValue(qemuVMID(node, vmID)),
-		Node:        types.StringValue(node),
-		VMID:        types.Int64Value(vmID),
-		VMIDStart:   vmIDStartValue,
-		Name:        stringOrNull(config.Name),
-		Description: stringOrNull(config.Description),
-		Tags:        stringOrNull(config.Tags),
-		Template:    boolOrNull(config.Template.Ptr()),
-		Pool:        stringOrNull(config.Pool),
-		OnBoot:      boolOrNull(config.OnBoot.Ptr()),
-		Protection:  types.BoolValue(protection),
-		SCSIHW:      stringOrNull(config.SCSIHW),
-		Tablet:      types.BoolValue(tablet),
-		Startup:     stringOrNull(config.Startup),
-		Bios:        stringOrNull(config.Bios),
-		Machine:     stringOrNull(config.Machine),
-		Agent:       stringOrNull(config.Agent),
-		Cores:       int64OrNull(config.Cores.Ptr()),
-		Sockets:     int64OrNull(config.Sockets.Ptr()),
-		Memory:      int64OrNull(config.Memory.Ptr()),
-		NUMA:        boolOrNull(config.NUMA.Ptr()),
-		VCPUs:       int64OrNull(config.VCPUs.Ptr()),
-		CPUUnits:    int64OrNull(config.CPUUnits.Ptr()),
-		CPULimit:    float64OrNull(config.CPULimit.Ptr()),
-		Balloon:     int64OrNull(config.Balloon.Ptr()),
-		Shares:      int64OrNull(config.Shares.Ptr()),
-		Hugepages:   stringOrNull(config.Hugepages),
-		CPU:         stringOrNull(config.CPU),
-		OSType:      stringOrNull(config.OSType),
-		Boot:        stringOrNull(config.Boot),
-		Common:      commonValue,
-		CloudInit:   cloudInitValue,
-		Network:     networkValue,
-		Disk:        diskValue,
-		Serial:      serialValue,
-		EFIDisk:     efiDiskValue,
-		TPMState:    tpmStateValue,
-		VGA:         vgaValue,
-		Raw:         rawValue,
-		Clone:       cloneValue,
-		Status:      stringOrNull(status.Status),
-		Uptime:      int64OrNull(status.Uptime.Ptr()),
+		ID:            types.StringValue(qemuVMID(node, vmID)),
+		Node:          types.StringValue(node),
+		VMID:          types.Int64Value(vmID),
+		VMIDStart:     vmIDStartValue,
+		Name:          stringOrNull(config.Name),
+		Description:   stringOrNull(config.Description),
+		Tags:          stringOrNull(config.Tags),
+		Template:      boolOrNull(config.Template.Ptr()),
+		Pool:          stringOrNull(config.Pool),
+		OnBoot:        boolOrNull(config.OnBoot.Ptr()),
+		Protection:    types.BoolValue(protection),
+		SCSIHW:        stringOrNull(config.SCSIHW),
+		Tablet:        types.BoolValue(tablet),
+		Startup:       stringOrNull(config.Startup),
+		Bios:          stringOrNull(config.Bios),
+		Machine:       stringOrNull(config.Machine),
+		Agent:         stringOrNull(config.Agent),
+		Cores:         int64OrNull(config.Cores.Ptr()),
+		Sockets:       int64OrNull(config.Sockets.Ptr()),
+		Memory:        int64OrNull(config.Memory.Ptr()),
+		NUMA:          boolOrNull(config.NUMA.Ptr()),
+		VCPUs:         int64OrNull(config.VCPUs.Ptr()),
+		CPUUnits:      int64OrNull(config.CPUUnits.Ptr()),
+		CPULimit:      float64OrNull(config.CPULimit.Ptr()),
+		Balloon:       int64OrNull(config.Balloon.Ptr()),
+		Shares:        int64OrNull(config.Shares.Ptr()),
+		Hugepages:     stringOrNull(config.Hugepages),
+		CPU:           stringOrNull(config.CPU),
+		OSType:        stringOrNull(config.OSType),
+		Boot:          stringOrNull(config.Boot),
+		Common:        commonValue,
+		CloudInit:     cloudInitValue,
+		Network:       networkValue,
+		Disk:          diskValue,
+		Serial:        serialValue,
+		EFIDisk:       efiDiskValue,
+		TPMState:      tpmStateValue,
+		VGA:           vgaValue,
+		Raw:           rawValue,
+		Clone:         cloneValue,
+		StartOnCreate: startOnCreateValue,
+		StopOnDestroy: stopOnDestroyValue,
+
+		NoCloudCDROMSlot: noCloudCDROMSlotValue,
+
+		Status: stringOrNull(status.Status),
+		Uptime: int64OrNull(status.Uptime.Ptr()),
 	}, diags
 }
 
@@ -438,6 +448,60 @@ func qemuVMDiskStateValue(ctx context.Context, source map[string]string) (types.
 	return value, unsupported, diags
 }
 
+// projectQemuVMDiskState limits the observed disk inventory to the managed
+// key set declared by the prior plan/state disk map. A plan configuring only
+// ide2 must not gain a template's inherited scsi0 as a new managed disk-map
+// entry after Create/Update/Read: the clone physically inherits the system
+// disk, but Terraform Core rejects apply results whose known disk map grew
+// new elements. Managed slots always carry their actual observed wire values
+// (never the requested ones), so out-of-band media changes stay visible
+// drift, and wire values the parser does not understand keep flowing into
+// raw.extra_config for observability. A prior known empty map is itself the
+// constrained key set and stays a known empty map (never null and never the
+// full inventory), including when the observed inventory is absent. Only a
+// prior absent or unknown disk map - the data source, import, and
+// unconfigured computed paths - leaves the full observable inventory
+// unconstrained.
+func projectQemuVMDiskState(ctx context.Context, observed types.Map, prior *qemuVMModel) (types.Map, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if prior == nil || prior.Disk.IsNull() || prior.Disk.IsUnknown() {
+		return observed, diags
+	}
+
+	var managed map[string]qemuVMDiskModel
+	diags.Append(prior.Disk.ElementsAs(ctx, &managed, false)...)
+	if diags.HasError() {
+		return observed, diags
+	}
+	var observedDisks map[string]qemuVMDiskModel
+	if !observed.IsNull() && !observed.IsUnknown() {
+		diags.Append(observed.ElementsAs(ctx, &observedDisks, false)...)
+		if diags.HasError() {
+			return observed, diags
+		}
+	}
+
+	projected := make(map[string]qemuVMDiskModel, len(managed))
+	for slot := range managed {
+		if disk, ok := observedDisks[slot]; ok {
+			projected[slot] = disk
+		}
+	}
+	if len(projected) == 0 {
+		// A prior known empty map declared no managed slots at all: keep the
+		// known empty key set with the observed element type. Collapsing it
+		// to null (or widening to the observed inventory) would contradict
+		// the planned key set and fail Terraform Core consistency checks.
+		if len(managed) == 0 {
+			return types.MapValue(observed.ElementType(ctx), map[string]attr.Value{})
+		}
+		return types.MapNull(observed.ElementType(ctx)), diags
+	}
+	value, mapDiags := types.MapValueFrom(ctx, observed.ElementType(ctx), projected)
+	diags.Append(mapDiags...)
+	return value, diags
+}
+
 func qemuVMRawStateValue(ctx context.Context, base map[string]string, networkRaw map[string]string, diskRaw map[string]string) (types.Object, diag.Diagnostics) {
 	extra := map[string]string{}
 	for key, value := range base {
@@ -473,6 +537,25 @@ func qemuVMIDStartStateValue(prior *qemuVMModel) types.Int64 {
 		return types.Int64Null()
 	}
 	return prior.VMIDStart
+}
+
+// qemuVMLifecycleStateValue echoes the Terraform-managed start/destroy hook
+// options from the prior model. Proxmox does not store Terraform lifecycle
+// hooks, so reads without prior state (data sources, imports) return null.
+func qemuVMLifecycleStateValue(prior *qemuVMModel) (types.Bool, types.Bool) {
+	if prior == nil {
+		return types.BoolNull(), types.BoolNull()
+	}
+	return prior.StartOnCreate, prior.StopOnDestroy
+}
+
+// qemuVMNoCloudCDROMSlotStateValue echoes the create-time NoCloud seed slot
+// marker from the prior model; reads without prior state return null.
+func qemuVMNoCloudCDROMSlotStateValue(prior *qemuVMModel) types.String {
+	if prior == nil {
+		return types.StringNull()
+	}
+	return prior.NoCloudCDROMSlot
 }
 
 func qemuVMEFIDiskStateValue(ctx context.Context, base map[string]string) (types.Object, map[string]string, diag.Diagnostics) {

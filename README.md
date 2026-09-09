@@ -60,6 +60,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_lxc_container`
 - `proxmox_lxc_snapshot`
 - `proxmox_node_firewall_options`
+- `proxmox_nocloud_iso`
 - `proxmox_pool`
 - `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`
@@ -125,6 +126,8 @@ The CI tooling is a separate Go module, and the real Proxmox smoke test requires
 ## QEMU/KVM Workflow
 
 Use `proxmox_cluster_resources` for cluster-wide inventory, `proxmox_qemu_vms` to search guests and templates by name/node/template flag, `data.proxmox_qemu_vm` for single-VM inspection, and `resource.proxmox_qemu_vm` for managed QEMU configuration including clone, common, cloud-init, network, disk, EFI, TPM, and raw escape-hatch workflows. Manage VM snapshots separately with `proxmox_qemu_snapshot`.
+
+For cloud-init NoCloud delivery, `proxmox_nocloud_iso` generates a `CIDATA` seed ISO - staging the cloud-init files as plaintext in a private (`0700`) temporary directory before assembling the image, with the staging directory cleaned on every normal path - and manages the uploaded storage content, while `proxmox_qemu_vm` attaches it as CD-ROM media with create-time attachment safety checks plus `start_on_create`/`stop_on_destroy` lifecycle hooks. See [Provisioning a cloud-init seeded QEMU VM](docs/guides/nocloud-runner-vm.md) for the full template → seed → clone → destroy chain, seed-driven VM replacement ordering, and a real-environment acceptance checklist.
 
 When extending `proxmox_qemu_vm` beyond the minimal surface, keep these boundaries intact:
 

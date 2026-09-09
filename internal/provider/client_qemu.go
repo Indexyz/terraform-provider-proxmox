@@ -310,21 +310,44 @@ func (c *Client) GetQemuVMStatus(ctx context.Context, node string, vmID int64) (
 	return status, err
 }
 
-func (c *Client) CreateQemuVM(ctx context.Context, node string, req CreateQemuVMRequest) error {
+// SubmitCreateQemuVM POSTs the create request and returns the accepted task
+// UPID without waiting, so callers can persist the guest identity and the
+// accepted task before awaiting completion. A rejected POST (for example a
+// candidate VMID that lost a race) returns the original error and must not be
+// tracked or adopted.
+func (c *Client) SubmitCreateQemuVM(ctx context.Context, node string, req CreateQemuVMRequest) (string, error) {
 	form := url.Values{}
 	form.Set("vmid", strconv.FormatInt(req.VMID, 10))
 	encodeQemuVMFields(form, req.qemuVMConfigRequest)
 	var upid string
 	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu", url.PathEscape(node)), nil, form, &upid); err != nil {
+		return "", err
+	}
+	if err := validateQemuTaskAck(upid, fmt.Sprintf("create task for VM %d on node %q", req.VMID, node)); err != nil {
+		return "", err
+	}
+	return upid, nil
+}
+
+func (c *Client) CreateQemuVM(ctx context.Context, node string, req CreateQemuVMRequest) error {
+	upid, err := c.SubmitCreateQemuVM(ctx, node, req)
+	if err != nil {
 		return err
 	}
 	return c.waitForNodeTask(ctx, node, upid)
 }
 
-func (c *Client) CloneQemuVM(ctx context.Context, req CloneQemuVMRequest) error {
+// SubmitCloneQemuVM POSTs the clone request and returns the accepted task
+// UPID without waiting; the clone task runs on the source node (the URL
+// routing node), so callers must poll it there. The destination node is sent
+// as the `target` form field per the official clone API; Proxmox only allows
+// a target different from the source node when the source VM's disks live on
+// shared storage. A rejected POST (a candidate newid that lost a race)
+// returns the original error and must not be tracked or adopted.
+func (c *Client) SubmitCloneQemuVM(ctx context.Context, req CloneQemuVMRequest) (string, error) {
 	form := url.Values{}
 	form.Set("newid", strconv.FormatInt(req.NewID, 10))
-	setOptionalString(form, "node", stringPtrIfNotEmpty(req.TargetNode))
+	setOptionalString(form, "target", stringPtrIfNotEmpty(req.TargetNode))
 	setOptionalString(form, "name", req.Name)
 	setOptionalString(form, "description", req.Description)
 	setOptionalString(form, "pool", req.Pool)
@@ -335,6 +358,17 @@ func (c *Client) CloneQemuVM(ctx context.Context, req CloneQemuVMRequest) error 
 	setOptionalInt64(form, "bwlimit", req.BWLimit)
 	var upid string
 	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu/%d/clone", url.PathEscape(req.SourceNode), req.SourceVMID), nil, form, &upid); err != nil {
+		return "", err
+	}
+	if err := validateQemuTaskAck(upid, fmt.Sprintf("clone task for new VM %d on node %q", req.NewID, req.SourceNode)); err != nil {
+		return "", err
+	}
+	return upid, nil
+}
+
+func (c *Client) CloneQemuVM(ctx context.Context, req CloneQemuVMRequest) error {
+	upid, err := c.SubmitCloneQemuVM(ctx, req)
+	if err != nil {
 		return err
 	}
 	return c.waitForNodeTask(ctx, req.SourceNode, upid)
@@ -346,12 +380,48 @@ func (c *Client) UpdateQemuVM(ctx context.Context, node string, vmID int64, req 
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/nodes/%s/qemu/%d/config", url.PathEscape(node), vmID), nil, form, nil)
 }
 
+// DeleteQemuVM issues `DELETE /nodes/{node}/qemu/{vmid}` and awaits the
+// destroy task. A missing guest at submission stays idempotent, but the async
+// endpoint must acknowledge with a structurally valid UPID — an empty or
+// malformed acknowledgement leaves the deletion unverified and is an error,
+// never a silent success.
 func (c *Client) DeleteQemuVM(ctx context.Context, node string, vmID int64) error {
 	var upid string
 	if err := c.do(ctx, http.MethodDelete, fmt.Sprintf("/nodes/%s/qemu/%d", url.PathEscape(node), vmID), nil, nil, &upid); err != nil {
 		if errors.Is(err, errNotFound) {
 			return nil
 		}
+		return err
+	}
+	if err := validateQemuTaskAck(upid, fmt.Sprintf("delete task for VM %d on node %q", vmID, node)); err != nil {
+		return err
+	}
+	return c.waitForNodeTask(ctx, node, upid)
+}
+
+// StartQemuVM issues `POST /nodes/{node}/qemu/{vmid}/status/start` and awaits
+// the start task. The async endpoint must acknowledge with a structurally
+// valid UPID; an empty or malformed acknowledgement is an error, never a
+// silent success.
+func (c *Client) StartQemuVM(ctx context.Context, node string, vmID int64) error {
+	var upid string
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu/%d/status/start", url.PathEscape(node), vmID), nil, nil, &upid); err != nil {
+		return err
+	}
+	if err := validateQemuTaskAck(upid, fmt.Sprintf("start task for VM %d on node %q", vmID, node)); err != nil {
+		return err
+	}
+	return c.waitForNodeTask(ctx, node, upid)
+}
+
+// StopQemuVM issues `POST /nodes/{node}/qemu/{vmid}/status/stop` and awaits the
+// stop task, with the same UPID acknowledgement requirement as StartQemuVM.
+func (c *Client) StopQemuVM(ctx context.Context, node string, vmID int64) error {
+	var upid string
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/qemu/%d/status/stop", url.PathEscape(node), vmID), nil, nil, &upid); err != nil {
+		return err
+	}
+	if err := validateQemuTaskAck(upid, fmt.Sprintf("stop task for VM %d on node %q", vmID, node)); err != nil {
 		return err
 	}
 	return c.waitForNodeTask(ctx, node, upid)

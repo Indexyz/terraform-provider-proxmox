@@ -472,15 +472,23 @@ func (c *Client) login(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) do(ctx context.Context, method, apiPath string, query url.Values, form url.Values, out any) error {
+func (c *Client) requestURL(apiPath string) (*url.URL, error) {
 	requestURL := *c.baseURL
 	escapedPath := path.Join(c.baseURL.EscapedPath(), apiPath)
 	requestPath, err := url.PathUnescape(escapedPath)
 	if err != nil {
-		return fmt.Errorf("unable to decode Proxmox API path %q: %w", escapedPath, err)
+		return nil, fmt.Errorf("unable to decode Proxmox API path %q: %w", escapedPath, err)
 	}
 	requestURL.Path = requestPath
 	requestURL.RawPath = escapedPath
+	return &requestURL, nil
+}
+
+func (c *Client) do(ctx context.Context, method, apiPath string, query url.Values, form url.Values, out any) error {
+	requestURL, err := c.requestURL(apiPath)
+	if err != nil {
+		return err
+	}
 	if method == http.MethodGet && len(query) > 0 {
 		requestURL.RawQuery = query.Encode()
 	}
@@ -496,20 +504,26 @@ func (c *Client) do(ctx context.Context, method, apiPath string, query url.Value
 		return err
 	}
 
+	if method != http.MethodGet && form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+
+	return c.execute(req, out)
+}
+
+// execute sends an already-built request through the shared client transport
+// and authentication, and decodes the standard Proxmox response envelope.
+func (c *Client) execute(req *http.Request, out any) error {
 	req.Header.Set("Accept", "application/json")
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
-	}
-
-	if method != http.MethodGet && form != nil {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 
 	if c.apiTokenID != "" && c.apiTokenSecret != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("PVEAPIToken=%s=%s", c.apiTokenID, c.apiTokenSecret))
 	} else if c.authTicket != "" {
 		req.AddCookie(&http.Cookie{Name: "PVEAuthCookie", Value: c.authTicket})
-		if method != http.MethodGet && c.csrfToken != "" {
+		if req.Method != http.MethodGet && c.csrfToken != "" {
 			req.Header.Set("CSRFPreventionToken", c.csrfToken)
 		}
 	}

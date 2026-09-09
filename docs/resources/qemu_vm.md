@@ -45,6 +45,19 @@ resource "proxmox_qemu_vm" "example" {
   boot        = "order=scsi0;net0"
   scsihw      = "virtio-scsi-pci"
 
+  # Create/destroy-time hooks, never declarative power state. The destroy
+  # stop is a hard power-off. See docs/guides/nocloud-runner-vm.md for the
+  # full NoCloud template -> seed -> clone -> destroy chain.
+  start_on_create = true
+  stop_on_destroy = true
+
+  # Declares ide2 as the NoCloud seed slot. This scopes the strict seed
+  # checks to this workflow: the seed storage must be visible, active, and
+  # support iso content on the VM's node, the exact seed volume must exist
+  # there, and no second ISO/cloud-init drive may remain attached. Changing
+  # the marker requires replacement.
+  nocloud_cdrom_slot = "ide2"
+
   vga = {
     type   = "std"
     memory = 16
@@ -88,6 +101,15 @@ resource "proxmox_qemu_vm" "example" {
       discard = "on"
       ssd     = true
     }
+
+    # CD-ROM media, for example a proxmox_nocloud_iso seed volume. With
+    # nocloud_cdrom_slot set, the attachment is strictly safety-checked
+    # against the inherited disks and the VM node's ISO storage; unmarked
+    # CD-ROM attachments stay unrestricted.
+    ide2 = {
+      media  = "cdrom"
+      volume = "local:iso/ubuntu-seed.iso"
+    }
   }
 
   serial = {
@@ -123,13 +145,14 @@ resource "proxmox_qemu_vm" "example" {
 - `cpulimit` (Number) CPU usage limit managed through `/config`. Value 0 indicates no limit.
 - `cpuunits` (Number) CPU weight for this VM managed through `/config`.
 - `description` (String) Optional VM description managed through clone mode and `/config`.
-- `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. (see [below for nested schema](#nestedatt--disk))
+- `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates may only replace the same volume, an empty bay, or this VM's same-slot Proxmox cloud-init drive. Any other medium swap is refused - including a seed this resource attached in an earlier apply, because refreshed state observes reality but does not prove ownership - and requires replacing the VM (for example through `lifecycle` `replace_triggered_by`). Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source. (see [below for nested schema](#nestedatt--disk))
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
 - `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 - `machine` (String) Configured machine type managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
 - `name` (String) Virtual machine name managed through `/nodes/{node}/qemu`, clone mode, and `/config`.
 - `network` (Attributes Map) Typed network devices keyed by Proxmox slot name such as `net0`. (see [below for nested schema](#nestedatt--network))
+- `nocloud_cdrom_slot` (String) Declares the typed disk slot that carries the NoCloud seed ISO attached through `disk[slot].volume`, for example `ide2`. This is not a second attachment owner: it names the existing CD-ROM slot so the strict seed checks apply to this workflow without restricting ordinary CD-ROM users. The marked slot must plan a real ISO CD-ROM volume; its storage must be visible, active, and support `iso` content on the VM's node and the exact volume must exist there, at most one seed may remain attached, and in-place updates never overwrite an inherited disk or foreign medium. Changing this marker requires replacement; it is a create-time input, so updates and refreshes never start the guest.
 - `numa` (Boolean) Whether NUMA is enabled for this VM, managed through `/config`.
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type managed through `/config`.
@@ -140,7 +163,9 @@ resource "proxmox_qemu_vm" "example" {
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough).
 - `shares` (Number) Memory shares for auto-ballooning managed through `/config`.
 - `sockets` (Number) Configured CPU sockets managed through `/config`.
+- `start_on_create` (Boolean) Start the guest after create or clone finishes, including the post-clone `/config` update, and await the start task. This is a create-time hook, not a declarative power state: updating this option or refreshing a stopped guest never starts or recreates the VM. Use `onboot` for host-boot autostart. A failed start leaves the created guest tracked in state for recovery.
 - `startup` (String) Startup ordering string managed through `/config`.
+- `stop_on_destroy` (Boolean) Stop a running guest and await the stop task before deleting it on destroy. The stop is a hard power-off (`qm stop` semantics), not a graceful guest shutdown: the guest is given no chance to flush or shut down cleanly. Already stopped or missing guests are destroyed without a stop attempt. A failed or timed-out stop aborts deletion so the guest stays tracked for retry; a 404 while polling the stop task is an error too, and a later retry re-checks the guest by config read. Changing this option only updates state and takes effect on the next destroy.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
@@ -169,7 +194,7 @@ Optional:
 - `format` (String) Optional target disk format for full clones.
 - `full` (Boolean) Whether to request a full clone.
 - `snapshot_name` (String) Optional source snapshot name to clone from.
-- `source_node` (String) Source node that owns `source_vmid`. Defaults to the managed `node` when omitted.
+- `source_node` (String) Source node that owns `source_vmid`. Defaults to the managed `node` when omitted. A source node different from the managed `node` is a cross-node clone: Proxmox only allows it when the source VM's disks live on shared storage, the request sends the destination as the `target` form field, and the clone task is polled on the source node.
 - `storage` (String) Optional target storage override for full clones.
 
 

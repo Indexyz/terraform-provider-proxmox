@@ -56,6 +56,7 @@ data "proxmox_qemu_vm" "example" {
 - `memory` (Number) Configured memory in MiB from `/config`.
 - `name` (String) Virtual machine name from `/nodes/{node}/qemu/{vmid}/config`.
 - `network` (Attributes Map) Typed network devices keyed by Proxmox slot name such as `net0`. (see [below for nested schema](#nestedatt--network))
+- `nocloud_cdrom_slot` (String) NoCloud seed slot marker of the `proxmox_qemu_vm` resource. The marker is a Terraform-side create-time input not stored in Proxmox, so data source reads always return null.
 - `numa` (Boolean) Whether NUMA is enabled for this VM from `/config`.
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type from `/config`.
@@ -66,8 +67,10 @@ data "proxmox_qemu_vm" "example" {
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0`.
 - `shares` (Number) Memory shares for auto-ballooning from `/config`.
 - `sockets` (Number) Configured CPU sockets from `/config`.
+- `start_on_create` (Boolean) Create-time start hook of the `proxmox_qemu_vm` resource. Terraform lifecycle hooks are not stored in Proxmox, so data source reads always return null.
 - `startup` (String) Startup ordering string from `/config`.
 - `status` (String) Observed runtime status from `/nodes/{node}/qemu/{vmid}/status/current`.
+- `stop_on_destroy` (Boolean) Destroy-time stop hook of the `proxmox_qemu_vm` resource. Terraform lifecycle hooks are not stored in Proxmox, so data source reads always return null.
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM from `/config`.
 - `tags` (String) Comma-separated Proxmox tags from `/config`.
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
