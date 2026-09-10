@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -18,22 +19,33 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var _ resource.Resource = &LXCSnapshotResource{}
-var _ resource.ResourceWithImportState = &LXCSnapshotResource{}
-
-type LXCSnapshotResource struct {
+// snapshotResource implements both guest snapshot resources. The Proxmox
+// snapshot API is identical for QEMU and LXC apart from the guest-kind URL
+// segment, so one implementation serves `proxmox_qemu_snapshot` and
+// `proxmox_lxc_snapshot`, parameterized by snapshotKind.
+type snapshotResource struct {
 	client *Client
+	kind   snapshotKind
+	guest  string // "VM" or "container"; used in schema descriptions
+}
+
+func NewQemuSnapshotResource() resource.Resource {
+	return &snapshotResource{kind: snapshotKindQEMU, guest: "VM"}
 }
 
 func NewLXCSnapshotResource() resource.Resource {
-	return &LXCSnapshotResource{}
+	return &snapshotResource{kind: snapshotKindLXC, guest: "container"}
 }
 
-func (r *LXCSnapshotResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_lxc_snapshot"
+func (r *snapshotResource) label() string {
+	return strings.ToUpper(string(r.kind))
 }
 
-type lxcSnapshotModel struct {
+func (r *snapshotResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_" + string(r.kind) + "_snapshot"
+}
+
+type snapshotModel struct {
 	ID          types.String `tfsdk:"id"`
 	Node        types.String `tfsdk:"node"`
 	VMID        types.Int64  `tfsdk:"vm_id"`
@@ -43,9 +55,9 @@ type lxcSnapshotModel struct {
 	Snaptime    types.Int64  `tfsdk:"snaptime"`
 }
 
-func (r *LXCSnapshotResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *snapshotResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = resourceschema.Schema{
-		MarkdownDescription: "Manages a Proxmox VE LXC container snapshot through `/nodes/{node}/lxc/{vmid}/snapshot`.",
+		MarkdownDescription: fmt.Sprintf("Manages a Proxmox VE %s %s snapshot through `/nodes/{node}/%s/{vmid}/snapshot`.", r.label(), r.guest, r.kind),
 		Attributes: map[string]resourceschema.Attribute{
 			"id": resourceschema.StringAttribute{
 				Computed:            true,
@@ -54,12 +66,12 @@ func (r *LXCSnapshotResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"node": resourceschema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Proxmox node that owns the container.",
+				MarkdownDescription: fmt.Sprintf("Proxmox node that owns the %s.", r.guest),
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"vm_id": resourceschema.Int64Attribute{
 				Required:            true,
-				MarkdownDescription: "Numeric VMID of the container.",
+				MarkdownDescription: fmt.Sprintf("Numeric VMID of the %s.", r.guest),
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 			},
 			"name": resourceschema.StringAttribute{
@@ -74,7 +86,7 @@ func (r *LXCSnapshotResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-func (r *LXCSnapshotResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *snapshotResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -86,8 +98,8 @@ func (r *LXCSnapshotResource) Configure(_ context.Context, req resource.Configur
 	r.client = client
 }
 
-func (r *LXCSnapshotResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan lxcSnapshotModel
+func (r *snapshotResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan snapshotModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -97,18 +109,12 @@ func (r *LXCSnapshotResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	createReq := CreateLXCSnapshotRequest{
-		Node:        plan.Node.ValueString(),
-		VMID:        plan.VMID.ValueInt64(),
-		Name:        plan.Name.ValueString(),
-		Description: stringPointerValue(plan.Description),
-	}
-	if err := r.client.CreateLXCSnapshot(ctx, createReq); err != nil {
-		resp.Diagnostics.AddError("Unable to Create Proxmox LXC Snapshot", err.Error())
+	if err := r.client.createSnapshot(ctx, r.kind, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), stringPointerValue(plan.Description)); err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Unable to Create Proxmox %s Snapshot", r.label()), err.Error())
 		return
 	}
 
-	state, diags := r.readLXCSnapshotState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), &plan)
+	state, diags := r.readSnapshotState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -116,13 +122,13 @@ func (r *LXCSnapshotResource) Create(ctx context.Context, req resource.CreateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *LXCSnapshotResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state lxcSnapshotModel
+func (r *snapshotResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state snapshotModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	refreshed, diags := r.readLXCSnapshotState(ctx, state.Node.ValueString(), state.VMID.ValueInt64(), state.Name.ValueString(), &state)
+	refreshed, diags := r.readSnapshotState(ctx, state.Node.ValueString(), state.VMID.ValueInt64(), state.Name.ValueString(), &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -134,21 +140,21 @@ func (r *LXCSnapshotResource) Read(ctx context.Context, req resource.ReadRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &refreshed)...)
 }
 
-func (r *LXCSnapshotResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan lxcSnapshotModel
-	var state lxcSnapshotModel
+func (r *snapshotResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan snapshotModel
+	var state snapshotModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	if plan.Description.ValueString() != state.Description.ValueString() {
-		if err := r.client.UpdateLXCSnapshot(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), plan.Description.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Unable to Update Proxmox LXC Snapshot", err.Error())
+		if err := r.client.updateSnapshot(ctx, r.kind, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), plan.Description.ValueString()); err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Unable to Update Proxmox %s Snapshot", r.label()), err.Error())
 			return
 		}
 	}
-	refreshed, diags := r.readLXCSnapshotState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), &plan)
+	refreshed, diags := r.readSnapshotState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), plan.Name.ValueString(), &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -156,45 +162,45 @@ func (r *LXCSnapshotResource) Update(ctx context.Context, req resource.UpdateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &refreshed)...)
 }
 
-func (r *LXCSnapshotResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state lxcSnapshotModel
+func (r *snapshotResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state snapshotModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeleteLXCSnapshot(ctx, state.Node.ValueString(), state.VMID.ValueInt64(), state.Name.ValueString()); err != nil && !errors.Is(err, errNotFound) {
-		resp.Diagnostics.AddError("Unable to Delete Proxmox LXC Snapshot", err.Error())
+	if err := r.client.deleteSnapshot(ctx, r.kind, state.Node.ValueString(), state.VMID.ValueInt64(), state.Name.ValueString()); err != nil && !errors.Is(err, errNotFound) {
+		resp.Diagnostics.AddError(fmt.Sprintf("Unable to Delete Proxmox %s Snapshot", r.label()), err.Error())
 	}
 }
 
-func (r *LXCSnapshotResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	node, vmID, name, err := parseLXCSnapshotImportID(req.ID)
+func (r *snapshotResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	node, vmID, name, err := parseSnapshotImportID(req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Unexpected Import Identifier", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), lxcSnapshotID(node, vmID, name))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), snapshotID(node, vmID, name))...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("node"), node)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vm_id"), vmID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), name)...)
 }
 
-func (r *LXCSnapshotResource) readLXCSnapshotState(ctx context.Context, node string, vmID int64, name string, prior *lxcSnapshotModel) (lxcSnapshotModel, diag.Diagnostics) {
+func (r *snapshotResource) readSnapshotState(ctx context.Context, node string, vmID int64, name string, prior *snapshotModel) (snapshotModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	snap, err := r.client.GetLXCSnapshot(ctx, node, vmID, name)
+	snap, err := r.client.getSnapshot(ctx, r.kind, node, vmID, name)
 	if err != nil {
 		if errors.Is(err, errNotFound) {
-			return lxcSnapshotModel{ID: types.StringNull()}, diags
+			return snapshotModel{ID: types.StringNull()}, diags
 		}
-		diags.AddError("Unable to Read Proxmox LXC Snapshot", err.Error())
-		return lxcSnapshotModel{}, diags
+		diags.AddError(fmt.Sprintf("Unable to Read Proxmox %s Snapshot", r.label()), err.Error())
+		return snapshotModel{}, diags
 	}
 	description := stringOrNull(snap.Description)
 	if prior != nil && description.IsNull() && !prior.Description.IsNull() && !prior.Description.IsUnknown() {
 		description = prior.Description
 	}
-	return lxcSnapshotModel{
-		ID:          types.StringValue(lxcSnapshotID(node, vmID, name)),
+	return snapshotModel{
+		ID:          types.StringValue(snapshotID(node, vmID, name)),
 		Node:        types.StringValue(node),
 		VMID:        types.Int64Value(vmID),
 		Name:        types.StringValue(name),

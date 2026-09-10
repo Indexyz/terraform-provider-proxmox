@@ -79,15 +79,15 @@ func TestQemuSnapshotResourceFrameworkLifecycle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	res := &QemuSnapshotResource{client: testLifecycleClient(t, server)}
+	res := &snapshotResource{client: testLifecycleClient(t, server), kind: snapshotKindQEMU, guest: "VM"}
 	schema := testResourceSchema(t, res)
-	initial := qemuSnapshotModel{Node: types.StringValue("pve one"), VMID: types.Int64Value(101), Name: types.StringValue("before deploy"), Description: types.StringValue("created description")}
+	initial := snapshotModel{Node: types.StringValue("pve one"), VMID: types.Int64Value(101), Name: types.StringValue("before deploy"), Description: types.StringValue("created description")}
 	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, initial)}, &createResp)
 	if createResp.Diagnostics.HasError() {
 		t.Fatalf("QEMU snapshot create diagnostics: %v", createResp.Diagnostics)
 	}
-	var created qemuSnapshotModel
+	var created snapshotModel
 	if diags := createResp.State.Get(context.Background(), &created); diags.HasError() {
 		t.Fatalf("decode QEMU snapshot create state: %v", diags)
 	}
@@ -102,7 +102,7 @@ func TestQemuSnapshotResourceFrameworkLifecycle(t *testing.T) {
 	}
 	assertStateString(t, readResp.State, path.Root("description"), "created description")
 
-	updated := qemuSnapshotModel{Node: types.StringValue("pve one"), VMID: types.Int64Value(101), Name: types.StringValue("before deploy"), Description: types.StringValue("updated description")}
+	updated := snapshotModel{Node: types.StringValue("pve one"), VMID: types.Int64Value(101), Name: types.StringValue("before deploy"), Description: types.StringValue("updated description")}
 	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Update(context.Background(), resource.UpdateRequest{Plan: testResourcePlan(t, schema, updated), State: readResp.State}, &updateResp)
 	if updateResp.Diagnostics.HasError() {
@@ -143,17 +143,17 @@ func TestQemuSnapshotResourceFrameworkLifecycle(t *testing.T) {
 		t.Fatalf("unexpected QEMU snapshot call order: got %v want %v", calls, wantCalls)
 	}
 
-	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, qemuSnapshotModel{})}
+	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, snapshotModel{})}
 	res.ImportState(context.Background(), resource.ImportStateRequest{ID: "pve one/101/before deploy"}, &importResp)
 	if importResp.Diagnostics.HasError() {
 		t.Fatalf("QEMU snapshot import diagnostics: %v", importResp.Diagnostics)
 	}
 	assertStateString(t, importResp.State, path.Root("id"), "pve one/101/before deploy")
-	var imported qemuSnapshotModel
+	var imported snapshotModel
 	if diags := importResp.State.Get(context.Background(), &imported); diags.HasError() || imported.Node.ValueString() != "pve one" || imported.VMID.ValueInt64() != 101 || imported.Name.ValueString() != "before deploy" {
 		t.Fatalf("unexpected QEMU snapshot import state: %#v diagnostics=%v", imported, diags)
 	}
-	invalidImport := resource.ImportStateResponse{State: testResourceState(t, schema, qemuSnapshotModel{})}
+	invalidImport := resource.ImportStateResponse{State: testResourceState(t, schema, snapshotModel{})}
 	res.ImportState(context.Background(), resource.ImportStateRequest{ID: "pve one/not-a-vmid/before deploy"}, &invalidImport)
 	if !invalidImport.Diagnostics.HasError() || !containsDiagnostic(invalidImport.Diagnostics, "not-a-vmid") {
 		t.Fatalf("expected invalid QEMU snapshot import diagnostics, got %v", invalidImport.Diagnostics)
@@ -222,15 +222,15 @@ func TestLXCSnapshotResourceFrameworkLifecycle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	res := &LXCSnapshotResource{client: testLifecycleClient(t, server)}
+	res := &snapshotResource{client: testLifecycleClient(t, server), kind: snapshotKindLXC, guest: "container"}
 	schema := testResourceSchema(t, res)
-	initial := lxcSnapshotModel{Node: types.StringValue("pve two"), VMID: types.Int64Value(202), Name: types.StringValue("before patch"), Description: types.StringValue("created LXC description")}
+	initial := snapshotModel{Node: types.StringValue("pve two"), VMID: types.Int64Value(202), Name: types.StringValue("before patch"), Description: types.StringValue("created LXC description")}
 	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, initial)}, &createResp)
 	if createResp.Diagnostics.HasError() {
 		t.Fatalf("LXC snapshot create diagnostics: %v", createResp.Diagnostics)
 	}
-	var created lxcSnapshotModel
+	var created snapshotModel
 	if diags := createResp.State.Get(context.Background(), &created); diags.HasError() {
 		t.Fatalf("decode LXC snapshot create state: %v", diags)
 	}
@@ -245,7 +245,7 @@ func TestLXCSnapshotResourceFrameworkLifecycle(t *testing.T) {
 	}
 	assertStateString(t, readResp.State, path.Root("description"), "created LXC description")
 
-	updated := lxcSnapshotModel{Node: types.StringValue("pve two"), VMID: types.Int64Value(202), Name: types.StringValue("before patch"), Description: types.StringValue("updated LXC description")}
+	updated := snapshotModel{Node: types.StringValue("pve two"), VMID: types.Int64Value(202), Name: types.StringValue("before patch"), Description: types.StringValue("updated LXC description")}
 	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Update(context.Background(), resource.UpdateRequest{Plan: testResourcePlan(t, schema, updated), State: readResp.State}, &updateResp)
 	if updateResp.Diagnostics.HasError() {
@@ -286,17 +286,17 @@ func TestLXCSnapshotResourceFrameworkLifecycle(t *testing.T) {
 		t.Fatalf("unexpected LXC snapshot call order: got %v want %v", calls, wantCalls)
 	}
 
-	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, lxcSnapshotModel{})}
+	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, snapshotModel{})}
 	res.ImportState(context.Background(), resource.ImportStateRequest{ID: "pve two/202/before patch"}, &importResp)
 	if importResp.Diagnostics.HasError() {
 		t.Fatalf("LXC snapshot import diagnostics: %v", importResp.Diagnostics)
 	}
 	assertStateString(t, importResp.State, path.Root("id"), "pve two/202/before patch")
-	var imported lxcSnapshotModel
+	var imported snapshotModel
 	if diags := importResp.State.Get(context.Background(), &imported); diags.HasError() || imported.Node.ValueString() != "pve two" || imported.VMID.ValueInt64() != 202 || imported.Name.ValueString() != "before patch" {
 		t.Fatalf("unexpected LXC snapshot import state: %#v diagnostics=%v", imported, diags)
 	}
-	invalidImport := resource.ImportStateResponse{State: testResourceState(t, schema, lxcSnapshotModel{})}
+	invalidImport := resource.ImportStateResponse{State: testResourceState(t, schema, snapshotModel{})}
 	res.ImportState(context.Background(), resource.ImportStateRequest{ID: "pve two/202"}, &invalidImport)
 	if !invalidImport.Diagnostics.HasError() || !containsDiagnostic(invalidImport.Diagnostics, "node/vm_id/name form") {
 		t.Fatalf("expected invalid LXC snapshot import diagnostics, got %v", invalidImport.Diagnostics)
@@ -329,9 +329,9 @@ func TestSnapshotResourcesPreserveAPIErrorDetail(t *testing.T) {
 			defer server.Close()
 
 			if test.kind == "qemu" {
-				res := &QemuSnapshotResource{client: testLifecycleClient(t, server)}
+				res := &snapshotResource{client: testLifecycleClient(t, server), kind: snapshotKindQEMU, guest: "VM"}
 				schema := testResourceSchema(t, res)
-				state := testResourceState(t, schema, qemuSnapshotModel{ID: types.StringValue("pve/303/snap"), Node: types.StringValue("pve"), VMID: types.Int64Value(303), Name: types.StringValue("snap")})
+				state := testResourceState(t, schema, snapshotModel{ID: types.StringValue("pve/303/snap"), Node: types.StringValue("pve"), VMID: types.Int64Value(303), Name: types.StringValue("snap")})
 				resp := resource.ReadResponse{State: state}
 				res.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
 				if !resp.Diagnostics.HasError() || !containsDiagnostic(resp.Diagnostics, "status 403") || !containsDiagnostic(resp.Diagnostics, "missing VM.Snapshot permission") {
@@ -341,9 +341,9 @@ func TestSnapshotResourcesPreserveAPIErrorDetail(t *testing.T) {
 					t.Fatalf("QEMU snapshot API error unexpectedly mutated state: %v", resp.State.Raw)
 				}
 			} else {
-				res := &LXCSnapshotResource{client: testLifecycleClient(t, server)}
+				res := &snapshotResource{client: testLifecycleClient(t, server), kind: snapshotKindLXC, guest: "container"}
 				schema := testResourceSchema(t, res)
-				state := testResourceState(t, schema, lxcSnapshotModel{ID: types.StringValue("pve/303/snap"), Node: types.StringValue("pve"), VMID: types.Int64Value(303), Name: types.StringValue("snap")})
+				state := testResourceState(t, schema, snapshotModel{ID: types.StringValue("pve/303/snap"), Node: types.StringValue("pve"), VMID: types.Int64Value(303), Name: types.StringValue("snap")})
 				resp := resource.ReadResponse{State: state}
 				res.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
 				if !resp.Diagnostics.HasError() || !containsDiagnostic(resp.Diagnostics, "status 403") || !containsDiagnostic(resp.Diagnostics, "missing VM.Snapshot permission") {

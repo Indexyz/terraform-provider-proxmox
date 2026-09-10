@@ -155,13 +155,6 @@ func TestClientLXCContainerPowerMethods(t *testing.T) {
 			handler.envelope(w, "UPID:pve-1:vzstart:301")
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:vzstart:301/status":
 			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
-		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/lxc/301/status/stop":
-			if !handler.form(w, r, url.Values{}) {
-				return
-			}
-			handler.envelope(w, "UPID:pve-1:vzstop:301")
-		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/tasks/UPID:pve-1:vzstop:301/status":
-			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/lxc/301/status/shutdown":
 			if !handler.form(w, r, url.Values{"forceStop": {"1"}, "timeout": {"90"}}) {
 				return
@@ -179,17 +172,12 @@ func TestClientLXCContainerPowerMethods(t *testing.T) {
 	if err := client.StartLXCContainer(ctx, "pve-1", 301); err != nil {
 		t.Fatalf("StartLXCContainer() unexpected error: %v", err)
 	}
-	if err := client.StopLXCContainer(ctx, "pve-1", 301); err != nil {
-		t.Fatalf("StopLXCContainer() unexpected error: %v", err)
-	}
 	if err := client.ShutdownLXCContainer(ctx, "pve-1", 301, 90); err != nil {
 		t.Fatalf("ShutdownLXCContainer() unexpected error: %v", err)
 	}
 	wantCalls := []string{
 		"POST /api2/json/nodes/pve-1/lxc/301/status/start",
 		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:vzstart:301/status",
-		"POST /api2/json/nodes/pve-1/lxc/301/status/stop",
-		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:vzstop:301/status",
 		"POST /api2/json/nodes/pve-1/lxc/301/status/shutdown",
 		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:vzshutdown:301/status",
 	}
@@ -209,7 +197,7 @@ func TestClientLXCContainerPowerMethodsRejectMissingTaskAck(t *testing.T) {
 		}
 		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
 		switch r.URL.EscapedPath() {
-		case "/api2/json/nodes/pve-1/lxc/301/status/start", "/api2/json/nodes/pve-1/lxc/301/status/stop", "/api2/json/nodes/pve-1/lxc/301/status/shutdown":
+		case "/api2/json/nodes/pve-1/lxc/301/status/start", "/api2/json/nodes/pve-1/lxc/301/status/shutdown":
 			handler.envelope(w, nil)
 		default:
 			handler.fail(w, "unexpected LXC power ack request: %s %s", r.Method, r.URL.String())
@@ -220,7 +208,6 @@ func TestClientLXCContainerPowerMethodsRejectMissingTaskAck(t *testing.T) {
 	client := testLifecycleClient(t, server)
 	for name, callErr := range map[string]error{
 		"start":    client.StartLXCContainer(ctx, "pve-1", 301),
-		"stop":     client.StopLXCContainer(ctx, "pve-1", 301),
 		"shutdown": client.ShutdownLXCContainer(ctx, "pve-1", 301, 60),
 	} {
 		if callErr == nil || !strings.Contains(callErr.Error(), "no UPID") {
@@ -229,7 +216,6 @@ func TestClientLXCContainerPowerMethodsRejectMissingTaskAck(t *testing.T) {
 	}
 	wantCalls := []string{
 		"POST /api2/json/nodes/pve-1/lxc/301/status/start",
-		"POST /api2/json/nodes/pve-1/lxc/301/status/stop",
 		"POST /api2/json/nodes/pve-1/lxc/301/status/shutdown",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
@@ -1883,7 +1869,7 @@ func TestClientLXCContainerPowerMethodsRejectMalformedAck(t *testing.T) {
 		}
 		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
 		switch r.URL.EscapedPath() {
-		case "/api2/json/nodes/pve-1/lxc/301/status/start", "/api2/json/nodes/pve-1/lxc/301/status/stop", "/api2/json/nodes/pve-1/lxc/301/status/shutdown":
+		case "/api2/json/nodes/pve-1/lxc/301/status/start", "/api2/json/nodes/pve-1/lxc/301/status/shutdown":
 			handler.envelope(w, "not-a-upid")
 		default:
 			handler.fail(w, "unexpected LXC malformed-ack request: %s %s", r.Method, r.URL.String())
@@ -1894,7 +1880,6 @@ func TestClientLXCContainerPowerMethodsRejectMalformedAck(t *testing.T) {
 	client := testLifecycleClient(t, server)
 	for name, callErr := range map[string]error{
 		"start":    client.StartLXCContainer(ctx, "pve-1", 301),
-		"stop":     client.StopLXCContainer(ctx, "pve-1", 301),
 		"shutdown": client.ShutdownLXCContainer(ctx, "pve-1", 301, 60),
 	} {
 		if callErr == nil || !strings.Contains(callErr.Error(), "invalid UPID") {
@@ -1904,7 +1889,6 @@ func TestClientLXCContainerPowerMethodsRejectMalformedAck(t *testing.T) {
 	// Malformed acknowledgements must not poll task status at all.
 	wantCalls := []string{
 		"POST /api2/json/nodes/pve-1/lxc/301/status/start",
-		"POST /api2/json/nodes/pve-1/lxc/301/status/stop",
 		"POST /api2/json/nodes/pve-1/lxc/301/status/shutdown",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
@@ -1929,8 +1913,6 @@ func TestClientLXCContainerPowerMethodsTaskStatus404RemainsError(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/lxc/301/status/start":
 			handler.envelope(w, "UPID:pve-1:vzstart:301")
-		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/lxc/301/status/stop":
-			handler.envelope(w, "UPID:pve-1:vzstop:301")
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve-1/lxc/301/status/shutdown":
 			handler.envelope(w, "UPID:pve-1:vzshutdown:301")
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api2/json/nodes/pve-1/tasks/"):
@@ -1944,7 +1926,6 @@ func TestClientLXCContainerPowerMethodsTaskStatus404RemainsError(t *testing.T) {
 	client := testLifecycleClient(t, server)
 	for name, callErr := range map[string]error{
 		"start":    client.StartLXCContainer(ctx, "pve-1", 301),
-		"stop":     client.StopLXCContainer(ctx, "pve-1", 301),
 		"shutdown": client.ShutdownLXCContainer(ctx, "pve-1", 301, 60),
 	} {
 		if callErr == nil || !strings.Contains(callErr.Error(), "unable to poll task") {
@@ -1956,8 +1937,6 @@ func TestClientLXCContainerPowerMethodsTaskStatus404RemainsError(t *testing.T) {
 	wantCalls := []string{
 		"POST /api2/json/nodes/pve-1/lxc/301/status/start",
 		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:vzstart:301/status",
-		"POST /api2/json/nodes/pve-1/lxc/301/status/stop",
-		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:vzstop:301/status",
 		"POST /api2/json/nodes/pve-1/lxc/301/status/shutdown",
 		"GET /api2/json/nodes/pve-1/tasks/UPID:pve-1:vzshutdown:301/status",
 	}

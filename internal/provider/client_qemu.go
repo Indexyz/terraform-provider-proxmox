@@ -329,14 +329,6 @@ func (c *Client) SubmitCreateQemuVM(ctx context.Context, node string, req Create
 	return upid, nil
 }
 
-func (c *Client) CreateQemuVM(ctx context.Context, node string, req CreateQemuVMRequest) error {
-	upid, err := c.SubmitCreateQemuVM(ctx, node, req)
-	if err != nil {
-		return err
-	}
-	return c.waitForNodeTask(ctx, node, upid)
-}
-
 // SubmitCloneQemuVM POSTs the clone request and returns the accepted task
 // UPID without waiting; the clone task runs on the source node (the URL
 // routing node), so callers must poll it there. The destination node is sent
@@ -364,14 +356,6 @@ func (c *Client) SubmitCloneQemuVM(ctx context.Context, req CloneQemuVMRequest) 
 		return "", err
 	}
 	return upid, nil
-}
-
-func (c *Client) CloneQemuVM(ctx context.Context, req CloneQemuVMRequest) error {
-	upid, err := c.SubmitCloneQemuVM(ctx, req)
-	if err != nil {
-		return err
-	}
-	return c.waitForNodeTask(ctx, req.SourceNode, upid)
 }
 
 func (c *Client) UpdateQemuVM(ctx context.Context, node string, vmID int64, req UpdateQemuVMRequest) error {

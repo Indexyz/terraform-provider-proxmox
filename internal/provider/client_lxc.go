@@ -185,20 +185,6 @@ func (c *Client) StartLXCContainer(ctx context.Context, node string, vmID int64)
 	return c.waitForNodeTask(ctx, node, upid)
 }
 
-// StopLXCContainer issues `POST /nodes/{node}/lxc/{vmid}/status/stop` and
-// awaits the stop task, with the same UPID acknowledgement requirement as
-// the QEMU power endpoints.
-func (c *Client) StopLXCContainer(ctx context.Context, node string, vmID int64) error {
-	var upid string
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/nodes/%s/lxc/%d/status/stop", url.PathEscape(node), vmID), nil, nil, &upid); err != nil {
-		return err
-	}
-	if err := validateQemuTaskAck(upid, fmt.Sprintf("stop task for container %d on node %q", vmID, node)); err != nil {
-		return err
-	}
-	return c.waitForNodeTask(ctx, node, upid)
-}
-
 // ShutdownLXCContainer issues `POST /nodes/{node}/lxc/{vmid}/status/shutdown`
 // with `timeout` and `forceStop=1` and awaits the shutdown task. The
 // graceful-then-forced escalation is server-side in that single task, with

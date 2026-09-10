@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -75,10 +74,6 @@ type FirewallRuleRequest struct {
 	Delete   []string
 }
 
-func (c *Client) GetFirewallRules(ctx context.Context) ([]FirewallRule, error) {
-	return c.GetScopedFirewallRules(ctx, FirewallRuleScope{Kind: "cluster"})
-}
-
 func (c *Client) GetScopedFirewallRules(ctx context.Context, scope FirewallRuleScope) ([]FirewallRule, error) {
 	apiPath, err := firewallRulesPath(scope)
 	if err != nil {
@@ -120,10 +115,6 @@ func (c *Client) GetScopedFirewallRules(ctx context.Context, scope FirewallRuleS
 	return rules, nil
 }
 
-func (c *Client) CreateFirewallRule(ctx context.Context, req FirewallRuleRequest) error {
-	return c.CreateScopedFirewallRule(ctx, FirewallRuleScope{Kind: "cluster"}, req)
-}
-
 func (c *Client) CreateScopedFirewallRule(ctx context.Context, scope FirewallRuleScope, req FirewallRuleRequest) error {
 	apiPath, err := firewallRulesPath(scope)
 	if err != nil {
@@ -147,10 +138,6 @@ func (c *Client) CreateScopedFirewallRule(ctx context.Context, scope FirewallRul
 	return c.do(ctx, http.MethodPost, apiPath, nil, form, nil)
 }
 
-func (c *Client) UpdateFirewallRule(ctx context.Context, pos int, req FirewallRuleRequest) error {
-	return c.UpdateScopedFirewallRule(ctx, FirewallRuleScope{Kind: "cluster"}, pos, req)
-}
-
 func (c *Client) UpdateScopedFirewallRule(ctx context.Context, scope FirewallRuleScope, pos int, req FirewallRuleRequest) error {
 	apiPath, err := firewallRulesPath(scope)
 	if err != nil {
@@ -159,9 +146,7 @@ func (c *Client) UpdateScopedFirewallRule(ctx context.Context, scope FirewallRul
 	form := url.Values{}
 	form.Set("type", req.Type)
 	form.Set("action", req.Action)
-	if req.Enable != nil {
-		form.Set("enable", strconv.FormatInt(*req.Enable, 10))
-	}
+	setOptionalInt64(form, "enable", req.Enable)
 	setOptionalString(form, "comment", req.Comment)
 	setOptionalString(form, "source", req.Source)
 	setOptionalString(form, "dest", req.Dest)
@@ -177,10 +162,6 @@ func (c *Client) UpdateScopedFirewallRule(ctx context.Context, scope FirewallRul
 		form.Set("delete", strings.Join(sortedStrings(req.Delete), ","))
 	}
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("%s/%d", apiPath, pos), nil, form, nil)
-}
-
-func (c *Client) DeleteFirewallRule(ctx context.Context, pos int) error {
-	return c.DeleteScopedFirewallRule(ctx, FirewallRuleScope{Kind: "cluster"}, pos, "")
 }
 
 func (c *Client) DeleteScopedFirewallRule(ctx context.Context, scope FirewallRuleScope, pos int, digest string) error {

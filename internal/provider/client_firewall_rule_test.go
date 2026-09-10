@@ -40,21 +40,21 @@ func TestClientFirewallRuleMethods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() unexpected error: %v", err)
 	}
-	rules, err := client.GetFirewallRules(ctx)
+	rules, err := client.GetScopedFirewallRules(ctx, FirewallRuleScope{Kind: "cluster"})
 	if err != nil {
-		t.Fatalf("GetFirewallRules() unexpected error: %v", err)
+		t.Fatalf("GetScopedFirewallRules() unexpected error: %v", err)
 	}
 	if len(rules) != 2 || rules[0].Pos != 0 || rules[0].Type != "in" || rules[0].Action != "ACCEPT" || rules[0].Source != "10.0.0.0/8" || rules[0].DPort != "443" {
 		t.Fatalf("unexpected rules: %#v", rules)
 	}
-	if err := client.CreateFirewallRule(ctx, FirewallRuleRequest{Type: "in", Action: "ACCEPT", Source: stringPtr("10.0.0.0/8"), Proto: stringPtr("tcp"), DPort: stringPtr("443"), Enable: intPtr64(1)}); err != nil {
-		t.Fatalf("CreateFirewallRule() unexpected error: %v", err)
+	if err := client.CreateScopedFirewallRule(ctx, FirewallRuleScope{Kind: "cluster"}, FirewallRuleRequest{Type: "in", Action: "ACCEPT", Source: stringPtr("10.0.0.0/8"), Proto: stringPtr("tcp"), DPort: stringPtr("443"), Enable: intPtr64(1)}); err != nil {
+		t.Fatalf("CreateScopedFirewallRule() unexpected error: %v", err)
 	}
-	if err := client.UpdateFirewallRule(ctx, 0, FirewallRuleRequest{Type: "in", Action: "ACCEPT", Source: stringPtr("10.0.0.0/8"), Proto: stringPtr("tcp"), DPort: stringPtr("443"), Enable: intPtr64(1), Comment: stringPtr("updated")}); err != nil {
-		t.Fatalf("UpdateFirewallRule() unexpected error: %v", err)
+	if err := client.UpdateScopedFirewallRule(ctx, FirewallRuleScope{Kind: "cluster"}, 0, FirewallRuleRequest{Type: "in", Action: "ACCEPT", Source: stringPtr("10.0.0.0/8"), Proto: stringPtr("tcp"), DPort: stringPtr("443"), Enable: intPtr64(1), Comment: stringPtr("updated")}); err != nil {
+		t.Fatalf("UpdateScopedFirewallRule() unexpected error: %v", err)
 	}
-	if err := client.DeleteFirewallRule(ctx, 0); err != nil {
-		t.Fatalf("DeleteFirewallRule() unexpected error: %v", err)
+	if err := client.DeleteScopedFirewallRule(ctx, FirewallRuleScope{Kind: "cluster"}, 0, ""); err != nil {
+		t.Fatalf("DeleteScopedFirewallRule() unexpected error: %v", err)
 	}
 }
 

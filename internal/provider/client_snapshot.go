@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 // snapshotKind selects the Proxmox guest kind for shared snapshot operations.
@@ -28,6 +30,22 @@ type snapshotListEntry struct {
 	Description string               `json:"description"`
 	Parent      string               `json:"parent"`
 	Snaptime    proxmoxOptionalInt64 `json:"snaptime"`
+}
+
+func snapshotID(node string, vmID int64, name string) string {
+	return fmt.Sprintf("%s/%d/%s", node, vmID, name)
+}
+
+func parseSnapshotImportID(id string) (string, int64, string, error) {
+	parts := strings.Split(id, "/")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return "", 0, "", fmt.Errorf("expected import identifier in node/vm_id/name form")
+	}
+	vmID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return "", 0, "", fmt.Errorf("invalid vmid %q: %w", parts[1], err)
+	}
+	return parts[0], vmID, parts[2], nil
 }
 
 func (c *Client) createSnapshot(ctx context.Context, kind snapshotKind, node string, vmID int64, name string, description *string) error {

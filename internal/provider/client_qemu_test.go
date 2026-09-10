@@ -185,7 +185,7 @@ func TestClientQemuVMMethods(t *testing.T) {
 		t.Fatalf("unexpected qemu status: %#v", status)
 	}
 
-	if err := client.CreateQemuVM(ctx, "pve-1", CreateQemuVMRequest{
+	createUPID, err := client.SubmitCreateQemuVM(ctx, "pve-1", CreateQemuVMRequest{
 		VMID: 101,
 		qemuVMConfigRequest: qemuVMConfigRequest{
 			Name:        stringPtr("api-vm"),
@@ -215,8 +215,12 @@ func TestClientQemuVMMethods(t *testing.T) {
 			Shares:      intPtr64(2000),
 			Hugepages:   stringPtr("2"),
 		},
-	}); err != nil {
-		t.Fatalf("CreateQemuVM() unexpected error: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("SubmitCreateQemuVM() unexpected error: %v", err)
+	}
+	if err := client.waitForNodeTask(ctx, "pve-1", createUPID); err != nil {
+		t.Fatalf("waitForNodeTask() unexpected error: %v", err)
 	}
 
 	if err := client.UpdateQemuVM(ctx, "pve-1", 101, UpdateQemuVMRequest{
@@ -322,8 +326,12 @@ func TestClientCloneQemuVMFormContract(t *testing.T) {
 
 			client := testLifecycleClient(t, server)
 			req := CloneQemuVMRequest{SourceNode: "pve-1", SourceVMID: 9000, TargetNode: test.targetNode, NewID: 430, Full: test.full}
-			if err := client.CloneQemuVM(context.Background(), req); err != nil {
-				t.Fatalf("CloneQemuVM() unexpected error: %v", err)
+			cloneUPID, err := client.SubmitCloneQemuVM(context.Background(), req)
+			if err != nil {
+				t.Fatalf("SubmitCloneQemuVM() unexpected error: %v", err)
+			}
+			if err := client.waitForNodeTask(context.Background(), "pve-1", cloneUPID); err != nil {
+				t.Fatalf("waitForNodeTask() unexpected error: %v", err)
 			}
 			wantCalls := []string{
 				"POST /api2/json/nodes/pve-1/qemu/9000/clone",
@@ -364,7 +372,12 @@ func TestClientCreateQemuVMTaskFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := testLifecycleClient(t, server).CreateQemuVM(context.Background(), "pve-1", CreateQemuVMRequest{VMID: 101})
+	client := testLifecycleClient(t, server)
+	createUPID, err := client.SubmitCreateQemuVM(context.Background(), "pve-1", CreateQemuVMRequest{VMID: 101})
+	if err != nil {
+		t.Fatalf("SubmitCreateQemuVM() unexpected error: %v", err)
+	}
+	err = client.waitForNodeTask(context.Background(), "pve-1", createUPID)
 	if err == nil || !strings.Contains(err.Error(), upid) || !strings.Contains(err.Error(), "ERROR: storage unavailable") {
 		t.Fatalf("expected QEMU task identity and exit status, got %v", err)
 	}
@@ -859,7 +872,12 @@ func TestClientNodeTaskStatusRejectsUnknownAndMissingStatus(t *testing.T) {
 			}))
 			defer server.Close()
 
-			err := testLifecycleClient(t, server).CreateQemuVM(context.Background(), "pve-1", CreateQemuVMRequest{VMID: 101})
+			client := testLifecycleClient(t, server)
+			taskUPID, err := client.SubmitCreateQemuVM(context.Background(), "pve-1", CreateQemuVMRequest{VMID: 101})
+			if err != nil {
+				t.Fatalf("SubmitCreateQemuVM() unexpected error: %v", err)
+			}
+			err = client.waitForNodeTask(context.Background(), "pve-1", taskUPID)
 			if err == nil || !strings.Contains(err.Error(), test.contains) || !strings.Contains(err.Error(), "qmcreate-unknown") {
 				t.Fatalf("expected %q diagnostics with task identity, got %v", test.contains, err)
 			}

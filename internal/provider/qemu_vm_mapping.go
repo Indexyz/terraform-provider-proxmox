@@ -26,7 +26,7 @@ var qemuVMNetworkModels = map[string]struct{}{
 func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config QemuVMConfig, status QemuVMStatus, prior *qemuVMModel) (qemuVMModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	commonValue, commonDiags := qemuVMCommonStateValue(ctx, config, prior)
+	commonValue, commonDiags := qemuVMCommonStateValue(ctx, config)
 	diags.Append(commonDiags...)
 	cloudInitValue, cloudInitDiags := qemuVMCloudInitStateValue(ctx, config, prior)
 	diags.Append(cloudInitDiags...)
@@ -445,7 +445,7 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 	}, diags
 }
 
-func qemuVMCommonStateValue(ctx context.Context, config QemuVMConfig, _ *qemuVMModel) (types.Object, diag.Diagnostics) {
+func qemuVMCommonStateValue(ctx context.Context, config QemuVMConfig) (types.Object, diag.Diagnostics) {
 	if config.Hotplug == "" {
 		return types.ObjectNull(qemuVMCommonAttrTypes()), nil
 	}
