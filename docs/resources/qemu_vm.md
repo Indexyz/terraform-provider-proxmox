@@ -192,12 +192,12 @@ Required:
 
 Optional:
 
-- `bwlimit` (Number) Optional clone bandwidth limit in KiB/s.
-- `format` (String) Optional target disk format for full clones.
-- `full` (Boolean) Whether to request a full clone.
-- `snapshot_name` (String) Optional source snapshot name to clone from.
+- `bwlimit` (Number) Optional clone bandwidth limit in KiB/s. Proxmox only applies it to full clones; linked clones ignore it.
+- `format` (String) Optional target disk format for full clones. Proxmox rejects it for linked clones (`full = false`).
+- `full` (Boolean) Whether to request a full clone. `true` copies every disk; `false` requests a linked clone, which Proxmox allows from a template, from a snapshot on supporting storage (LVM-thin, Ceph RBD, Btrfs raw), or - on Btrfs only - directly from a raw volume. When omitted, Proxmox decides per source: templates are linked-cloned by default and normal VMs are always fully copied. Proxmox never falls back to a full copy when a linked clone is refused: the clone task fails instead.
+- `snapshot_name` (String) Optional source snapshot name to clone from. A linked clone (`full = false`) from a snapshot requires a storage whose snapshots support linked cloning (LVM-thin, Ceph RBD, or Btrfs raw; on Btrfs, PVE currently clones the live volume instead of the requested snapshot, upstream fix pending).
 - `source_node` (String) Source node that owns `source_vmid`. Defaults to the managed `node` when omitted. A source node different from the managed `node` is a cross-node clone: Proxmox only allows it when the source VM's disks live on shared storage, the request sends the destination as the `target` form field, and the clone task is polled on the source node.
-- `storage` (String) Optional target storage override for full clones.
+- `storage` (String) Optional target storage override for full clones. Proxmox rejects it for linked clones (`full = false`).
 
 
 <a id="nestedatt--cloud_init"></a>

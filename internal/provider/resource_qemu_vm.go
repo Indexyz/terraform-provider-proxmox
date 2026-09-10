@@ -79,6 +79,7 @@ func (r *QemuVMResource) ValidateConfig(ctx context.Context, req resource.Valida
 	resp.Diagnostics.Append(validateQemuVMRawConflicts(ctx, config)...)
 	resp.Diagnostics.Append(validateQemuVMIDAllocation(config)...)
 	resp.Diagnostics.Append(validateQemuVMNoCloudSlotConfig(config)...)
+	resp.Diagnostics.Append(validateQemuVMCloneConfig(ctx, config)...)
 	resp.Diagnostics.Append(validateQemuVMPowerConfig(config)...)
 }
 

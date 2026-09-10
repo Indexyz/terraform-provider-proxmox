@@ -259,10 +259,35 @@ func TestClientCloneQemuVMFormContract(t *testing.T) {
 	tests := []struct {
 		name       string
 		targetNode string
-		wantTarget string
+		full       *bool
+		wantForm   url.Values
 	}{
-		{name: "cross-node clone sends target", targetNode: "pve-two", wantTarget: "pve-two"},
-		{name: "same-node clone sends target too", targetNode: "pve-1", wantTarget: "pve-1"},
+		{
+			name:       "cross-node full clone sends target",
+			targetNode: "pve-two",
+			full:       boolPtr(true),
+			wantForm:   url.Values{"newid": {"430"}, "target": {"pve-two"}, "full": {"1"}},
+		},
+		{
+			name:       "same-node full clone sends target too",
+			targetNode: "pve-1",
+			full:       boolPtr(true),
+			wantForm:   url.Values{"newid": {"430"}, "target": {"pve-1"}, "full": {"1"}},
+		},
+		{
+			name:       "linked clone sends full=0",
+			targetNode: "pve-1",
+			full:       boolPtr(false),
+			wantForm:   url.Values{"newid": {"430"}, "target": {"pve-1"}, "full": {"0"}},
+		},
+		{
+			// Omitting `full` leaves the decision to Proxmox, whose default
+			// is a linked clone for templates and a full copy otherwise.
+			name:       "omitted full is not sent",
+			targetNode: "pve-1",
+			full:       nil,
+			wantForm:   url.Values{"newid": {"430"}, "target": {"pve-1"}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -279,7 +304,7 @@ func TestClientCloneQemuVMFormContract(t *testing.T) {
 					// official clone API; the URL node stays the source and
 					// owns the task. `node` is the routing parameter and must
 					// not be sent as a form key.
-					if !handler.form(w, r, url.Values{"newid": {"430"}, "target": {test.wantTarget}, "full": {"1"}}) {
+					if !handler.form(w, r, test.wantForm) {
 						return
 					}
 					if _, ok := r.Form["node"]; ok {
@@ -296,7 +321,7 @@ func TestClientCloneQemuVMFormContract(t *testing.T) {
 			defer server.Close()
 
 			client := testLifecycleClient(t, server)
-			req := CloneQemuVMRequest{SourceNode: "pve-1", SourceVMID: 9000, TargetNode: test.targetNode, NewID: 430, Full: boolPtr(true)}
+			req := CloneQemuVMRequest{SourceNode: "pve-1", SourceVMID: 9000, TargetNode: test.targetNode, NewID: 430, Full: test.full}
 			if err := client.CloneQemuVM(context.Background(), req); err != nil {
 				t.Fatalf("CloneQemuVM() unexpected error: %v", err)
 			}

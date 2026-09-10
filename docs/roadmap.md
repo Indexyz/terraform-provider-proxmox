@@ -71,6 +71,8 @@
 - 完成 v0.4.0 发布准备：整理 VM 启停生命周期、NoCloud ISO 交付、标记槽位附着安全、异步任务恢复与真实 Terraform Core 状态一致性修复的正式 changelog；发布继续通过 `v*` 标签触发现有 GoReleaser 构建、校验和与 GPG 签名，明确硬断电、敏感明文材料和仍需实机验证的 DHCP/cloud-init/Runner/多节点边界。
 
 - 完成 v0.5.0 发布准备：整理声明式 `power` 交付（两资源调和语义、单次 shutdown 超时 + forceStop 线路契约、LXC 启动失败先持久化身份修复）的正式 changelog；发布继续通过 `v*` 标签触发现有 GoReleaser 构建、校验和与 GPG 签名，标注实机关机时序仍未验证。
+- 完成 linked clone 支持研究与本轮交付：确认 `proxmox_qemu_vm`/`proxmox_lxc_container` 的 `clone.full = false` 已经发送 `full=0`（PVE linked clone），且省略 `full` 时按 PVE 服务端语义（模板→linked、普通 guest→full）由 Proxmox 决定、失败时绝不回退，研究契约以 qemu-server `f8c6cf8`、pve-container `1c04883`、pve-storage `7c6a038` 钉住，见 [`research/proxmox-linked-clone.md`](../research/proxmox-linked-clone.md)。交付内容：schema 与生成文档明确 full/linked 语义、`storage`/`format` 对 linked clone 的 PVE 拒绝和 `bwlimit` 被忽略、`snapshot_name` 仅 LVM-thin/Ceph 支持 linked；新增 `validateQemuVMCloneConfig`/`validateLXCContainerCloneConfig` 在显式 `full = false` 搭配 `storage`（QEMU 另有 `format`）时于 plan 阶段报错，省略或 unknown 的 `full` 保持延迟判定以保留 PVE 动态默认；测试补齐 QEMU client `full=1`/`full=0`/省略三态线路、LXC client `full=0` 无 storage 线路、两资源 ValidateConfig 冲突矩阵与延迟矩阵，以及 QEMU clone create 生命周期对 `full=0` 表单与 state 回显的断言。真实 PVE 上的 linked clone COW 行为、base 卷共享与模板删除保护仍未实机验证（现有 e2e source VM 无磁盘，无法证明 COW 语义）。
+- 补充 Btrfs linked clone 契约：`BTRFSPlugin::volume_has_feature` 允许 `clone => base`（qcow2/raw/subvol/vmdk）、`current`（raw）与 `snap`（raw），因此 Btrfs 上模板、快照，甚至非模板 guest 的 live raw 卷都能 linked clone（`btrfs subvolume snapshot`，`create_base` 转为只读 `base-` 子卷，qcow2/vmdk 转发 DirPlugin 的 backing file 路径）；同时由源码与上游 patch 确认 pinned revision 的 `clone_image` 接收但从不向 `filesystem_path` 转发 `$snap`，`full = false` + `snapshot_name` 在 Btrfs raw 上会静默克隆 live 卷（上游已有 `20260907.btrfsclonesnapfix@cyruspy.gmail.com`，2026-09-07，无维护者回复、未合并）。schema 的 `full`/`snapshot_name` 文案与 research 文档已同步该例外与缺陷警告。
 
 ## 接下来
 
@@ -92,9 +94,9 @@ input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B N
 ### 持续约束
 
 - 新增或修改 Provider schema 时运行 `make generate`，同步更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/` 和示例。
-- 当前 e2e 环境是单节点 Proxmox VE 9.2，运行三个精确选择的测试：扩展只读数据源、随机命名的 pool/access CRUD，以及无 disk/storage/network/runtime start 的空 QEMU source VM/同节点 full clone task polling。存储配置、防火墙、HA、replication、backup、外部 realm、LXC、QEMU/LXC 运行时操作、多节点或 ZFS 行为仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境。
+- 当前 e2e 环境是单节点 Proxmox VE 9.2，运行三个精确选择的测试：扩展只读数据源、随机命名的 pool/access CRUD，以及无 disk/storage/network/runtime start 的空 QEMU source VM/同节点 full clone task polling。存储配置、防火墙、HA、replication、backup、外部 realm、LXC、QEMU/LXC 运行时操作、多节点或 ZFS 行为仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境；linked clone 的 COW/base 共享语义同样超出该环境（source VM 无磁盘）。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。显式 opt-in 的声明式 `power` 属性（仅在 apply/create/update 中协调、refresh 永不动作）是该约束唯一文档化的例外。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。
 
-研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。候选比较见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)；HA resource 的 PVE 9.2 schema、生命周期和验证边界见 [`research/proxmox-ha-resource.md`](../research/proxmox-ha-resource.md)。
+研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。候选比较见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)；HA resource 的 PVE 9.2 schema、生命周期和验证边界见 [`research/proxmox-ha-resource.md`](../research/proxmox-ha-resource.md)；QEMU/LXC linked clone 的 PVE 契约（`full` 默认、`storage`/`format` 拒绝、存储 `clone` feature 矩阵、base 镜像生命周期）见 [`research/proxmox-linked-clone.md`](../research/proxmox-linked-clone.md)。

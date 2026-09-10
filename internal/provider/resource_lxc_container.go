@@ -63,6 +63,7 @@ func (r *LXCContainerResource) ValidateConfig(ctx context.Context, req resource.
 
 	resp.Diagnostics.Append(validateLXCContainerRawConflicts(ctx, config)...)
 	resp.Diagnostics.Append(validateLXCContainerMapKeys(config)...)
+	resp.Diagnostics.Append(validateLXCContainerCloneConfig(ctx, config)...)
 	resp.Diagnostics.Append(validateLXCContainerPowerConfig(config)...)
 }
 

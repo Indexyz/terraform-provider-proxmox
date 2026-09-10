@@ -270,6 +270,47 @@ func validateQemuVMIDAllocation(model qemuVMModel) diag.Diagnostics {
 	return diags
 }
 
+// validateQemuVMCloneConfig mirrors the Proxmox clone parameter rule that a
+// target storage or disk format is only valid for full clones. An explicit
+// `full = false` (linked clone) with either override is rejected before any
+// HTTP call; an omitted `full` is deliberately not checked because the
+// effective Proxmox default depends on whether the source guest is a template.
+func validateQemuVMCloneConfig(ctx context.Context, model qemuVMModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if model.Clone.IsNull() || model.Clone.IsUnknown() {
+		return diags
+	}
+
+	clone, cloneDiags := expandQemuVMCloneModel(ctx, model.Clone)
+	diags.Append(cloneDiags...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if clone.Full.IsNull() || clone.Full.IsUnknown() || clone.Full.ValueBool() {
+		return diags
+	}
+
+	if !clone.Storage.IsNull() && !clone.Storage.IsUnknown() {
+		diags.AddAttributeError(
+			path.Root("clone").AtName("storage"),
+			"Invalid linked clone storage override",
+			"`clone.storage` is only valid for full clones: Proxmox rejects a target storage when `clone.full = false` requests a linked clone.",
+		)
+	}
+
+	if !clone.Format.IsNull() && !clone.Format.IsUnknown() {
+		diags.AddAttributeError(
+			path.Root("clone").AtName("format"),
+			"Invalid linked clone disk format",
+			"`clone.format` is only valid for full clones: Proxmox rejects a target disk format when `clone.full = false` requests a linked clone.",
+		)
+	}
+
+	return diags
+}
+
 func validateQemuVMRawConflicts(ctx context.Context, model qemuVMModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 

@@ -130,6 +130,40 @@ func validateLXCContainerPowerConfig(model lxcContainerModel) diag.Diagnostics {
 	return diags
 }
 
+// validateLXCContainerCloneConfig mirrors the Proxmox clone parameter rule
+// that a target storage is only valid for full clones. An explicit
+// `full = false` (linked clone) with a storage override is rejected before
+// any HTTP call; an omitted `full` is deliberately not checked because the
+// effective Proxmox default depends on whether the source container is a
+// template.
+func validateLXCContainerCloneConfig(ctx context.Context, model lxcContainerModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if model.Clone.IsNull() || model.Clone.IsUnknown() {
+		return diags
+	}
+
+	clone, cloneDiags := expandLXCContainerCloneModel(ctx, model.Clone)
+	diags.Append(cloneDiags...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if clone.Full.IsNull() || clone.Full.IsUnknown() || clone.Full.ValueBool() {
+		return diags
+	}
+
+	if !clone.Storage.IsNull() && !clone.Storage.IsUnknown() {
+		diags.AddAttributeError(
+			path.Root("clone").AtName("storage"),
+			"Invalid linked clone storage override",
+			"`clone.storage` is only valid for full clones: Proxmox rejects a target storage when `clone.full = false` requests a linked clone.",
+		)
+	}
+
+	return diags
+}
+
 func lxcContainerID(node string, vmID int64) string {
 	return fmt.Sprintf("%s/%d", node, vmID)
 }

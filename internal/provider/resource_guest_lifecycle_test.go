@@ -199,43 +199,80 @@ func TestQemuVMResourceCloneCreateSelection(t *testing.T) {
 	nodeTaskPollInterval = 0
 	defer func() { nodeTaskPollInterval = oldPollInterval }()
 
-	handler := &lifecycleHandler{}
-	var calls []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !handler.auth(w, r) {
-			return
-		}
-		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
-		switch {
-		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/qemu/9000/clone":
-			if !handler.form(w, r, url.Values{"newid": {"402"}, "target": {"target node"}, "full": {"1"}}) {
-				return
+	tests := []struct {
+		name     string
+		full     types.Bool
+		wantForm url.Values
+	}{
+		{
+			name:     "full clone sends full=1",
+			full:     types.BoolValue(true),
+			wantForm: url.Values{"newid": {"402"}, "target": {"target node"}, "full": {"1"}},
+		},
+		{
+			name:     "linked clone sends full=0",
+			full:     types.BoolValue(false),
+			wantForm: url.Values{"newid": {"402"}, "target": {"target node"}, "full": {"0"}},
+		},
+		{
+			// Omitting `full` keeps Proxmox's own default: templates are
+			// linked-cloned, normal VMs are fully copied.
+			name:     "omitted full is not sent",
+			full:     types.BoolNull(),
+			wantForm: url.Values{"newid": {"402"}, "target": {"target node"}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := &lifecycleHandler{}
+			var calls []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !handler.auth(w, r) {
+					return
+				}
+				calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+				switch {
+				case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/qemu/9000/clone":
+					if !handler.form(w, r, test.wantForm) {
+						return
+					}
+					handler.envelope(w, "UPID:source node:qemu-clone-wrapper")
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/tasks/UPID:source%20node:qemu-clone-wrapper/status":
+					handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/402/config":
+					handler.envelope(w, map[string]any{"name": "cloned-vm"})
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/402/status/current":
+					handler.envelope(w, map[string]any{"status": "stopped"})
+				default:
+					handler.fail(w, "unexpected QEMU clone request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
+
+			res := &QemuVMResource{client: testLifecycleClient(t, server)}
+			schema := testResourceSchema(t, res)
+			model := minimalQemuVMModel("target node", 402)
+			model.Clone = mustQemuVMCloneValue(t, qemuVMCloneModel{SourceNode: types.StringValue("source node"), SourceVMID: types.Int64Value(9000), Full: test.full})
+			resp := testResourceCreateResponse(t, schema)
+			res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("QEMU clone wrapper diagnostics: %v", resp.Diagnostics)
 			}
-			handler.envelope(w, "UPID:source node:qemu-clone-wrapper")
-		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/tasks/UPID:source%20node:qemu-clone-wrapper/status":
-			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
-		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/402/config":
-			handler.envelope(w, map[string]any{"name": "cloned-vm"})
-		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/402/status/current":
-			handler.envelope(w, map[string]any{"status": "stopped"})
-		default:
-			handler.fail(w, "unexpected QEMU clone request: %s %s", r.Method, r.URL.String())
-		}
-	}))
-	defer server.Close()
-	res := &QemuVMResource{client: testLifecycleClient(t, server)}
-	schema := testResourceSchema(t, res)
-	model := minimalQemuVMModel("target node", 402)
-	model.Clone = mustQemuVMCloneValue(t, qemuVMCloneModel{SourceNode: types.StringValue("source node"), SourceVMID: types.Int64Value(9000), Full: types.BoolValue(true)})
-	resp := testResourceCreateResponse(t, schema)
-	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
-	if resp.Diagnostics.HasError() {
-		t.Fatalf("QEMU clone wrapper diagnostics: %v", resp.Diagnostics)
+			if want := []string{"POST /api2/json/nodes/source%20node/qemu/9000/clone", "GET /api2/json/nodes/source%20node/tasks/UPID:source%20node:qemu-clone-wrapper/status", "GET /api2/json/nodes/target%20node/qemu/402/config", "GET /api2/json/nodes/target%20node/qemu/402/status/current"}; !reflect.DeepEqual(calls, want) {
+				t.Fatalf("unexpected QEMU clone call order: got %v want %v", calls, want)
+			}
+
+			var stored qemuVMModel
+			if diags := resp.State.Get(context.Background(), &stored); diags.HasError() {
+				t.Fatalf("decode clone state: %v", diags)
+			}
+			if got := decodeQemuVMClone(t, stored.Clone); !got.Full.Equal(test.full) {
+				t.Fatalf("expected clone.full %v in state, got %v", test.full, got.Full)
+			}
+			handler.assert(t)
+		})
 	}
-	if want := []string{"POST /api2/json/nodes/source%20node/qemu/9000/clone", "GET /api2/json/nodes/source%20node/tasks/UPID:source%20node:qemu-clone-wrapper/status", "GET /api2/json/nodes/target%20node/qemu/402/config", "GET /api2/json/nodes/target%20node/qemu/402/status/current"}; !reflect.DeepEqual(calls, want) {
-		t.Fatalf("unexpected QEMU clone call order: got %v want %v", calls, want)
-	}
-	handler.assert(t)
 }
 
 func TestLXCContainerResourceFrameworkLifecycle(t *testing.T) {
