@@ -576,6 +576,203 @@ func TestQemuVMResourceCreateAllocatesFromVMIDStart(t *testing.T) {
 	handler.assert(t)
 }
 
+func TestQemuVMResourceCreateRetriesConcurrentVMIDClaim(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	nextIDs := []int64{105, 106}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid":
+			if r.URL.RawQuery != "" {
+				handler.fail(w, "unexpected nextid query: %q", r.URL.RawQuery)
+				return
+			}
+			if len(nextIDs) == 0 {
+				handler.fail(w, "unexpected extra nextid call")
+				return
+			}
+			handler.envelope(w, nextIDs[0])
+			nextIDs = nextIDs[1:]
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu":
+			if err := r.ParseForm(); err != nil {
+				handler.fail(w, "parse form: %v", err)
+				return
+			}
+			if r.Form.Get("name") != "auto-vm" {
+				handler.fail(w, "unexpected form: %#v", r.Form)
+				return
+			}
+			switch r.Form.Get("vmid") {
+			case "105":
+				// First create raced: the VMID was claimed between nextid and create,
+				// so Proxmox rejects the POST outright.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"vmid": "VM 105 config file already exists"}, "data": nil}); err != nil {
+					handler.fail(w, "encode response: %v", err)
+				}
+			case "106":
+				handler.envelope(w, "UPID:pve one:qemu-create-retry")
+			default:
+				handler.fail(w, "unexpected create vmid: %#v", r.Form)
+			}
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-retry/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/106/config":
+			handler.envelope(w, map[string]any{"name": "auto-vm"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/106/status/current":
+			handler.envelope(w, map[string]any{"status": "stopped"})
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("pve one", 0)
+	model.VMID = types.Int64Unknown()
+	model.Name = types.StringValue("auto-vm")
+	resp := testResourceCreateResponse(t, schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("create retry diagnostics: %v", resp.Diagnostics)
+	}
+	var created qemuVMModel
+	if diags := resp.State.Get(context.Background(), &created); diags.HasError() {
+		t.Fatalf("decode create retry state: %v", diags)
+	}
+	if created.VMID.ValueInt64() != 106 || created.ID.ValueString() != "pve one/106" {
+		t.Fatalf("unexpected retried VMID state: %#v", created)
+	}
+	handler.assert(t)
+}
+
+func TestQemuVMResourceCloneRetriesConcurrentVMIDClaim(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	nextIDs := []int64{201, 202}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid":
+			if r.URL.RawQuery != "" {
+				handler.fail(w, "unexpected nextid query: %q", r.URL.RawQuery)
+				return
+			}
+			if len(nextIDs) == 0 {
+				handler.fail(w, "unexpected extra nextid call")
+				return
+			}
+			handler.envelope(w, nextIDs[0])
+			nextIDs = nextIDs[1:]
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/qemu/9000/clone":
+			if err := r.ParseForm(); err != nil {
+				handler.fail(w, "parse form: %v", err)
+				return
+			}
+			switch r.Form.Get("newid") {
+			case "201":
+				// First clone raced: the VMID was claimed between nextid and clone.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"newid": "VM 201 config file already exists"}, "data": nil}); err != nil {
+					handler.fail(w, "encode response: %v", err)
+				}
+			case "202":
+				if !handler.form(w, r, url.Values{"newid": {"202"}, "target": {"target node"}, "full": {"1"}}) {
+					return
+				}
+				handler.envelope(w, "UPID:source node:qemu-clone-retry")
+			default:
+				handler.fail(w, "unexpected clone newid: %#v", r.Form)
+			}
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/source%20node/tasks/UPID:source%20node:qemu-clone-retry/status":
+			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/202/config":
+			handler.envelope(w, map[string]any{"name": "cloned-vm"})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/202/status/current":
+			handler.envelope(w, map[string]any{"status": "stopped"})
+		default:
+			handler.fail(w, "unexpected clone request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("target node", 0)
+	model.VMID = types.Int64Unknown()
+	model.Clone = mustQemuVMCloneValue(t, qemuVMCloneModel{SourceNode: types.StringValue("source node"), SourceVMID: types.Int64Value(9000), Full: types.BoolValue(true)})
+	resp := testResourceCreateResponse(t, schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("clone retry diagnostics: %v", resp.Diagnostics)
+	}
+	var created qemuVMModel
+	if diags := resp.State.Get(context.Background(), &created); diags.HasError() {
+		t.Fatalf("decode clone retry state: %v", diags)
+	}
+	if created.VMID.ValueInt64() != 202 || created.ID.ValueString() != "target node/202" {
+		t.Fatalf("unexpected retried clone VMID state: %#v", created)
+	}
+	handler.assert(t)
+}
+
+func TestQemuVMResourceCreateDoesNotRetryExplicitVMIDConflict(t *testing.T) {
+	oldPollInterval := nodeTaskPollInterval
+	nodeTaskPollInterval = 0
+	defer func() { nodeTaskPollInterval = oldPollInterval }()
+
+	handler := &lifecycleHandler{}
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"vmid": "VM 401 config file already exists"}, "data": nil}); err != nil {
+				handler.fail(w, "encode response: %v", err)
+			}
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &QemuVMResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	model := minimalQemuVMModel("pve one", 401)
+	resp := testResourceCreateResponse(t, schema)
+	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatalf("expected explicit vm_id conflict diagnostics: %v", resp.Diagnostics)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected a single create call without nextid: %v", calls)
+	}
+	handler.assert(t)
+}
+
 func TestQemuVMResourceCreateKeepsPartialStateWhenReadFails(t *testing.T) {
 	oldPollInterval := nodeTaskPollInterval
 	nodeTaskPollInterval = 0

@@ -128,7 +128,8 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 	}
 
-	if plan.VMID.IsNull() || plan.VMID.IsUnknown() {
+	autoAllocatedVMID := plan.VMID.IsNull() || plan.VMID.IsUnknown()
+	if autoAllocatedVMID {
 		vmID, err := r.allocateVMID(ctx, qemuInt64Value(plan.VMIDStart))
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to Allocate Proxmox VMID", err.Error())
@@ -138,14 +139,19 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	if !plan.Clone.IsNull() && !plan.Clone.IsUnknown() {
-		cloneReq, diags := qemuVMCloneRequestFromModel(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		upid, err := r.client.SubmitCloneQemuVM(ctx, cloneReq)
+		upid, err := r.submitQemuVMWithRetry(ctx, &plan, autoAllocatedVMID, func() (string, error) {
+			cloneReq, diags := qemuVMCloneRequestFromModel(ctx, plan)
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return "", nil
+			}
+			return r.client.SubmitCloneQemuVM(ctx, cloneReq)
+		})
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to Clone Proxmox QEMU VM", err.Error())
+			return
+		}
+		if resp.Diagnostics.HasError() {
 			return
 		}
 
@@ -203,14 +209,19 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 			}
 		}
 	} else {
-		createReq, diags := qemuVMCreateRequestFromModel(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		upid, err := r.client.SubmitCreateQemuVM(ctx, plan.Node.ValueString(), createReq)
+		upid, err := r.submitQemuVMWithRetry(ctx, &plan, autoAllocatedVMID, func() (string, error) {
+			createReq, diags := qemuVMCreateRequestFromModel(ctx, plan)
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return "", nil
+			}
+			return r.client.SubmitCreateQemuVM(ctx, plan.Node.ValueString(), createReq)
+		})
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to Create Proxmox QEMU VM", err.Error())
+			return
+		}
+		if resp.Diagnostics.HasError() {
 			return
 		}
 
@@ -981,6 +992,39 @@ func qemuVMWireDiskHasMediaCDROM(raw string) bool {
 		}
 	}
 	return false
+}
+
+// qemuVMIDConflictRetries bounds how many times an auto-allocated VMID is
+// replaced after Proxmox reports the ID was claimed concurrently. Explicit
+// `vm_id` values never retry.
+const qemuVMIDConflictRetries = 5
+
+// isQemuVMIDConflictError reports whether err means the chosen VMID was
+// claimed concurrently: Proxmox rejects the create/clone POST with
+// `VM <id> config file already exists`.
+func isQemuVMIDConflictError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "config file already exists")
+}
+
+// submitQemuVMWithRetry runs submit until it returns a task UPID, fails for a
+// reason other than a concurrent VMID claim, or exhausts
+// qemuVMIDConflictRetries. A conflict is only retried when the VMID was
+// auto-allocated: it allocates a fresh nextid into plan.VMID and submits
+// again. An explicit `vm_id` conflict is returned as-is. The caller reads the
+// final ID back through plan. A rejected POST is never tracked or adopted, so
+// retrying before identity persistence is safe.
+func (r *QemuVMResource) submitQemuVMWithRetry(ctx context.Context, plan *qemuVMModel, autoAllocatedVMID bool, submit func() (string, error)) (string, error) {
+	for retries := 0; ; retries++ {
+		upid, err := submit()
+		if err == nil || !autoAllocatedVMID || !isQemuVMIDConflictError(err) || retries >= qemuVMIDConflictRetries {
+			return upid, err
+		}
+		vmID, allocErr := r.allocateVMID(ctx, qemuInt64Value(plan.VMIDStart))
+		if allocErr != nil {
+			return "", fmt.Errorf("unable to allocate replacement VMID after conflict: %w", allocErr)
+		}
+		plan.VMID = types.Int64Value(vmID)
+	}
 }
 
 // allocateVMID returns the next free cluster VMID through `GET /cluster/nextid`.
