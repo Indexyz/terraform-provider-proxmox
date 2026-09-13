@@ -1,3 +1,9 @@
+## 0.5.1 (2026-09-13)
+
+FIXES:
+
+- Retry `proxmox_qemu_vm` create and clone when an auto-allocated `vm_id` is claimed concurrently: Proxmox rejects the POST with `config file already exists`, and the provider now allocates a fresh ID through `/cluster/nextid` (honoring `vm_id_start`) and resubmits, up to 5 retries. Explicit `vm_id` conflicts still fail immediately.
+
 ## 0.5.0 (2026-09-09)
 
 FEATURES:
