@@ -761,6 +761,7 @@ func TestQemuVMCloneReplacesFileBackedCloudInitDrive(t *testing.T) {
 	defer func() { nodeTaskPollInterval = oldPollInterval }()
 
 	handler := &lifecycleHandler{}
+	seedWire := "nfsvol:446/vm-446-cloudinit.qcow2,media=cdrom"
 	var calls []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !handler.auth(w, r) {
@@ -782,7 +783,7 @@ func TestQemuVMCloneReplacesFileBackedCloudInitDrive(t *testing.T) {
 			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/446/config":
 			handler.envelope(w, map[string]any{
-				"ide2":  "nfsvol:446/vm-446-cloudinit.qcow2,media=cdrom",
+				"ide2":  seedWire,
 				"scsi0": "local-lvm:vm-446-disk-0,size=8G",
 			})
 		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/446/config":
@@ -791,6 +792,7 @@ func TestQemuVMCloneReplacesFileBackedCloudInitDrive(t *testing.T) {
 			}
 			handler.envelope(w, nil)
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/qemu/446/status/start":
+			seedWire = "nfsvol:iso/runner-seed.iso,media=cdrom"
 			handler.envelope(w, "UPID:target node:qemu-start-446")
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/target%20node/tasks/UPID:target%20node:qemu-start-446/status":
 			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
@@ -1471,7 +1473,7 @@ func TestQemuVMUpdateRefusesUnsafeMarkedSeedMutation(t *testing.T) {
 	}
 	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Update(context.Background(), resource.UpdateRequest{Plan: testResourcePlan(t, schema, planModel), State: updateState}, &updateResp)
-	if !updateResp.Diagnostics.HasError() || !containsDiagnostic(updateResp.Diagnostics, "would replace an existing disk or unknown medium") {
+	if !updateResp.Diagnostics.HasError() || !containsDiagnostic(updateResp.Diagnostics, "unproven ISO") {
 		t.Fatalf("expected unsafe marked update diagnostics: %v", updateResp.Diagnostics)
 	}
 	wantCalls := []string{
@@ -1534,7 +1536,7 @@ func TestQemuVMUpdateRefusesFormerlyOwnedSeedSwap(t *testing.T) {
 	}
 	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Update(context.Background(), resource.UpdateRequest{Plan: testResourcePlan(t, schema, planModel), State: updateState}, &updateResp)
-	if !updateResp.Diagnostics.HasError() || !containsDiagnostic(updateResp.Diagnostics, "would replace an existing disk or unknown medium") || !containsDiagnostic(updateResp.Diagnostics, "replacing the VM") {
+	if !updateResp.Diagnostics.HasError() || !containsDiagnostic(updateResp.Diagnostics, "unproven ISO") || !containsDiagnostic(updateResp.Diagnostics, "nocloud_seed_update_from") {
 		t.Fatalf("expected formerly owned seed swap refusal diagnostics: %v", updateResp.Diagnostics)
 	}
 	wantCalls := []string{
@@ -1612,7 +1614,7 @@ func TestQemuVMRefreshThenUpdateRefusesForeignISO(t *testing.T) {
 	planModel.Disk = mustQemuVMDiskMapValue(t, map[string]qemuVMDiskModel{"ide2": cdromDiskEntry("local:iso/seed-gen2.iso")})
 	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Update(ctx, resource.UpdateRequest{Plan: testResourcePlan(t, schema, planModel), State: read.State}, &updateResp)
-	if !updateResp.Diagnostics.HasError() || !containsDiagnostic(updateResp.Diagnostics, "would replace an existing disk or unknown medium") || !containsDiagnostic(updateResp.Diagnostics, "replacing the VM") {
+	if !updateResp.Diagnostics.HasError() || !containsDiagnostic(updateResp.Diagnostics, "unproven ISO") || !containsDiagnostic(updateResp.Diagnostics, "nocloud_seed_update_from") {
 		t.Fatalf("expected foreign ISO refusal after refresh: %v", updateResp.Diagnostics)
 	}
 	wantCalls := []string{

@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -224,7 +223,7 @@ func TestQemuResizeValidation(t *testing.T) {
 		model := minimalQemuVMModel("pve-1", 101)
 		model.DiskResize = types.MapValueMust(types.Int64Type, map[string]attr.Value{tc.slot: types.Int64Value(tc.size)})
 		if !validateQemuVMDiskResize(context.Background(), model).HasError() {
-			t.Fatal(fmt.Sprintf("accepted %v", tc))
+			t.Fatalf("accepted %v", tc)
 		}
 	}
 }

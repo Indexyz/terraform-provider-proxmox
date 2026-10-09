@@ -32,20 +32,22 @@ import (
 const terraformCoreTemplateName = "ubuntu-nocloud-template"
 
 type terraformCoreVM struct {
-	Name    string
-	Scsi0   string
-	Net0    string
-	Ide2    string
-	Running bool
+	Name     string
+	Scsi0    string
+	Net0     string
+	Ide2     string
+	Running  bool
+	Revision int
 }
 
 type terraformCorePVE struct {
-	mu       sync.Mutex
-	seq      int
-	uploaded map[string]bool
-	vms      map[int64]*terraformCoreVM
-	events   []string
-	failures []string
+	FailNextConfigAfterMutation bool
+	mu                          sync.Mutex
+	seq                         int
+	uploaded                    map[string]bool
+	vms                         map[int64]*terraformCoreVM
+	events                      []string
+	failures                    []string
 }
 
 func newTerraformCorePVE() *terraformCorePVE {
@@ -201,10 +203,11 @@ func (p *terraformCorePVE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// and NIC stay inherited on every config read; they are not managed disk
 		// slots of the plan, so no update request may ever carry them.
 		p.envelope(w, map[string]any{
-			"name":  vm.Name,
-			"scsi0": vm.Scsi0,
-			"net0":  vm.Net0,
-			"ide2":  vm.Ide2,
+			"name":   vm.Name,
+			"scsi0":  vm.Scsi0,
+			"net0":   vm.Net0,
+			"ide2":   vm.Ide2,
+			"digest": fmt.Sprintf("%040x", vm.Revision),
 		})
 	case r.Method == http.MethodPut && strings.HasPrefix(path, "/api2/json/nodes/pve-1/qemu/") && strings.HasSuffix(path, "/config"):
 		if err := r.ParseForm(); err != nil {
@@ -230,6 +233,12 @@ func (p *terraformCorePVE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if digest := r.FormValue("digest"); digest != "" && digest != fmt.Sprintf("%040x", vm.Revision) {
+			p.mu.Unlock()
+			http.Error(w, "checksum mismatch", http.StatusConflict)
+			return
+		}
+		vm.Revision++
 		if name := r.FormValue("name"); name != "" {
 			vm.Name = name
 		}
@@ -237,7 +246,13 @@ func (p *terraformCorePVE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			vm.Ide2 = ide2
 			p.event("attach:%s", ide2)
 		}
+		failReply := p.FailNextConfigAfterMutation
+		p.FailNextConfigAfterMutation = false
 		p.mu.Unlock()
+		if failReply {
+			http.Error(w, "simulated lost reply after mutation", http.StatusInternalServerError)
+			return
+		}
 		p.envelope(w, nil)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/api2/json/nodes/pve-1/qemu/") && strings.HasSuffix(path, "/status/current"):
 		p.mu.Lock()

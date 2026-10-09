@@ -58,6 +58,7 @@ data "proxmox_qemu_vm" "example" {
 - `name` (String) Virtual machine name from `/nodes/{node}/qemu/{vmid}/config`.
 - `network` (Attributes Map) Typed network devices keyed by Proxmox slot name such as `net0`. (see [below for nested schema](#nestedatt--network))
 - `nocloud_cdrom_slot` (String) NoCloud seed slot marker of the `proxmox_qemu_vm` resource. The marker is a Terraform-side create-time input not stored in Proxmox, so data source reads always return null.
+- `nocloud_seed_update_from` (String) Terraform-side one-time seed replacement authorization; data source reads return null.
 - `numa` (Boolean) Whether NUMA is enabled for this VM from `/config`.
 - `onboot` (Boolean) Whether the guest should start automatically on boot.
 - `ostype` (String) Configured guest operating system type from `/config`.

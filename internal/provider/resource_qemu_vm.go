@@ -277,6 +277,23 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
+	if markerSlot != "" {
+		attachment, attachmentDiags := qemuSeedFromModel(ctx, plan)
+		resp.Diagnostics.Append(attachmentDiags...)
+		observed, observedDiags := qemuSeedFromModel(ctx, state)
+		resp.Diagnostics.Append(observedDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if attachment.Volume != observed.Volume {
+			resp.Diagnostics.AddError("NoCloud Attachment Did Not Converge", "The live seed volume differs from the configured seed; ownership was not recorded.")
+			return
+		}
+		resp.Diagnostics.Append(writeQemuSeedAttachment(ctx, resp.Private, attachment)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -322,6 +339,29 @@ func (r *QemuVMResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
+	// A refresh may only confirm a previously authorized pending intent;
+	// observed media alone must never create attachment ownership evidence.
+	if qemuVMNoCloudSlotValue(refreshed) != "" {
+		history, historyDiags := readQemuSeedAttachment(ctx, req.Private)
+		resp.Diagnostics.Append(historyDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if history.Pending != "" {
+			observed, observedDiags := qemuSeedFromModel(ctx, refreshed)
+			resp.Diagnostics.Append(observedDiags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			if history.Node == observed.Node && history.VMID == observed.VMID && history.Slot == observed.Slot && history.Pending == observed.Volume {
+				history.Volume, history.Pending = observed.Volume, ""
+				resp.Diagnostics.Append(writeQemuSeedAttachment(ctx, resp.Private, history)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+			}
+		}
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &refreshed)...)
 }
 
@@ -348,16 +388,14 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	// A marked in-place seed mutation must prove attachment safety against the
-	// live wire configuration before any PUT: the marked slot must plan a real
-	// ISO volume, the new medium must exist on the VM's node, and the mutation
-	// may only replace the same medium, an empty bay, or the same-slot Proxmox
-	// cloud-init drive. Refreshed state is observed reality, not proof of which
-	// medium this resource attached, so it grants no replacement allowance:
-	// any different real medium is refused in favor of VM replacement. Planned
-	// raw extra_config disk slots join the effective attachment set, so a raw
-	// second seed or raw target overwrite cannot slip past the guard.
+	// Refresh observations are not ownership. Only private attachment history
+	// or an explicit exact-volume migration grant may authorize a seed swap.
+	// The complete inherited/planned media set still receives all existing
+	// slot, volume visibility and double-seed checks before any mutation.
 	markerSlot := qemuVMNoCloudSlotValue(plan)
+	var seedSwap bool
+	var seedTarget string
+	var seedHistory qemuSeedAttachment
 	if markerSlot != "" {
 		disks, diskDiags := expandQemuVMDiskModelMap(ctx, plan.Disk)
 		resp.Diagnostics.Append(diskDiags...)
@@ -382,7 +420,20 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 			resp.Diagnostics.AddError("Unsafe Proxmox QEMU VM CD-ROM Attachment", err.Error())
 			return
 		}
-		if err := validateQemuVMCDROMOwnership(state.VMID.ValueInt64(), plannedWireCDROMs, current.Disk, markerSlot); err != nil {
+		var historyDiags diag.Diagnostics
+		seedHistory, historyDiags = readQemuSeedAttachment(ctx, req.Private)
+		resp.Diagnostics.Append(historyDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		inherited, swap, err := authorizeQemuSeedUpdate(plan, plannedWireCDROMs, current, seedHistory)
+		if err != nil {
+			resp.Diagnostics.AddError("Unsafe Proxmox QEMU VM CD-ROM Attachment", err.Error())
+			return
+		}
+		seedSwap = swap
+		seedTarget = plannedWireCDROMs[markerSlot]
+		if err := validateQemuVMCDROMOwnership(state.VMID.ValueInt64(), plannedWireCDROMs, inherited, markerSlot); err != nil {
 			resp.Diagnostics.AddError("Unsafe Proxmox QEMU VM CD-ROM Attachment", err.Error())
 			return
 		}
@@ -452,11 +503,56 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 	updateReq.Network = narrowedNetwork
 
+	if seedSwap || seedHistory.Pending != "" {
+		status, err := r.client.GetQemuVMStatus(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Verify Stopped VM Before Seed Update", err.Error())
+			return
+		}
+		if status.Status != "stopped" {
+			resp.Diagnostics.AddError("NoCloud Seed Update Requires Stopped VM", "Stop the workspace before replacing the cloud-init seed; the provider will not hot-swap or automatically reboot it.")
+			return
+		}
+		digest := current.ExtraConfig["digest"]
+		if digest == "" {
+			resp.Diagnostics.AddError("NoCloud Seed Update Requires Digest", "Cannot safely replace media without the live configuration digest.")
+			return
+		}
+		if updateReq.ExtraConfig == nil {
+			updateReq.ExtraConfig = map[string]string{}
+		}
+		updateReq.ExtraConfig["digest"] = digest
+		if seedSwap {
+			// An authorized old->new intent survives an ambiguous PUT response.
+			seedHistory = qemuSeedAttachment{Node: plan.Node.ValueString(), VMID: plan.VMID.ValueInt64(), Slot: markerSlot, Volume: qemuVMWireDiskVolume(current.Disk[markerSlot]), Pending: seedTarget}
+			resp.Diagnostics.Append(writeQemuSeedAttachment(ctx, resp.Private, seedHistory)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+	}
 	if err := r.client.UpdateQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Update Proxmox QEMU VM", err.Error())
 		return
 	}
 
+	if seedSwap || seedHistory.Pending != "" {
+		live, err := r.client.GetQemuVMConfig(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Verify NoCloud Seed Update", err.Error())
+			return
+		}
+		target := seedTarget
+		if !qemuVMWireDiskHasMediaCDROM(live.Disk[markerSlot]) || qemuVMWireDiskVolume(live.Disk[markerSlot]) != target {
+			resp.Diagnostics.AddError("NoCloud Seed Update Did Not Converge", "Live media does not match the authorized seed; attachment history remains pending.")
+			return
+		}
+		seedHistory.Volume, seedHistory.Pending = target, ""
+		resp.Diagnostics.Append(writeQemuSeedAttachment(ctx, resp.Private, seedHistory)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 	if err := r.resizeDisks(ctx, plan); err != nil {
 		resp.Diagnostics.AddError("Unable to Resize Proxmox QEMU Disks", err.Error())
 		return
@@ -479,6 +575,7 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 	planPrior := state
 	planPrior.Disk = plan.Disk
 	planPrior.DiskResize = plan.DiskResize
+	planPrior.NoCloudUpdateFrom = plan.NoCloudUpdateFrom
 	planPrior.Power = plan.Power
 	planPrior.PowerShutdownTimeout = plan.PowerShutdownTimeout
 	refreshed, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &planPrior)

@@ -67,7 +67,8 @@ type qemuVMModel struct {
 
 	// NoCloudCDROMSlot marks which existing typed disk slot carries the
 	// NoCloud seed ISO; strict seed layout checks only apply when it is set.
-	NoCloudCDROMSlot types.String `tfsdk:"nocloud_cdrom_slot"`
+	NoCloudCDROMSlot  types.String `tfsdk:"nocloud_cdrom_slot"`
+	NoCloudUpdateFrom types.String `tfsdk:"nocloud_seed_update_from"`
 
 	Status types.String `tfsdk:"status"`
 	Uptime types.Int64  `tfsdk:"uptime"`
@@ -446,7 +447,7 @@ func qemuVMDiskResourceAttribute() schema.MapNestedAttribute {
 		Optional:            true,
 		Computed:            true,
 		PlanModifiers:       []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
-		MarkdownDescription: "Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates may only replace the same volume, an empty bay, or this VM's same-slot Proxmox cloud-init drive. Any other medium swap is refused - including a seed this resource attached in an earlier apply, because refreshed state observes reality but does not prove ownership - and requires replacing the VM (for example through `lifecycle` `replace_triggered_by`). Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source.",
+		MarkdownDescription: "Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates preserve inherited disks without adopting media from refreshed state. A different ISO in the marked slot may be replaced on a stopped VM only with provider private attachment history (or an explicit exact-volume `nocloud_seed_update_from` migration grant), live digest compare-and-swap and attachment readback verification. Refresh/import never grants ownership; foreign media, hard disks and second seeds remain rejected. Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source.",
 		NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
 			"storage":     schema.StringAttribute{Optional: true, Computed: true},
 			"volume":      schema.StringAttribute{Optional: true, Computed: true},
@@ -691,6 +692,7 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 			Computed:            true,
 			MarkdownDescription: "Shutdown timeout of the `proxmox_qemu_vm` resource in seconds. Terraform-side policy is not stored in Proxmox, so data source reads always return null.",
 		},
+		"nocloud_seed_update_from": datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Terraform-side one-time seed replacement authorization; data source reads return null."},
 		"nocloud_cdrom_slot": datasourceschema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "NoCloud seed slot marker of the `proxmox_qemu_vm` resource. The marker is a Terraform-side create-time input not stored in Proxmox, so data source reads always return null.",
@@ -783,6 +785,7 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 			Optional:            true,
 			MarkdownDescription: "Seconds the Proxmox shutdown task waits for a graceful shutdown before forcing the guest off, used only when `power = false`. Defaults to the Proxmox default of 60 when unset. Must be between 1 and 600.",
 		},
+		"nocloud_seed_update_from": schema.StringAttribute{Optional: true, MarkdownDescription: "Explicit one-time authorization to replace this exact current ISO volume in the marked seed slot, for upgrading/importing VMs without private attachment history. Must match the stopped VM current CD-ROM exactly; never authorizes a hard disk. Remove after a successful update. Normally unnecessary: successful attachments record ownership in provider private state. Refresh never grants ownership."},
 		"nocloud_cdrom_slot": schema.StringAttribute{
 			Optional:            true,
 			MarkdownDescription: "Declares the typed disk slot that carries the NoCloud seed ISO attached through `disk[slot].volume`, for example `ide2`. This is not a second attachment owner: it names the existing CD-ROM slot so the strict seed checks apply to this workflow without restricting ordinary CD-ROM users. The marked slot must plan a real ISO CD-ROM volume; its storage must be visible, active, and support `iso` content on the VM's node and the exact volume must exist there, at most one seed may remain attached, and in-place updates never overwrite an inherited disk or foreign medium. Changing this marker requires replacement; it is a create-time input, so updates and refreshes never start the guest.",

@@ -36,7 +36,11 @@ func validateQemuVMDiskResize(ctx context.Context, model qemuVMModel) diag.Diagn
 		if !qemuResizeSlot.MatchString(slot) {
 			diags.AddAttributeError(p, "Invalid resize slot", "Use an existing ide, sata, scsi or virtio hard disk slot.")
 		}
-		n := value.(types.Int64)
+		n, ok := value.(types.Int64)
+		if !ok {
+			diags.AddAttributeError(p, "Invalid resize size", "Resize size must be an integer GiB value.")
+			continue
+		}
 		if !n.IsUnknown() && (n.IsNull() || n.ValueInt64() < 1 || n.ValueInt64() > 1048576) {
 			diags.AddAttributeError(p, "Invalid resize size", "Absolute size must be an integer from 1 to 1048576 GiB.")
 		}

@@ -1,3 +1,18 @@
+## 0.7.0 (2026-10-09)
+
+FEATURES:
+
+- Safely update a marked NoCloud seed ISO in place on a stopped VM. Private attachment history binds the managed volume to node, VMID and slot; live config digest protects the PUT, and readback verifies the new attachment. Authorized pending intent survives ambiguous PUT outcomes; refresh only confirms the exact previously-authorized target if Terraform skips Update during recovery. Refresh never adopts foreign media.
+- Add `nocloud_seed_update_from` as an explicit exact-volume migration authorization for older/imported VMs without private attachment history. Hard disks, running guests, missing digests and second seeds remain rejected.
+
+FIXES:
+
+- Fix the disk resize validation type assertion and test formatting lint errors introduced in v0.6.0.
+
+NOTES:
+
+- Keep cloud-init instance-id stable when reusing a VM. Replacing an ISO does not automatically rerun per-instance initialization or bypass guest datasource caching; run only the required idempotent modules. New seed files must remain generation-unique with create-before-destroy ordering. Real guest/storage acceptance testing remains required.
+
 ## 0.6.0 (2026-10-09)
 
 FEATURES:
