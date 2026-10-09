@@ -94,14 +94,12 @@ resource "proxmox_qemu_vm" "example" {
     }
   }
 
-  disk = {
-    scsi0 = {
-      storage = "local-lvm"
-      size    = "32G"
-      discard = "on"
-      ssd     = true
-    }
+  # Grow the inherited template root disk without replacing its volume.
+  disk_resize = {
+    scsi0 = 32
+  }
 
+  disk = {
     # CD-ROM media, for example a proxmox_nocloud_iso seed volume. With
     # nocloud_cdrom_slot set, the attachment is strictly safety-checked
     # against the inherited disks and the VM node's ISO storage; unmarked
@@ -146,6 +144,7 @@ resource "proxmox_qemu_vm" "example" {
 - `cpuunits` (Number) CPU weight for this VM managed through `/config`.
 - `description` (String) Optional VM description managed through clone mode and `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates may only replace the same volume, an empty bay, or this VM's same-slot Proxmox cloud-init drive. Any other medium swap is refused - including a seed this resource attached in an earlier apply, because refreshed state observes reality but does not prove ownership - and requires replacing the VM (for example through `lifecycle` `replace_triggered_by`). Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source. (see [below for nested schema](#nestedatt--disk))
+- `disk_resize` (Map of Number) Absolute target sizes in GiB for existing hard disks, keyed by slot (for example scsi0 = 64). Uses the asynchronous resize API, never replaces or allocates a disk. Reconciled on create after clone/config and on update before starting. Equal sizes are no-ops; shrinking, missing disks and CD-ROMs are rejected. Targets are Terraform-side policy echoed in state; refresh never resizes. Do not also configure the same slot through disk or raw.extra_config. Guest partition/filesystem expansion is separate.
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
 - `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 - `machine` (String) Configured machine type managed through `/config`.

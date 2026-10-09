@@ -79,14 +79,12 @@ resource "proxmox_qemu_vm" "example" {
     }
   }
 
-  disk = {
-    scsi0 = {
-      storage = "local-lvm"
-      size    = "32G"
-      discard = "on"
-      ssd     = true
-    }
+  # Grow the inherited template root disk without replacing its volume.
+  disk_resize = {
+    scsi0 = 32
+  }
 
+  disk = {
     # CD-ROM media, for example a proxmox_nocloud_iso seed volume. With
     # nocloud_cdrom_slot set, the attachment is strictly safety-checked
     # against the inherited disks and the VM node's ISO storage; unmarked

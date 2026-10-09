@@ -81,6 +81,7 @@ func (r *QemuVMResource) ValidateConfig(ctx context.Context, req resource.Valida
 	resp.Diagnostics.Append(validateQemuVMNoCloudSlotConfig(config)...)
 	resp.Diagnostics.Append(validateQemuVMCloneConfig(ctx, config)...)
 	resp.Diagnostics.Append(validateQemuVMPowerConfig(config)...)
+	resp.Diagnostics.Append(validateQemuVMDiskResize(ctx, config)...)
 }
 
 func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -244,6 +245,11 @@ func (r *QemuVMResource) Create(ctx context.Context, req resource.CreateRequest,
 		if resp.Diagnostics.HasError() {
 			return
 		}
+	}
+
+	if err := r.resizeDisks(ctx, plan); err != nil {
+		resp.Diagnostics.AddError("Unable to Resize Proxmox QEMU Disks", err.Error())
+		return
 	}
 
 	// Declarative `power` reconciles the desired state at create time: true
@@ -451,6 +457,11 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	if err := r.resizeDisks(ctx, plan); err != nil {
+		resp.Diagnostics.AddError("Unable to Resize Proxmox QEMU Disks", err.Error())
+		return
+	}
+
 	if startAfterPut {
 		if err := r.client.StartQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64()); err != nil {
 			resp.Diagnostics.AddError("Unable to Start Proxmox QEMU VM", err.Error())
@@ -467,6 +478,7 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 	// change converges in the same apply.
 	planPrior := state
 	planPrior.Disk = plan.Disk
+	planPrior.DiskResize = plan.DiskResize
 	planPrior.Power = plan.Power
 	planPrior.PowerShutdownTimeout = plan.PowerShutdownTimeout
 	refreshed, diags := r.readQemuVMState(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), &planPrior)

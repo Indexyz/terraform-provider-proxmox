@@ -49,6 +49,7 @@ data "proxmox_qemu_vm" "example" {
 - `cpuunits` (Number) CPU weight for this VM from `/config`.
 - `description` (String) Optional VM description from `/config`.
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0` when fully covered by this provider version. (see [below for nested schema](#nestedatt--disk))
+- `disk_resize` (Map of Number) Terraform-side resize targets; data source reads return null. Observed sizes are available in disk.
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--efi_disk))
 - `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) from `/config`.
 - `id` (String) Terraform identifier in `node/vm_id` form.

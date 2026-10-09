@@ -76,6 +76,8 @@
 - 简化清理（survey→change 全套验证）：snapshot 家族合并为单一参数化实现（新 `resource_snapshot.go` 以既有 `snapshotKind` 参数化，两个 Terraform 资源名 `proxmox_qemu_snapshot`/`proxmox_lxc_snapshot` 与全部诊断/描述字符串逐字保留；删除 4 个孪生文件、2 个类型别名、2 个 request struct、2 份逐字相同的 ID/ImportID helper 与镜像 client 测试，`client_snapshot.go` 收编共享 helper）；删除七个仅测试消费的 client 方法（`CreateQemuVM`/`CloneQemuVM` awaited 组合、无 scope 的 `GetFirewallRules`/`CreateFirewallRule`/`UpdateFirewallRule`/`DeleteFirewallRule` cluster 便捷层、`StopLXCContainer`——生产路径分别只走 Submit+await、Scoped 形式与 LXC shutdown），相关 client 测试改用生产同路径；`UpdateScopedFirewallRule` 的手写 `enable` 编码改用 `setOptionalInt64`；`qemuVMCommonStateValue` 移除未使用的 prior 参数。全套件、vet、gofmt、deadcode 干净，注册维持 26 资源/21 数据源，净减约 786 行。
 - 修复 `proxmox_qemu_vm` 自动分配 VMID 的并发冲突：create/clone 提交 POST 因 `config file already exists`（HTTP 400）被拒且 `vm_id` 为自动分配时，重新走 `GET /cluster/nextid`（含 `vm_id_start` propose-assert）分配新 ID 并重试提交，上限 `qemuVMIDConflictRetries`（5）；显式 `vm_id` 冲突仍直接报错不重试。重试缝在 `SubmitCreateQemuVM`/`SubmitCloneQemuVM` 被拒处（被拒 POST 从未入 state、不采纳获胜 VM），新 `submitQemuVMWithRetry` hook 复用同一逻辑覆盖 create 与 clone 分支，被接受的 UPID 与等待/持久化流程不变；补充三条生命周期测试（create POST 冲突重试、clone POST 冲突重试、显式 `vm_id` 冲突不重试）。
 
+- 新增 `proxmox_qemu_vm.disk_resize`：独立 slot → 整数 GiB 目标映射，通过异步 `PUT /resize` + 任务等待 + 读回验证扩容现有硬盘，克隆配置完成后且开机前执行，更新时同样先扩容后开机。绝对容量保证重试不叠加增长；同容量无操作、拒绝缩盘/缺失盘/CD-ROM/同槽 disk 与 raw 冲突，使用 fresh digest 防并发换盘；refresh 只保留 Terraform 侧目标、不执行动作。补充 HTTP 生命周期与错误测试；v0.6.0 发布准备。下一步真实 PVE storage 扩容及 cloud-init 分区/文件系统扩容验收（尚未实机验证）。
+
 ## 接下来
 
 ### 优先实现

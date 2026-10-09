@@ -1,3 +1,13 @@
+## 0.6.0 (2026-10-09)
+
+FEATURES:
+
+- Add `proxmox_qemu_vm.disk_resize`, a map of existing disk slots to absolute integer GiB targets. Clone/create and updates resize through the Proxmox asynchronous `/resize` API before starting the guest, preserving the inherited volume. Equal sizes are no-ops; shrinking, missing disks, CD-ROMs and conflicting disk/raw configuration are rejected.
+
+NOTES:
+
+- Resize requires `VM.Config.Disk` and `Datastore.AllocateSpace`. Refresh never resizes; guest partitions and filesystems must be expanded separately (for example with cloud-init growpart/resizefs). Real storage and guest expansion still require environment acceptance testing.
+
 ## 0.5.1 (2026-09-13)
 
 FIXES:

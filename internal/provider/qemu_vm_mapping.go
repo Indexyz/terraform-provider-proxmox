@@ -64,7 +64,13 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		tablet = *value
 	}
 
+	diskResize := types.MapNull(types.Int64Type)
+	if prior != nil {
+		diskResize = prior.DiskResize
+	}
+
 	return qemuVMModel{
+		DiskResize:    diskResize,
 		ID:            types.StringValue(qemuVMID(node, vmID)),
 		Node:          types.StringValue(node),
 		VMID:          types.Int64Value(vmID),

@@ -40,18 +40,19 @@ func testResourceCreateResponse(t *testing.T, schema resource.SchemaResponse) re
 
 func minimalQemuVMModel(node string, vmID int64) qemuVMModel {
 	return qemuVMModel{
-		Node:      types.StringValue(node),
-		VMID:      types.Int64Value(vmID),
-		Common:    types.ObjectNull(qemuVMCommonAttrTypes()),
-		CloudInit: types.ObjectNull(qemuVMCloudInitAttrTypes()),
-		Network:   types.MapNull(types.ObjectType{AttrTypes: qemuVMNetworkAttrTypes()}),
-		Disk:      types.MapNull(types.ObjectType{AttrTypes: qemuVMDiskAttrTypes()}),
-		Serial:    types.MapNull(types.StringType),
-		EFIDisk:   types.ObjectNull(qemuVMEFIDiskAttrTypes()),
-		TPMState:  types.ObjectNull(qemuVMTPMStateAttrTypes()),
-		VGA:       types.ObjectNull(qemuVMVGAAttrTypes()),
-		Raw:       types.ObjectNull(qemuVMRawAttrTypes()),
-		Clone:     types.ObjectNull(qemuVMCloneAttrTypes()),
+		Node:       types.StringValue(node),
+		VMID:       types.Int64Value(vmID),
+		Common:     types.ObjectNull(qemuVMCommonAttrTypes()),
+		CloudInit:  types.ObjectNull(qemuVMCloudInitAttrTypes()),
+		Network:    types.MapNull(types.ObjectType{AttrTypes: qemuVMNetworkAttrTypes()}),
+		Disk:       types.MapNull(types.ObjectType{AttrTypes: qemuVMDiskAttrTypes()}),
+		DiskResize: types.MapNull(types.Int64Type),
+		Serial:     types.MapNull(types.StringType),
+		EFIDisk:    types.ObjectNull(qemuVMEFIDiskAttrTypes()),
+		TPMState:   types.ObjectNull(qemuVMTPMStateAttrTypes()),
+		VGA:        types.ObjectNull(qemuVMVGAAttrTypes()),
+		Raw:        types.ObjectNull(qemuVMRawAttrTypes()),
+		Clone:      types.ObjectNull(qemuVMCloneAttrTypes()),
 	}
 }
 
