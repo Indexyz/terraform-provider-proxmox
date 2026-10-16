@@ -1,3 +1,13 @@
+## 0.7.1 (Unreleased)
+
+FIXES:
+
+- `proxmox_qemu_vm` no longer adopts or deletes an unrelated guest that reused a tracked VMID. Proxmox hands a freed VMID to the next guest, so a guest that disappeared out of band could be replaced at the same node/VMID, and refresh and destroy then targeted the new guest. The recorded `name` is now checked: a guest at the tracked VMID under a different name means the tracked guest is gone, so refresh removes it from state, destroy neither stops nor deletes the other guest, and update fails. Create and clone persist the name as soon as the API accepts the guest, and a rename whose reply is lost keeps both names valid until a refresh observes the result.
+
+NOTES:
+
+- Renaming a guest outside Terraform now makes Terraform treat it as deleted and leaves the renamed guest unmanaged. Rename guests through Terraform, or re-import them. Guests without a recorded name (imported or unnamed) are not checked until a refresh records one.
+
 ## 0.7.0 (2026-10-09)
 
 FEATURES:

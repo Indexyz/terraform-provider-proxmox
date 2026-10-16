@@ -149,7 +149,9 @@ func TestQemuVMResourceFrameworkLifecycle(t *testing.T) {
 	}
 	updated := minimalQemuVMModel("pve one", 401)
 	updated.Name = types.StringValue("wrapper-vm-updated")
-	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	// The framework pre-populates the response with the prior state.
+	updateResp := resource.UpdateResponse{State: readResp.State}
+	initializeResourcePrivate(t, &updateResp)
 	res.Update(context.Background(), resource.UpdateRequest{Plan: testResourcePlan(t, schema, updated), State: readResp.State}, &updateResp)
 	if updateResp.Diagnostics.HasError() {
 		t.Fatalf("QEMU wrapper update diagnostics: %v", updateResp.Diagnostics)
@@ -1160,7 +1162,9 @@ func TestQemuVMResourceReadAndUpdateNeverStartOrStop(t *testing.T) {
 	}
 	refreshed.Name = types.StringValue("observed-vm-renamed")
 	refreshed.StopOnDestroy = types.BoolValue(true)
-	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	// The framework pre-populates the response with the prior state.
+	updateResp := resource.UpdateResponse{State: readResp.State}
+	initializeResourcePrivate(t, &updateResp)
 	res.Update(context.Background(), resource.UpdateRequest{Plan: testResourcePlan(t, schema, refreshed), State: readResp.State}, &updateResp)
 	if updateResp.Diagnostics.HasError() {
 		t.Fatalf("observed update diagnostics: %v", updateResp.Diagnostics)

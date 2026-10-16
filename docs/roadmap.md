@@ -79,6 +79,7 @@
 - 新增 `proxmox_qemu_vm.disk_resize`：独立 slot → 整数 GiB 目标映射，通过异步 `PUT /resize` + 任务等待 + 读回验证扩容现有硬盘，克隆配置完成后且开机前执行，更新时同样先扩容后开机。绝对容量保证重试不叠加增长；同容量无操作、拒绝缩盘/缺失盘/CD-ROM/同槽 disk 与 raw 冲突，使用 fresh digest 防并发换盘；refresh 只保留 Terraform 侧目标、不执行动作。补充 HTTP 生命周期与错误测试；v0.6.0 发布准备。下一步真实 PVE storage 扩容及 cloud-init 分区/文件系统扩容验收（尚未实机验证）。
 
 - 新增安全的 NoCloud seed 原地更新（supersedes review round-2 终审中“所有 seed 变更都要求重建”的限制，但不恢复从 refresh state 推导所有权）：成功 Create 记录 node/VMID/slot/volume 私有附着证据；Update 仅在精确证据匹配或管理员显式授权 `nocloud_seed_update_from` 精确旧 ISO 时允许更新标记槽位。保留全量 seed 可见性/双 seed/外来硬盘检查，要求 VM 停止，使用 live digest CAS，PUT 前持久化授权 old→pending intent 供响应丢失重试、读回验证后确认新附着，Read 永不从外来观察授予所有权，只确认已授权 pending target（真实 Core 在 PUT 已应用但响应丢失时可能跳过 Update，否则后续修订会永远卡在 pending）；空槽/本 VM 原生 cloud-init 替换也必须停止并 CAS，成功后记录历史。真实 Terraform CLI harness 验证新 seed 上传→同 VM 附着→旧 seed 删除、root volume 不变、重复 apply 无动作、refresh 外来介质仍拒绝。修复 v0.6.0 两条 lint 缺陷；v0.7.0 发布准备。下一步实机验收 guest cloud-init 缓存与 per-boot 模块执行；ISO 更新本身不保证所有 user-data 自动重执行。
+- 修复 `proxmox_qemu_vm` 在 VMID 复用时误删其他 guest：Proxmox 会把释放的 VMID 立即分给下一个 guest，原先 refresh 和 Delete 只按 node/VMID 识别，会接管并删除占用同一 VMID 的无关 guest（生产环境 2026-10-16 实际发生）。现在以记录的 `name` 作为身份：名称不同即视为原 guest 已删除，refresh 移出 state、Delete 不 stop/delete、Update 报错；create/clone 被接受后立即持久化 name；改名通过 private state 记录未确认的新名，PUT 回复丢失也不会误判；新增真实 Terraform CLI e2e（`terraform_core_vmid_reuse_test.go`）。
 
 ## 接下来
 

@@ -328,6 +328,12 @@ func (r *QemuVMResource) Read(ctx context.Context, req resource.ReadRequest, res
 		}
 	}
 
+	owned, diags := qemuVMOwnedNames(ctx, state, req.Private)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	refreshed, diags := r.readQemuVMState(ctx, state.Node.ValueString(), state.VMID.ValueInt64(), &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -337,6 +343,15 @@ func (r *QemuVMResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if refreshed.ID.IsNull() {
 		resp.State.RemoveResource(ctx)
 		return
+	}
+	if !qemuVMOwnsGuest(owned, refreshed.Name.ValueString()) {
+		resp.Diagnostics.Append(qemuVMForeignGuestWarning(state.Node.ValueString(), state.VMID.ValueInt64(), owned, refreshed.Name.ValueString())...)
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	// The observed name settles an unconfirmed rename.
+	if len(owned) > 1 {
+		resp.Diagnostics.Append(writeQemuVMPendingName(ctx, resp.Private, "")...)
 	}
 
 	// A refresh may only confirm a previously authorized pending intent;
@@ -385,6 +400,18 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 			return
 		}
 		resp.Diagnostics.AddError("Unable to Read Current Proxmox QEMU VM", err.Error())
+		return
+	}
+	owned, diags := qemuVMOwnedNames(ctx, state, req.Private)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !qemuVMOwnsGuest(owned, current.Name) {
+		resp.Diagnostics.AddError(
+			"Proxmox QEMU VM No Longer Exists",
+			fmt.Sprintf("VMID %d on node %q now holds a different guest named %q, not the tracked %q.", state.VMID.ValueInt64(), state.Node.ValueString(), current.Name, owned[0]),
+		)
 		return
 	}
 
@@ -531,9 +558,25 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 			}
 		}
 	}
+	// A rename whose reply is lost must not make the renamed guest look
+	// foreign: both names prove identity until the PUT is confirmed.
+	renamed := !plan.Name.IsUnknown() && !plan.Name.IsNull() && plan.Name.ValueString() != state.Name.ValueString()
+	if renamed {
+		resp.Diagnostics.Append(writeQemuVMPendingName(ctx, resp.Private, plan.Name.ValueString())...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 	if err := r.client.UpdateQemuVM(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Update Proxmox QEMU VM", err.Error())
 		return
+	}
+	if renamed {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), plan.Name)...)
+		resp.Diagnostics.Append(writeQemuVMPendingName(ctx, resp.Private, "")...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	if seedSwap || seedHistory.Pending != "" {
@@ -638,11 +681,23 @@ func (r *QemuVMResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// repeated destroys stay idempotent; PVE reports missing QEMU configs as
 	// HTTP 500, which the client classifies as errNotFound for this exact
 	// node/VMID shape.
-	if _, err := r.client.GetQemuVMConfig(ctx, node, vmID); err != nil {
+	owned, diags := qemuVMOwnedNames(ctx, state, req.Private)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	config, err := r.client.GetQemuVMConfig(ctx, node, vmID)
+	if err != nil {
 		if errors.Is(err, errNotFound) {
 			return
 		}
 		resp.Diagnostics.AddError("Unable to Read Proxmox QEMU VM Before Delete", err.Error())
+		return
+	}
+	// Without a refresh, Delete is the last point that can tell a reused
+	// VMID apart: an unrelated guest there means ours is already gone.
+	if !qemuVMOwnsGuest(owned, config.Name) {
+		resp.Diagnostics.Append(qemuVMForeignGuestWarning(node, vmID, owned, config.Name)...)
 		return
 	}
 
@@ -699,6 +754,11 @@ func persistQemuVMIdentity(ctx context.Context, state *tfsdk.State, plan qemuVMM
 	diags.Append(state.SetAttribute(ctx, path.Root("id"), qemuVMID(plan.Node.ValueString(), plan.VMID.ValueInt64()))...)
 	diags.Append(state.SetAttribute(ctx, path.Root("node"), plan.Node)...)
 	diags.Append(state.SetAttribute(ctx, path.Root("vm_id"), plan.VMID)...)
+	// The create/clone request carries the planned name, which is the
+	// guest identity Read and Delete check against VMID reuse.
+	if !plan.Name.IsUnknown() {
+		diags.Append(state.SetAttribute(ctx, path.Root("name"), plan.Name)...)
+	}
 	diags.Append(state.SetAttribute(ctx, path.Root("vm_id_start"), plan.VMIDStart)...)
 	diags.Append(state.SetAttribute(ctx, path.Root("start_on_create"), plan.StartOnCreate)...)
 	diags.Append(state.SetAttribute(ctx, path.Root("stop_on_destroy"), plan.StopOnDestroy)...)
