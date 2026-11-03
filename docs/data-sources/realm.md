@@ -36,10 +36,21 @@ data "proxmox_realm" "corporate_sso" {
 - `base_dn` (String) LDAP base distinguished name.
 - `bind_dn` (String) LDAP bind distinguished name.
 - `ca_path` (String) Path on the Proxmox cluster to the LDAP CA certificate file or directory.
+- `case_sensitive` (Boolean) Whether LDAP/AD user names are case-sensitive.
+- `cert` (String) Path on the cluster to the LDAP/AD client certificate.
+- `cert_key` (String) Path on the cluster to the LDAP/AD client certificate key.
 - `client_id` (String) OpenID Connect client identifier.
 - `comment` (String) Realm description shown in the Proxmox login interface.
 - `default` (Boolean) Whether this is the cluster default realm.
 - `domain` (String) Active Directory domain name.
+- `filter` (String) LDAP/AD filter applied during user sync.
+- `group_classes` (String) Object classes that identify group entries during sync.
+- `group_dn` (String) Base DN for group sync.
+- `group_filter` (String) LDAP/AD filter applied during group sync.
+- `group_name_attr` (String) LDAP attribute that carries a group name.
+- `groups_autocreate` (Boolean) Whether Proxmox groups are created from OpenID group claims.
+- `groups_claim` (String) OpenID claim that carries group memberships.
+- `groups_overwrite` (Boolean) Whether existing Proxmox group memberships are overwritten from OpenID group claims.
 - `id` (String) Realm identifier (same as `realm`).
 - `issuer_url` (String) OpenID Connect issuer URL.
 - `mode` (String) LDAP protocol mode.
@@ -49,7 +60,23 @@ data "proxmox_realm" "corporate_sso" {
 - `scopes` (String) Space-separated OpenID scopes.
 - `server1` (String) Primary LDAP or Active Directory server.
 - `server2` (String) Fallback LDAP or Active Directory server.
+- `sync_attributes` (String) `pveField=ldapAttribute` mappings applied during user sync.
+- `sync_defaults_options` (String) Default options for sync runs, passed through unchanged.
+- `tfa` (Attributes) Realm-level two-factor requirement. Only the parsed parameters are exposed; the Yubico `key` is stored in `/etc/pve/domains.cfg` in plaintext and reported here. (see [below for nested schema](#nestedatt--tfa))
 - `type` (String) Realm type: `ldap`, `ad`, `openid`, `pam`, or `pve`.
 - `user_attr` (String) LDAP attribute containing the username.
+- `user_classes` (String) Object classes that identify user entries during sync.
 - `username_claim` (String) OpenID claim used as the username.
 - `verify` (Boolean) Whether the LDAP server TLS certificate is verified.
+
+<a id="nestedatt--tfa"></a>
+### Nested Schema for `tfa`
+
+Read-Only:
+
+- `digits` (Number) TOTP digit count.
+- `id` (String) Yubico API ID.
+- `key` (String) Yubico API key.
+- `step` (Number) TOTP time period in seconds.
+- `type` (String) Second factor: `oath` or `yubico`.
+- `url` (String) Yubico API URL.

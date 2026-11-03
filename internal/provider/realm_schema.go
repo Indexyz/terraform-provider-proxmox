@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -45,6 +48,51 @@ type realmModel struct {
 	QueryUserinfo       types.Bool   `tfsdk:"query_userinfo"`
 	ACRValues           types.String `tfsdk:"acr_values"`
 	Audiences           types.String `tfsdk:"audiences"`
+	Cert                types.String `tfsdk:"cert"`
+	CertKey             types.String `tfsdk:"cert_key"`
+	Filter              types.String `tfsdk:"filter"`
+	SyncAttrs           types.String `tfsdk:"sync_attributes"`
+	UserClasses         types.String `tfsdk:"user_classes"`
+	GroupDN             types.String `tfsdk:"group_dn"`
+	GroupNameAttr       types.String `tfsdk:"group_name_attr"`
+	GroupFilter         types.String `tfsdk:"group_filter"`
+	GroupClasses        types.String `tfsdk:"group_classes"`
+	SyncDefaults        types.String `tfsdk:"sync_defaults_options"`
+	CaseSensitive       types.Bool   `tfsdk:"case_sensitive"`
+	GroupsClaim         types.String `tfsdk:"groups_claim"`
+	GroupsAutocreate    types.Bool   `tfsdk:"groups_autocreate"`
+	GroupsOverwrite     types.Bool   `tfsdk:"groups_overwrite"`
+	TFA                 types.Object `tfsdk:"tfa"`
+}
+
+func realmTFAAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":   types.StringType,
+		"id":     types.StringType,
+		"key":    types.StringType,
+		"url":    types.StringType,
+		"digits": types.Int64Type,
+		"step":   types.Int64Type,
+	}
+}
+
+var realmSyncAttributesPattern = regexp.MustCompile(`^\w+=[^,]+(,\s*\w+=[^,]+)*$`)
+var realmAttrListPattern = regexp.MustCompile(`^[\w.-]+(,\s*[\w.-]+)*$`)
+
+func realmTFAAttribute() schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		Optional:            true,
+		Computed:            true,
+		MarkdownDescription: "Realm-level two-factor requirement. Proxmox stores this as a property string and only LDAP/AD realms support it; the Yubico `key` is kept in `/etc/pve/domains.cfg` in plaintext.",
+		Attributes: map[string]schema.Attribute{
+			"type":   schema.StringAttribute{Required: true, MarkdownDescription: "Second factor: `oath` (TOTP) or `yubico`."},
+			"id":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Yubico API ID."},
+			"key":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Yubico API key."},
+			"url":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Yubico API URL."},
+			"digits": schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "TOTP digit count between 6 and 8."},
+			"step":   schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "TOTP time period in seconds, at least 10."},
+		},
+	}
 }
 
 func validateRealmConfig(config realmModel) diag.Diagnostics {
@@ -66,6 +114,9 @@ func validateRealmConfig(config realmModel) diag.Diagnostics {
 	}
 	validateRealmSecretPair(&diags, "bind_password", config.BindPassword, "bind_password_version", config.BindPasswordVersion)
 	validateRealmSecretPair(&diags, "client_key", config.ClientKey, "client_key_version", config.ClientKeyVersion)
+	validateRealmTextLimits(&diags, config)
+	validateRealmSyncLists(&diags, config)
+	validateRealmTFA(&diags, config.TFA)
 	if config.Type.IsNull() || config.Type.IsUnknown() {
 		return diags
 	}
@@ -100,10 +151,12 @@ func validateRealmConfig(config realmModel) diag.Diagnostics {
 		requireRealmString(&diags, "user_attr", config.UserAttr)
 		addString("domain", config.Domain)
 		addOpenIDRealmFields(&incompatible, config)
+		addOpenIDGroupFields(&incompatible, config)
 	case "ad":
 		requireRealmString(&diags, "server1", config.Server1)
 		requireRealmString(&diags, "domain", config.Domain)
 		addOpenIDRealmFields(&incompatible, config)
+		addOpenIDGroupFields(&incompatible, config)
 	case "openid":
 		requireRealmString(&diags, "issuer_url", config.IssuerURL)
 		requireRealmString(&diags, "client_id", config.ClientID)
@@ -119,6 +172,7 @@ func validateRealmConfig(config realmModel) diag.Diagnostics {
 		addString("bind_dn", config.BindDN)
 		addString("bind_password", config.BindPassword)
 		addInt64("bind_password_version", config.BindPasswordVersion)
+		addDirectoryRealmFields(&incompatible, config)
 	}
 	if len(incompatible) > 0 {
 		slices.Sort(incompatible)
@@ -139,6 +193,128 @@ func validateRealmSecretPair(diags *diag.Diagnostics, secretName string, secret 
 func requireRealmString(diags *diag.Diagnostics, name string, value types.String) {
 	if value.IsNull() || (!value.IsUnknown() && strings.TrimSpace(value.ValueString()) == "") {
 		diags.AddAttributeError(path.Root(name), "Missing realm field", fmt.Sprintf("%s must be configured for this realm type.", name))
+	}
+}
+
+func validateRealmTextLimits(diags *diag.Diagnostics, config realmModel) {
+	for _, field := range []struct {
+		name  string
+		value types.String
+		max   int
+	}{
+		{"filter", config.Filter, 2048},
+		{"group_filter", config.GroupFilter, 2048},
+		{"group_dn", config.GroupDN, 256},
+		{"group_name_attr", config.GroupNameAttr, 256},
+	} {
+		if field.value.IsNull() || field.value.IsUnknown() {
+			continue
+		}
+		if len(field.value.ValueString()) > field.max {
+			diags.AddAttributeError(path.Root(field.name), "Invalid realm field length", fmt.Sprintf("%s must not exceed %d characters.", field.name, field.max))
+		}
+	}
+}
+
+func validateRealmSyncLists(diags *diag.Diagnostics, config realmModel) {
+	if !config.SyncAttrs.IsNull() && !config.SyncAttrs.IsUnknown() && !realmSyncAttributesPattern.MatchString(config.SyncAttrs.ValueString()) {
+		diags.AddAttributeError(path.Root("sync_attributes"), "Invalid sync attribute mapping", "sync_attributes must use `target=ldapAttribute` pairs separated by commas, for example `email=mail,firstname=givenName`.")
+	}
+	for _, field := range []struct {
+		name  string
+		value types.String
+	}{
+		{"user_classes", config.UserClasses},
+		{"group_classes", config.GroupClasses},
+	} {
+		if field.value.IsNull() || field.value.IsUnknown() {
+			continue
+		}
+		if !realmAttrListPattern.MatchString(field.value.ValueString()) {
+			diags.AddAttributeError(path.Root(field.name), "Invalid LDAP object classes", fmt.Sprintf("%s must be a comma separated list of attribute names.", field.name))
+		}
+	}
+}
+
+func validateRealmTFA(diags *diag.Diagnostics, value types.Object) {
+	if value.IsNull() || value.IsUnknown() {
+		return
+	}
+	attrs := value.Attributes()
+	tfaType, _ := attrs["type"].(types.String)
+	if tfaType.IsNull() || tfaType.IsUnknown() {
+		diags.AddAttributeError(path.Root("tfa").AtName("type"), "Missing TFA type", "tfa.type must be `oath` or `yubico`.")
+		return
+	}
+	if !slices.Contains([]string{"oath", "yubico"}, tfaType.ValueString()) {
+		diags.AddAttributeError(path.Root("tfa").AtName("type"), "Invalid TFA type", "tfa.type must be `oath` or `yubico`.")
+		return
+	}
+
+	digits, _ := attrs["digits"].(types.Int64)
+	step, _ := attrs["step"].(types.Int64)
+	if !digits.IsNull() && !digits.IsUnknown() && (digits.ValueInt64() < 6 || digits.ValueInt64() > 8) {
+		diags.AddAttributeError(path.Root("tfa").AtName("digits"), "Invalid TOTP digit count", "digits must be between 6 and 8.")
+	}
+	if !step.IsNull() && !step.IsUnknown() && step.ValueInt64() < 10 {
+		diags.AddAttributeError(path.Root("tfa").AtName("step"), "Invalid TOTP time period", "step must be at least 10 seconds.")
+	}
+
+	var incompatible []string
+	for _, name := range []string{"id", "key", "url"} {
+		if attribute, ok := attrs[name].(types.String); ok && !attribute.IsNull() && !attribute.IsUnknown() {
+			incompatible = append(incompatible, name)
+		}
+	}
+	if tfaType.ValueString() == "yubico" {
+		if !digits.IsNull() && !digits.IsUnknown() {
+			incompatible = append(incompatible, "digits")
+		}
+		if !step.IsNull() && !step.IsUnknown() {
+			incompatible = append(incompatible, "step")
+		}
+	}
+	if len(incompatible) > 0 {
+		diags.AddError("Invalid TFA fields", fmt.Sprintf("tfa.type %q does not support: %s", tfaType.ValueString(), strings.Join(incompatible, ", ")))
+	}
+}
+
+func addOpenIDGroupFields(fields *[]string, config realmModel) {
+	for _, value := range []struct {
+		name    string
+		present bool
+	}{
+		{"groups_claim", !config.GroupsClaim.IsNull()},
+		{"groups_autocreate", !config.GroupsAutocreate.IsNull()},
+		{"groups_overwrite", !config.GroupsOverwrite.IsNull()},
+	} {
+		if value.present {
+			*fields = append(*fields, value.name)
+		}
+	}
+}
+
+func addDirectoryRealmFields(fields *[]string, config realmModel) {
+	for _, value := range []struct {
+		name    string
+		present bool
+	}{
+		{"cert", !config.Cert.IsNull()},
+		{"cert_key", !config.CertKey.IsNull()},
+		{"filter", !config.Filter.IsNull()},
+		{"sync_attributes", !config.SyncAttrs.IsNull()},
+		{"user_classes", !config.UserClasses.IsNull()},
+		{"group_dn", !config.GroupDN.IsNull()},
+		{"group_name_attr", !config.GroupNameAttr.IsNull()},
+		{"group_filter", !config.GroupFilter.IsNull()},
+		{"group_classes", !config.GroupClasses.IsNull()},
+		{"sync_defaults_options", !config.SyncDefaults.IsNull()},
+		{"case_sensitive", !config.CaseSensitive.IsNull()},
+		{"tfa", !config.TFA.IsNull()},
+	} {
+		if value.present {
+			*fields = append(*fields, value.name)
+		}
 	}
 }
 
@@ -166,7 +342,7 @@ func addOpenIDRealmFields(fields *[]string, config realmModel) {
 	}
 }
 
-func realmStateFromAPI(config Realm, prior *realmModel) realmModel {
+func realmStateFromAPI(config Realm, prior *realmModel) (realmModel, diag.Diagnostics) {
 	bindPasswordVersion := types.Int64Null()
 	clientKeyVersion := types.Int64Null()
 	if prior != nil {
@@ -177,6 +353,7 @@ func realmStateFromAPI(config Realm, prior *realmModel) realmModel {
 			clientKeyVersion = prior.ClientKeyVersion
 		}
 	}
+	tfa, diags := realmTFAObject(config.TFA)
 	return realmModel{
 		ID:                  types.StringValue(config.Realm),
 		Realm:               types.StringValue(config.Realm),
@@ -206,7 +383,71 @@ func realmStateFromAPI(config Realm, prior *realmModel) realmModel {
 		QueryUserinfo:       boolOrNull(config.QueryUserinfo.Ptr()),
 		ACRValues:           stringOrNull(config.ACRValues),
 		Audiences:           stringOrNull(config.Audiences),
+		Cert:                stringOrNull(config.Cert),
+		CertKey:             stringOrNull(config.CertKey),
+		Filter:              stringOrNull(config.Filter),
+		SyncAttrs:           stringOrNull(config.SyncAttrs),
+		UserClasses:         stringOrNull(config.UserClasses),
+		GroupDN:             stringOrNull(config.GroupDN),
+		GroupNameAttr:       stringOrNull(config.GroupNameAttr),
+		GroupFilter:         stringOrNull(config.GroupFilter),
+		GroupClasses:        stringOrNull(config.GroupClasses),
+		SyncDefaults:        stringOrNull(config.SyncDefaults),
+		CaseSensitive:       boolOrNull(config.CaseSensitive.Ptr()),
+		GroupsClaim:         stringOrNull(config.GroupsClaim),
+		GroupsAutocreate:    boolOrNull(config.GroupsCreate.Ptr()),
+		GroupsOverwrite:     boolOrNull(config.GroupsOverwr.Ptr()),
+		TFA:                 tfa,
+	}, diags
+}
+
+// realmTFAObject parses Proxmox' TFA property string into the typed block.
+// Unknown keys are errors so a newer Proxmox field never disappears silently.
+func realmTFAObject(raw string) (types.Object, diag.Diagnostics) {
+	if raw == "" {
+		return types.ObjectNull(realmTFAAttrTypes()), nil
 	}
+	values := map[string]attr.Value{
+		"type":   types.StringNull(),
+		"id":     types.StringNull(),
+		"key":    types.StringNull(),
+		"url":    types.StringNull(),
+		"digits": types.Int64Null(),
+		"step":   types.Int64Null(),
+	}
+	var diags diag.Diagnostics
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		key, value, found := strings.Cut(pair, "=")
+		if !found {
+			diags.AddError("Unable to Decode Proxmox Realm TFA Config", fmt.Sprintf("unexpected TFA entry %q.", pair))
+			return types.ObjectNull(realmTFAAttrTypes()), diags
+		}
+		switch key {
+		case "type", "id", "key", "url":
+			values[key] = types.StringValue(value)
+		case "digits", "step":
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				diags.AddError("Unable to Decode Proxmox Realm TFA Config", fmt.Sprintf("unable to decode TFA %s value %q: %s", key, value, err))
+				return types.ObjectNull(realmTFAAttrTypes()), diags
+			}
+			values[key] = types.Int64Value(parsed)
+		default:
+			diags.AddError("Unable to Decode Proxmox Realm TFA Config", fmt.Sprintf("unknown TFA entry %q.", key))
+			return types.ObjectNull(realmTFAAttrTypes()), diags
+		}
+	}
+	if values["type"].IsNull() {
+		diags.AddError("Unable to Decode Proxmox Realm TFA Config", fmt.Sprintf("TFA config %q has no type.", raw))
+		return types.ObjectNull(realmTFAAttrTypes()), diags
+	}
+	object, objectDiags := types.ObjectValue(realmTFAAttrTypes(), values)
+	diags.Append(objectDiags...)
+	return object, diags
 }
 
 func realmRequestFromModels(config, prior realmModel, create bool) RealmRequest {
@@ -234,6 +475,21 @@ func realmRequestFromModels(config, prior realmModel, create bool) RealmRequest 
 		QueryUserinfo: boolPointerValue(config.QueryUserinfo),
 		ACRValues:     stringPointer(config.ACRValues),
 		Audiences:     stringPointer(config.Audiences),
+		Cert:          stringPointer(config.Cert),
+		CertKey:       stringPointer(config.CertKey),
+		Filter:        stringPointer(config.Filter),
+		SyncAttrs:     stringPointer(config.SyncAttrs),
+		UserClasses:   stringPointer(config.UserClasses),
+		GroupDN:       stringPointer(config.GroupDN),
+		GroupNameAttr: stringPointer(config.GroupNameAttr),
+		GroupFilter:   stringPointer(config.GroupFilter),
+		GroupClasses:  stringPointer(config.GroupClasses),
+		SyncDefaults:  stringPointer(config.SyncDefaults),
+		CaseSensitive: boolPointerValue(config.CaseSensitive),
+		GroupsClaim:   stringPointer(config.GroupsClaim),
+		GroupsCreate:  boolPointerValue(config.GroupsAutocreate),
+		GroupsOverwr:  boolPointerValue(config.GroupsOverwrite),
+		TFA:           realmTFAString(config.TFA),
 	}
 	if create || realmSecretVersionChanged(config.BindPasswordVersion, prior.BindPasswordVersion) {
 		request.BindPassword = stringPointer(config.BindPassword)
@@ -295,8 +551,52 @@ func realmManagedFields(config realmModel) []string {
 	addBool("query-userinfo", config.QueryUserinfo)
 	addString("acr-values", config.ACRValues)
 	addString("audiences", config.Audiences)
+	addString("cert", config.Cert)
+	addString("certkey", config.CertKey)
+	addString("filter", config.Filter)
+	addString("sync_attributes", config.SyncAttrs)
+	addString("user_classes", config.UserClasses)
+	addString("group_dn", config.GroupDN)
+	addString("group_name_attr", config.GroupNameAttr)
+	addString("group_filter", config.GroupFilter)
+	addString("group_classes", config.GroupClasses)
+	addString("sync-defaults-options", config.SyncDefaults)
+	addBool("case-sensitive", config.CaseSensitive)
+	addString("groups-claim", config.GroupsClaim)
+	addBool("groups-autocreate", config.GroupsAutocreate)
+	addBool("groups-overwrite", config.GroupsOverwrite)
+	if !config.TFA.IsNull() && !config.TFA.IsUnknown() {
+		fields = append(fields, "tfa")
+	}
 	slices.Sort(fields)
 	return fields
+}
+
+// realmTFAString serializes the typed TFA block into Proxmox' property string.
+// Validation already rejected unknown variants, so this only assembles set keys.
+func realmTFAString(value types.Object) *string {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+	attrs := value.Attributes()
+	parts := make([]string, 0, 6)
+	for _, key := range []string{"type", "id", "key", "url", "digits", "step"} {
+		switch attribute := attrs[key].(type) {
+		case types.String:
+			if !attribute.IsNull() && !attribute.IsUnknown() {
+				parts = append(parts, key+"="+attribute.ValueString())
+			}
+		case types.Int64:
+			if !attribute.IsNull() && !attribute.IsUnknown() {
+				parts = append(parts, fmt.Sprintf("%s=%d", key, attribute.ValueInt64()))
+			}
+		}
+	}
+	joined := strings.Join(parts, ",")
+	if joined == "" {
+		return nil
+	}
+	return &joined
 }
 
 func realmDeleteKeys(config realmModel, previouslyManaged []string) []string {

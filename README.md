@@ -92,6 +92,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_qemu_vm`
 - `proxmox_qemu_vms`
 - `proxmox_realm`
+- `proxmox_realms`
 - `proxmox_role`
 - `proxmox_roles`
 - `proxmox_storage`

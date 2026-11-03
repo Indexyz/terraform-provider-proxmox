@@ -81,6 +81,14 @@ func TestDataSourceSuccessfulReads(t *testing.T) {
 			attribute: path.Root("containers").AtListIndex(0).AtName("name"), want: "unit-ct-template",
 		},
 		{
+			name: "realms", dataSource: NewRealmsDataSource(), config: map[string]any{},
+			responses: map[string]any{"/api2/json/access/domains": []map[string]any{
+				{"realm": "pam", "type": "pam"},
+				{"realm": "corp", "type": "ldap", "comment": "Corp LDAP", "tfa": "oath"},
+			}},
+			attribute: path.Root("realms").AtListIndex(0).AtName("realm"), want: "corp",
+		},
+		{
 			name: "metrics", dataSource: NewClusterMetricsServersDataSource(), config: map[string]any{},
 			responses: map[string]any{"/api2/json/cluster/metrics/server": []map[string]any{{"id": "graphite", "type": "graphite", "server": "metrics.test", "port": 2003, "disable": 0}}},
 			attribute: path.Root("servers").AtListIndex(0).AtName("id"), want: "graphite",

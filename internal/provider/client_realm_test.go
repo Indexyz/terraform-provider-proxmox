@@ -192,6 +192,96 @@ func TestClientCreateLDAPAndADRealms(t *testing.T) {
 	}
 }
 
+func TestClientCreateRealmDirectoryAndOpenIDFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertTokenAuth(t, r)
+		if r.Method != http.MethodPost || r.URL.Path != "/api2/json/access/domains" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm() error: %v", err)
+		}
+		switch r.Form.Get("type") {
+		case "ldap":
+			assertFormValues(t, r, url.Values{
+				"realm":                 {"corp-ldap"},
+				"type":                  {"ldap"},
+				"server1":               {"ldap.example.com"},
+				"base_dn":               {"dc=example,dc=com"},
+				"user_attr":             {"uid"},
+				"cert":                  {"/etc/pve/priv/realm/corp-ldap.crt"},
+				"certkey":               {"/etc/pve/priv/realm/corp-ldap.key"},
+				"filter":                {"(objectClass=person)"},
+				"sync_attributes":       {"email=mail,firstname=givenName"},
+				"user_classes":          {"inetorgperson, posixaccount"},
+				"group_dn":              {"ou=groups,dc=example,dc=com"},
+				"group_name_attr":       {"cn"},
+				"group_filter":          {"(objectClass=groupOfNames)"},
+				"group_classes":         {"groupOfNames, group"},
+				"sync-defaults-options": {"remove-vanished=entry;acl,scope=users"},
+				"case-sensitive":        {"0"},
+				"tfa":                   {"type=oath,digits=8,step=60"},
+			})
+		case "openid":
+			assertFormValues(t, r, url.Values{
+				"realm":             {"corp-sso"},
+				"type":              {"openid"},
+				"issuer-url":        {"https://id.example.com"},
+				"client-id":         {"proxmox"},
+				"groups-claim":      {"groups"},
+				"groups-autocreate": {"1"},
+				"groups-overwrite":  {"1"},
+			})
+		default:
+			t.Fatalf("unexpected realm type: %q", r.Form.Get("type"))
+		}
+		writeEnvelope(t, w, nil)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(context.Background(), ClientConfig{
+		Endpoint:       server.URL,
+		APITokenID:     "terraform@pve!provider",
+		APITokenSecret: "token-secret",
+		Timeout:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() unexpected error: %v", err)
+	}
+	if err := client.CreateRealm(context.Background(), RealmRequest{
+		Realm:         "corp-ldap",
+		Type:          "ldap",
+		Server1:       stringPtr("ldap.example.com"),
+		BaseDN:        stringPtr("dc=example,dc=com"),
+		UserAttr:      stringPtr("uid"),
+		Cert:          stringPtr("/etc/pve/priv/realm/corp-ldap.crt"),
+		CertKey:       stringPtr("/etc/pve/priv/realm/corp-ldap.key"),
+		Filter:        stringPtr("(objectClass=person)"),
+		SyncAttrs:     stringPtr("email=mail,firstname=givenName"),
+		UserClasses:   stringPtr("inetorgperson, posixaccount"),
+		GroupDN:       stringPtr("ou=groups,dc=example,dc=com"),
+		GroupNameAttr: stringPtr("cn"),
+		GroupFilter:   stringPtr("(objectClass=groupOfNames)"),
+		GroupClasses:  stringPtr("groupOfNames, group"),
+		SyncDefaults:  stringPtr("remove-vanished=entry;acl,scope=users"),
+		CaseSensitive: boolPtr(false),
+		TFA:           stringPtr("type=oath,digits=8,step=60"),
+	}); err != nil {
+		t.Fatalf("CreateRealm(ldap) unexpected error: %v", err)
+	}
+	if err := client.CreateRealm(context.Background(), RealmRequest{
+		Realm:        "corp-sso",
+		Type:         "openid",
+		IssuerURL:    stringPtr("https://id.example.com"),
+		ClientID:     stringPtr("proxmox"),
+		GroupsClaim:  stringPtr("groups"),
+		GroupsCreate: boolPtr(true),
+		GroupsOverwr: boolPtr(true),
+	}); err != nil {
+		t.Fatalf("CreateRealm(openid) unexpected error: %v", err)
+	}
+}
+
 func TestClientDeleteRealmNotFoundIsIdempotent(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	defer server.Close()

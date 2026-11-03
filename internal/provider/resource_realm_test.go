@@ -17,7 +17,7 @@ func TestRealmResourceSchema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Schema() unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	if got, want := len(resp.Schema.Attributes), 28; got != want {
+	if got, want := len(resp.Schema.Attributes), 43; got != want {
 		t.Fatalf("unexpected attribute count: got %d want %d", got, want)
 	}
 	if _, ok := resp.Schema.Attributes["raw"]; ok {
@@ -129,13 +129,16 @@ func TestRealmStateFiltersSecrets(t *testing.T) {
 		BindPasswordVersion: types.Int64Value(3),
 		ClientKeyVersion:    types.Int64Value(4),
 	}
-	state := realmStateFromAPI(Realm{
+	state, diags := realmStateFromAPI(Realm{
 		Realm:     "corp-sso",
 		Type:      "openid",
 		IssuerURL: "https://id.example.com",
 		ClientID:  "proxmox",
 		Audiences: "proxmox,api",
 	}, &prior)
+	if diags.HasError() {
+		t.Fatalf("realmStateFromAPI() unexpected diagnostics: %v", diags)
+	}
 	if !state.BindPassword.IsNull() || !state.ClientKey.IsNull() {
 		t.Fatalf("secrets entered state: %#v", state)
 	}

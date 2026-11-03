@@ -175,6 +175,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewQemuVMDataSource,
 		NewQemuVMsDataSource,
 		NewRealmDataSource,
+		NewRealmsDataSource,
 		NewRoleDataSource,
 		NewRolesDataSource,
 		NewNodeDNSDataSource,

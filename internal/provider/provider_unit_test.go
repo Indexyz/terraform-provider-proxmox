@@ -139,6 +139,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_qemu_vm",
 		"proxmox_qemu_vms",
 		"proxmox_realm",
+		"proxmox_realms",
 		"proxmox_role",
 		"proxmox_roles",
 		"proxmox_storage",

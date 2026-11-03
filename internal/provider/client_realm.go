@@ -35,6 +35,21 @@ type Realm struct {
 	QueryUserinfo proxmoxOptionalBool  `json:"query-userinfo"`
 	ACRValues     string               `json:"acr-values"`
 	Audiences     string               `json:"audiences"`
+	Cert          string               `json:"cert"`
+	CertKey       string               `json:"certkey"`
+	Filter        string               `json:"filter"`
+	SyncAttrs     string               `json:"sync_attributes"`
+	UserClasses   string               `json:"user_classes"`
+	GroupDN       string               `json:"group_dn"`
+	GroupNameAttr string               `json:"group_name_attr"`
+	GroupFilter   string               `json:"group_filter"`
+	GroupClasses  string               `json:"group_classes"`
+	SyncDefaults  string               `json:"sync-defaults-options"`
+	CaseSensitive proxmoxOptionalBool  `json:"case-sensitive"`
+	GroupsClaim   string               `json:"groups-claim"`
+	GroupsCreate  proxmoxOptionalBool  `json:"groups-autocreate"`
+	GroupsOverwr  proxmoxOptionalBool  `json:"groups-overwrite"`
+	TFA           string               `json:"tfa"`
 	Digest        string               `json:"digest"`
 }
 
@@ -64,6 +79,21 @@ type RealmRequest struct {
 	QueryUserinfo *bool
 	ACRValues     *string
 	Audiences     *string
+	Cert          *string
+	CertKey       *string
+	Filter        *string
+	SyncAttrs     *string
+	UserClasses   *string
+	GroupDN       *string
+	GroupNameAttr *string
+	GroupFilter   *string
+	GroupClasses  *string
+	SyncDefaults  *string
+	CaseSensitive *bool
+	GroupsClaim   *string
+	GroupsCreate  *bool
+	GroupsOverwr  *bool
+	TFA           *string
 	Digest        *string
 	Delete        []string
 }
@@ -74,7 +104,29 @@ func (r RealmRequest) IsEmpty() bool {
 		r.UserAttr == nil && r.Domain == nil && r.BindDN == nil && r.BindPassword == nil &&
 		r.IssuerURL == nil && r.ClientID == nil && r.ClientKey == nil && r.Autocreate == nil &&
 		r.UsernameClaim == nil && r.Scopes == nil && r.Prompt == nil && r.QueryUserinfo == nil &&
-		r.ACRValues == nil && r.Audiences == nil && len(r.Delete) == 0
+		r.ACRValues == nil && r.Audiences == nil && r.Cert == nil && r.CertKey == nil &&
+		r.Filter == nil && r.SyncAttrs == nil && r.UserClasses == nil && r.GroupDN == nil &&
+		r.GroupNameAttr == nil && r.GroupFilter == nil && r.GroupClasses == nil &&
+		r.SyncDefaults == nil && r.CaseSensitive == nil && r.GroupsClaim == nil &&
+		r.GroupsCreate == nil && r.GroupsOverwr == nil && r.TFA == nil && len(r.Delete) == 0
+}
+
+// RealmSummary is one entry of the world-readable realm index used by the login
+// box. It carries no secrets.
+type RealmSummary struct {
+	Realm   string              `json:"realm"`
+	Type    string              `json:"type"`
+	Comment string              `json:"comment"`
+	Default proxmoxOptionalBool `json:"default"`
+	TFA     string              `json:"tfa"`
+}
+
+func (c *Client) Realms(ctx context.Context) ([]RealmSummary, error) {
+	var realms []RealmSummary
+	if err := c.do(ctx, http.MethodGet, "/access/domains", nil, nil, &realms); err != nil {
+		return nil, err
+	}
+	return realms, nil
 }
 
 func (c *Client) GetRealm(ctx context.Context, realm string) (Realm, error) {
@@ -135,5 +187,20 @@ func realmForm(req RealmRequest) url.Values {
 	setOptionalBool(form, "query-userinfo", req.QueryUserinfo)
 	setOptionalString(form, "acr-values", req.ACRValues)
 	setOptionalString(form, "audiences", req.Audiences)
+	setOptionalString(form, "cert", req.Cert)
+	setOptionalString(form, "certkey", req.CertKey)
+	setOptionalString(form, "filter", req.Filter)
+	setOptionalString(form, "sync_attributes", req.SyncAttrs)
+	setOptionalString(form, "user_classes", req.UserClasses)
+	setOptionalString(form, "group_dn", req.GroupDN)
+	setOptionalString(form, "group_name_attr", req.GroupNameAttr)
+	setOptionalString(form, "group_filter", req.GroupFilter)
+	setOptionalString(form, "group_classes", req.GroupClasses)
+	setOptionalString(form, "sync-defaults-options", req.SyncDefaults)
+	setOptionalBool(form, "case-sensitive", req.CaseSensitive)
+	setOptionalString(form, "groups-claim", req.GroupsClaim)
+	setOptionalBool(form, "groups-autocreate", req.GroupsCreate)
+	setOptionalBool(form, "groups-overwrite", req.GroupsOverwr)
+	setOptionalString(form, "tfa", req.TFA)
 	return form
 }

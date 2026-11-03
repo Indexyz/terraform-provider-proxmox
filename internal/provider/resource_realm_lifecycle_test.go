@@ -179,7 +179,7 @@ func TestRealmResourceLifecycleSecretsManagedDeletionAndImport(t *testing.T) {
 		t.Fatalf("unexpected realm call count/order: %v", calls)
 	}
 
-	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, realmModel{ID: types.StringNull(), Realm: types.StringNull()})}
+	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, realmModel{ID: types.StringNull(), Realm: types.StringNull(), TFA: types.ObjectNull(realmTFAAttrTypes())})}
 	res.ImportState(context.Background(), resource.ImportStateRequest{ID: "corp"}, &importResp)
 	if importResp.Diagnostics.HasError() {
 		t.Fatalf("realm import diagnostics: %v", importResp.Diagnostics)
@@ -194,7 +194,7 @@ func TestRealmResourceDeletePreservesAPIError(t *testing.T) {
 	defer server.Close()
 	res := &RealmResource{client: testLifecycleClient(t, server)}
 	schema := testResourceSchema(t, res)
-	state := realmModel{ID: types.StringValue("corp"), Realm: types.StringValue("corp"), Type: types.StringValue("ldap")}
+	state := realmModel{ID: types.StringValue("corp"), Realm: types.StringValue("corp"), Type: types.StringValue("ldap"), TFA: types.ObjectNull(realmTFAAttrTypes())}
 	var resp resource.DeleteResponse
 	res.Delete(context.Background(), resource.DeleteRequest{State: testResourceState(t, schema, state)}, &resp)
 	if !resp.Diagnostics.HasError() || !containsDiagnostic(resp.Diagnostics, "status 403") || !containsDiagnostic(resp.Diagnostics, "missing Realm.Allocate") {

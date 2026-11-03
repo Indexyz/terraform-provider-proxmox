@@ -74,6 +74,21 @@ func (r *RealmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"query_userinfo":        schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Query the OpenID userinfo endpoint for claim values."},
 			"acr_values":            schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "OpenID Authentication Context Class Reference values."},
 			"audiences":             schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Additional OpenID audiences accepted alongside `client_id` (Proxmox VE 9)."},
+			"groups_claim":          schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "OpenID claim that carries group memberships."},
+			"groups_autocreate":     schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Create Proxmox groups from OpenID group claims."},
+			"groups_overwrite":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Overwrite existing Proxmox group memberships from OpenID group claims."},
+			"cert":                  schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Path on the cluster to the LDAP/AD client certificate."},
+			"cert_key":              schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Path on the cluster to the LDAP/AD client certificate key."},
+			"filter":                schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "LDAP/AD filter applied during user sync."},
+			"sync_attributes":       schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Comma separated `pveField=ldapAttribute` mappings applied during user sync, for example `email=mail`."},
+			"user_classes":          schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Comma separated object classes that identify user entries during sync."},
+			"group_dn":              schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Base DN for group sync. Defaults to `base_dn` when omitted."},
+			"group_name_attr":       schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "LDAP attribute that carries a group name; the first DN value is used when omitted."},
+			"group_filter":          schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "LDAP/AD filter applied during group sync."},
+			"group_classes":         schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Comma separated object classes that identify group entries during sync."},
+			"sync_defaults_options": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Default options for sync runs, such as `remove-vanished=entry;acl,scope=users`. Passed through unchanged."},
+			"case_sensitive":        schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Treat LDAP/AD user names as case-sensitive. The Proxmox default is `true`."},
+			"tfa":                   realmTFAAttribute(),
 		},
 	}
 }
@@ -209,7 +224,7 @@ func (r *RealmResource) readState(ctx context.Context, realm string, prior *real
 		diags.AddError("Unable to Read Proxmox Realm", fmt.Sprintf("Unable to read realm %q: %s", realm, err))
 		return realmModel{}, diags
 	}
-	return realmStateFromAPI(config, prior), nil
+	return realmStateFromAPI(config, prior)
 }
 
 func (r *RealmResource) storeManagedFields(ctx context.Context, config realmModel, private realmPrivateData, diags *diag.Diagnostics) {

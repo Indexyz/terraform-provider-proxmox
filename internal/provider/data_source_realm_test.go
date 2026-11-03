@@ -28,7 +28,7 @@ func TestRealmDataSourceMetadataAndSchema(t *testing.T) {
 	if schemaResp.Diagnostics.HasError() {
 		t.Fatalf("Schema() unexpected diagnostics: %v", schemaResp.Diagnostics)
 	}
-	if got, want := len(schemaResp.Schema.Attributes), 24; got != want {
+	if got, want := len(schemaResp.Schema.Attributes), 39; got != want {
 		t.Fatalf("unexpected attribute count: got %d want %d", got, want)
 	}
 	if !schemaResp.Schema.Attributes["realm"].IsRequired() {
@@ -39,7 +39,7 @@ func TestRealmDataSourceMetadataAndSchema(t *testing.T) {
 			t.Fatalf("%s must be computed", name)
 		}
 	}
-	for _, name := range []string{"bind_password", "bind_password_version", "client_key", "client_key_version", "password", "certkey", "tfa", "digest", "raw"} {
+	for _, name := range []string{"bind_password", "bind_password_version", "client_key", "client_key_version", "password", "bind_password", "digest", "raw"} {
 		if _, ok := schemaResp.Schema.Attributes[name]; ok {
 			t.Fatalf("realm data source must not expose %q", name)
 		}

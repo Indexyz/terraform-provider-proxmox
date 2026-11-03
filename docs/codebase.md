@@ -144,7 +144,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子、显式 `power` 电源协调和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
 | `proxmox_nocloud_iso` | 生成并管理 cloud-init NoCloud seed ISO（`CIDATA` 卷标）的 storage content；全部创建输入 RequiresReplace，已存在目标文件拒绝而不采纳。 |
-| `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；secret 使用 WriteOnly + version 轮换。 |
+| `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；LDAP/AD 目录同步、客户端证书路径、forced TFA 块；secret 使用 WriteOnly + version 轮换。 |
 | `proxmox_replication_job` | 管理 cluster storage replication 计划，不隐式运行复制或清理数据。 |
 | `proxmox_role` | 管理 RBAC 角色和权限集合。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
@@ -240,6 +240,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_pools` | `data_source_pools.go` | `GET /pools`。 |
 | `proxmox_qemu_vm` | `data_source_qemu_vm.go` | 读取 QEMU `/config` 和 `/status/current`，共享 QEMU typed/raw 映射。 |
 | `proxmox_realm` | `data_source_realm.go` | `GET /access/domains/{realm}`；仅输出公开 typed 字段，支持只读查询内建 `pam`/`pve`。 |
+| `proxmox_realms` | `data_source_realms.go` | 世界可读登录索引 `/access/domains`，只输出 `realm`/`type`/`comment`/`default`/TFA 类型并按 realm 排序。 |
 | `proxmox_role` | `data_source_role.go` | `GET /access/roles/{roleid}`。 |
 | `proxmox_roles` | `data_source_roles.go` | `GET /access/roles`。 |
 | `proxmox_storage` | `data_source_storage.go` | `GET /storage/{storage}`。 |
@@ -263,7 +264,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 29 个资源和 21 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 29 个资源和 23 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
