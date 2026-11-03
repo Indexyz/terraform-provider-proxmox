@@ -71,7 +71,11 @@ func TestFirewallRuleResourceScopedLifecycles(t *testing.T) {
 					handler.fail(w, "parse rule form: %v", err)
 					return
 				}
-				calls = append(calls, r.Method+" "+r.URL.EscapedPath()+" "+r.Form.Encode())
+				params := r.Form.Encode()
+				if params == "" {
+					params = r.URL.RawQuery
+				}
+				calls = append(calls, r.Method+" "+r.URL.EscapedPath()+" "+params)
 				switch r.Method {
 				case http.MethodGet:
 					handler.envelope(w, rules)
@@ -97,8 +101,8 @@ func TestFirewallRuleResourceScopedLifecycles(t *testing.T) {
 					handler.envelope(w, nil)
 				case http.MethodDelete:
 					want := url.Values{"digest": {"digest-1"}}
-					if !reflect.DeepEqual(r.Form, want) {
-						handler.fail(w, "unexpected rule delete form: got %v want %v", r.Form, want)
+					if !reflect.DeepEqual(r.URL.Query(), want) {
+						handler.fail(w, "unexpected rule delete form: got %v want %v", r.URL.Query(), want)
 						return
 					}
 					rules = nil

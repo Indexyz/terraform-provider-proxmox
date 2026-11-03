@@ -28,10 +28,6 @@ func TestReplicationJobResourceFrameworkLifecycle(t *testing.T) {
 		if !handler.auth(w, r) {
 			return
 		}
-		if r.URL.RawQuery != "" {
-			handler.fail(w, "unexpected replication query: %s", r.URL.RawQuery)
-			return
-		}
 		calls = append(calls, r.Method+" "+r.URL.EscapedPath())
 		switch {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/cluster/replication":

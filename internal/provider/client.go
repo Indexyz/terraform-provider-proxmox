@@ -195,9 +195,10 @@ type groupIndexResponse struct {
 }
 
 type ticketResponse struct {
-	CSRFPreventionToken string `json:"CSRFPreventionToken"`
-	Ticket              string `json:"ticket"`
-	Username            string `json:"username"`
+	CSRFPreventionToken string              `json:"CSRFPreventionToken"`
+	Ticket              string              `json:"ticket"`
+	Username            string              `json:"username"`
+	NeedTFA             proxmoxOptionalBool `json:"NeedTFA"`
 }
 
 type apiResponseEnvelope struct {
@@ -465,13 +466,31 @@ func (c *Client) login(ctx context.Context) error {
 	form := url.Values{}
 	form.Set("username", c.username)
 	form.Set("password", c.password)
-	if c.otp != "" {
-		form.Set("otp", c.otp)
-	}
 
 	var response ticketResponse
 	if err := c.do(ctx, http.MethodPost, "/access/ticket", nil, form, &response); err != nil {
 		return fmt.Errorf("unable to login to Proxmox VE: %w", err)
+	}
+
+	if response.NeedTFA.Ptr() != nil && *response.NeedTFA.Ptr() {
+		if c.otp == "" {
+			return fmt.Errorf("unable to login to Proxmox VE: the user has TFA enabled but no otp is configured")
+		}
+		// Proxmox answers a challenge ticket first; the second request carries the
+		// OTP as password plus the typed `<type>:<value>` response form.
+		otp := c.otp
+		if !strings.Contains(otp, ":") {
+			otp = "totp:" + otp
+		}
+		challenge := url.Values{}
+		challenge.Set("username", c.username)
+		challenge.Set("password", otp)
+		challenge.Set("tfa-challenge", response.Ticket)
+		var final ticketResponse
+		if err := c.do(ctx, http.MethodPost, "/access/ticket", nil, challenge, &final); err != nil {
+			return fmt.Errorf("unable to complete TFA login to Proxmox VE: %w", err)
+		}
+		response = final
 	}
 
 	c.authTicket = response.Ticket
@@ -505,7 +524,18 @@ func (c *Client) doRequest(ctx context.Context, method, apiPath string, query ur
 	if err != nil {
 		return err
 	}
-	if method == http.MethodGet && len(query) > 0 {
+	// Proxmox rejects a body on DELETE (APIServer answers 501), so DELETE
+	// parameters travel in the query string even when they come as a form.
+	if method == http.MethodDelete && len(form) > 0 {
+		if query == nil {
+			query = url.Values{}
+		}
+		for key, values := range form {
+			query[key] = append(query[key], values...)
+		}
+		form = nil
+	}
+	if len(query) > 0 && (method == http.MethodGet || method == http.MethodDelete) {
 		requestURL.RawQuery = query.Encode()
 	}
 

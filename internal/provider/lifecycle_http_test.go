@@ -40,22 +40,19 @@ func (h *lifecycleHandler) auth(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (h *lifecycleHandler) form(w http.ResponseWriter, r *http.Request, want url.Values) bool {
-	var got url.Values
-	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
-		if err := r.ParseForm(); err != nil {
-			return h.fail(w, "parse form: %v", err)
-		}
-		got = r.Form
-	} else {
+	if err := r.ParseForm(); err != nil {
+		return h.fail(w, "parse form: %v", err)
+	}
+	if r.Method == http.MethodDelete {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return h.fail(w, "read form: %v", err)
 		}
-		got, err = url.ParseQuery(string(body))
-		if err != nil {
-			return h.fail(w, "parse form: %v", err)
+		if len(body) != 0 {
+			return h.fail(w, "DELETE must not carry a body, got %q", body)
 		}
 	}
+	got := r.Form
 	if !reflect.DeepEqual(got, want) {
 		return h.fail(w, "unexpected form: got %#v want %#v", got, want)
 	}

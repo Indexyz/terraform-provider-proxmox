@@ -84,7 +84,6 @@ func TestNewClientTicketAuthAndGroupRequests(t *testing.T) {
 			assertFormValues(t, r, url.Values{
 				"username": {"root@pam"},
 				"password": {"secret"},
-				"otp":      {"123456"},
 			})
 			writeEnvelope(t, w, map[string]any{
 				"ticket":              "ticket-1",
@@ -93,7 +92,7 @@ func TestNewClientTicketAuthAndGroupRequests(t *testing.T) {
 			})
 		case r.URL.Path == "/api2/json/access/groups" && r.Method == http.MethodPost:
 			sawCreate = true
-			assertCookie(t, r, "PVEAuthCookie", "ticket-1")
+			assertCookie(t, r, "ticket-1")
 			if got := r.Header.Get("CSRFPreventionToken"); got != "csrf-1" {
 				t.Fatalf("unexpected csrf header: %q", got)
 			}
@@ -104,7 +103,7 @@ func TestNewClientTicketAuthAndGroupRequests(t *testing.T) {
 			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/access/groups" && r.Method == http.MethodGet:
 			sawList = true
-			assertCookie(t, r, "PVEAuthCookie", "ticket-1")
+			assertCookie(t, r, "ticket-1")
 			if got := r.Header.Get("CSRFPreventionToken"); got != "" {
 				t.Fatalf("expected no csrf header on GET, got %q", got)
 			}
@@ -115,7 +114,7 @@ func TestNewClientTicketAuthAndGroupRequests(t *testing.T) {
 			}})
 		case r.URL.Path == "/api2/json/access/groups/ops" && r.Method == http.MethodGet:
 			sawRead = true
-			assertCookie(t, r, "PVEAuthCookie", "ticket-1")
+			assertCookie(t, r, "ticket-1")
 			writeEnvelope(t, w, map[string]any{
 				"comment": "Ops team",
 				"members": []string{"bob@pve", "alice@pve"},
@@ -425,8 +424,9 @@ func assertTokenAuth(t *testing.T, r *http.Request) {
 	}
 }
 
-func assertCookie(t *testing.T, r *http.Request, name, value string) {
+func assertCookie(t *testing.T, r *http.Request, value string) {
 	t.Helper()
+	const name = "PVEAuthCookie"
 	cookie, err := r.Cookie(name)
 	if err != nil {
 		t.Fatalf("missing cookie %q: %v", name, err)
@@ -446,6 +446,15 @@ func assertFormValues(t *testing.T, r *http.Request, want url.Values) {
 			t.Fatalf("ParseForm() unexpected error: %v", err)
 		}
 		got = r.Form
+	case http.MethodDelete:
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() unexpected error: %v", err)
+		}
+		if len(body) != 0 {
+			t.Fatalf("DELETE must not carry a body, got %q", body)
+		}
+		got = r.URL.Query()
 	default:
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -472,5 +481,52 @@ func writeJSON(t *testing.T, w http.ResponseWriter, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		t.Fatalf("Encode() unexpected error: %v", err)
+	}
+}
+
+func TestNewClientCompletesTFAChallenge(t *testing.T) {
+	ctx := context.Background()
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api2/json/access/ticket":
+			calls++
+			if calls == 1 {
+				assertFormValues(t, r, url.Values{"username": {"root@pam"}, "password": {"secret"}})
+				writeEnvelope(t, w, map[string]any{"ticket": "!tfa!challenge", "CSRFPreventionToken": "csrf-0", "NeedTFA": 1})
+				return
+			}
+			assertFormValues(t, r, url.Values{"username": {"root@pam"}, "password": {"totp:123456"}, "tfa-challenge": {"!tfa!challenge"}})
+			writeEnvelope(t, w, map[string]any{"ticket": "ticket-full", "CSRFPreventionToken": "csrf-1"})
+		case r.URL.Path == "/api2/json/access/groups" && r.Method == http.MethodGet:
+			assertCookie(t, r, "ticket-full")
+			writeEnvelope(t, w, []any{})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ctx, ClientConfig{Endpoint: server.URL, Username: "root@pam", Password: "secret", OTP: "123456", Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewClient() unexpected error: %v", err)
+	}
+	if _, err := client.Groups(ctx); err != nil {
+		t.Fatalf("Groups() unexpected error: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected two ticket calls, got %d", calls)
+	}
+}
+
+func TestNewClientTFAChallengeWithoutOTP(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeEnvelope(t, w, map[string]any{"ticket": "!tfa!challenge", "NeedTFA": 1})
+	}))
+	defer server.Close()
+
+	_, err := NewClient(context.Background(), ClientConfig{Endpoint: server.URL, Username: "root@pam", Password: "secret", Timeout: time.Second})
+	if err == nil || !strings.Contains(err.Error(), "no otp") {
+		t.Fatalf("expected missing otp error, got %v", err)
 	}
 }
