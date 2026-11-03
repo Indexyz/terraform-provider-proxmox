@@ -89,13 +89,17 @@ func (d *SDNSubnetsDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	records := make([]sdnSubnetsDataSourceRecord, 0, len(subnets))
 	for _, subnet := range subnets {
 		staged := sdnPendingMap(subnet.Pending)
+		cidr := subnet.CIDR
+		if cidr == "" {
+			cidr = subnet.Subnet
+		}
 		subnetVnet := subnet.Vnet
 		if subnetVnet == "" {
 			subnetVnet = vnet
 		}
 		record := sdnSubnetsDataSourceRecord{
 			VNet:    types.StringValue(subnetVnet),
-			Subnet:  types.StringValue(subnet.Subnet),
+			Subnet:  types.StringValue(cidr),
 			Gateway: sdnStagedString(subnet.Gateway, staged["gateway"]),
 			State:   stringOrNull(subnet.State),
 			Pending: types.MapNull(types.StringType),

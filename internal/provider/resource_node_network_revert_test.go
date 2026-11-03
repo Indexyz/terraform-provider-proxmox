@@ -25,8 +25,9 @@ func TestClientRevertNodeNetwork(t *testing.T) {
 	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeEnvelope(t, w, "")
 	}))
-	if _, err := newHAResourceTestClient(t, empty.URL).RevertNodeNetwork(ctx, "node1"); err == nil {
-		t.Fatal("RevertNodeNetwork() with empty acknowledgement returned no error")
+	upidEmpty, err := newHAResourceTestClient(t, empty.URL).RevertNodeNetwork(ctx, "node1")
+	if err != nil || upidEmpty != "" {
+		t.Fatalf("RevertNodeNetwork() with empty acknowledgement = %q, %v", upidEmpty, err)
 	}
 	empty.Close()
 
@@ -181,14 +182,42 @@ func TestNodeNetworkRevertReadReportsPendingChanges(t *testing.T) {
 	}
 }
 
-func TestNodeNetworkRevertCreateFailures(t *testing.T) {
+func TestNodeNetworkRevertCreate(t *testing.T) {
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch {
+		case r.Method == http.MethodDelete:
+			handler.envelope(w, nil) // Proxmox answers without a worker task
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/network"):
+			_, _ = w.Write([]byte(`{"data":[],"changes":[]}`))
+		default:
+			handler.fail(w, "unexpected revert request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	res := &NodeNetworkRevertResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := nodeNetworkRevertModel{Node: types.StringValue("node1"), Triggers: testStringMap(t, map[string]string{}), PendingChanges: types.ListNull(types.StringType)}
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	res.Create(ctx, resource.CreateRequest{Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if createResp.Diagnostics.HasError() {
+		t.Fatalf("synchronous revert was rejected: %v", createResp.Diagnostics)
+	}
+}
+
+func TestNodeNetworkRevertTaskFailure(t *testing.T) {
 	handler := &lifecycleHandler{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !handler.auth(w, r) {
 			return
 		}
 		if r.Method == http.MethodDelete {
-			handler.envelope(w, nil) // empty acknowledgement
+			handler.envelope(w, nodeNetworkRevertUPID)
 			return
 		}
 		handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "ERROR"})
@@ -201,26 +230,10 @@ func TestNodeNetworkRevertCreateFailures(t *testing.T) {
 	config := nodeNetworkRevertModel{Node: types.StringValue("node1"), Triggers: testStringMap(t, map[string]string{}), PendingChanges: types.ListNull(types.StringType)}
 	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	res.Create(ctx, resource.CreateRequest{Plan: testResourcePlan(t, schema, config)}, &createResp)
-	if !createResp.Diagnostics.HasError() || !strings.Contains(createResp.Diagnostics[0].Detail(), "no UPID") {
-		t.Fatalf("empty acknowledgement was accepted: %v", createResp.Diagnostics)
-	}
-
-	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
-			handler.envelope(w, nodeNetworkRevertUPID)
-			return
-		}
-		handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "ERROR"})
-	}))
-	defer failing.Close()
-	res = &NodeNetworkRevertResource{client: testLifecycleClient(t, failing)}
-	createResp = resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
-	res.Create(ctx, resource.CreateRequest{Plan: testResourcePlan(t, schema, config)}, &createResp)
 	if !createResp.Diagnostics.HasError() || !strings.Contains(createResp.Diagnostics[0].Detail(), "ERROR") {
 		t.Fatalf("failed revert task was accepted: %v", createResp.Diagnostics)
 	}
 }
-
 func TestNodeNetworkRevertImportState(t *testing.T) {
 	res, ok := NewNodeNetworkRevertResource().(*NodeNetworkRevertResource)
 	if !ok {

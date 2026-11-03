@@ -141,13 +141,12 @@ func (c *Client) ApplyNodeNetwork(ctx context.Context, node string, regenerateFR
 	return upid, nil
 }
 
-// RevertNodeNetwork discards every staged interface change of a node.
+// RevertNodeNetwork discards every staged interface change of a node. Proxmox
+// unlinks the staged file synchronously and answers without a worker task, so an
+// empty UPID is the normal case.
 func (c *Client) RevertNodeNetwork(ctx context.Context, node string) (string, error) {
 	var upid string
 	if err := c.do(ctx, http.MethodDelete, nodeNetworkPath(node), nil, nil, &upid); err != nil {
-		return "", err
-	}
-	if err := validateQemuTaskAck(upid, "network revert"); err != nil {
 		return "", err
 	}
 	return upid, nil

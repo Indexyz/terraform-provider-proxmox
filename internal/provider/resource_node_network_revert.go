@@ -43,7 +43,7 @@ func (r *NodeNetworkRevertResource) Metadata(_ context.Context, req resource.Met
 
 func (r *NodeNetworkRevertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Discards the staged network configuration of one Proxmox VE node through `DELETE /nodes/{node}/network` and waits for the worker task. Proxmox reverts the whole node at once, so this drops every staged interface change, not one interface. Destroy is a no-op: an applied configuration stays applied. A failed revert keeps the instance in state for a retry.",
+		MarkdownDescription: "Discards the staged network configuration of one Proxmox VE node through `DELETE /nodes/{node}/network`; Proxmox unlinks the staged file synchronously and answers without a worker task. Proxmox reverts the whole node at once, so this drops every staged interface change, not one interface. Destroy is a no-op: an applied configuration stays applied. A failed revert keeps the instance in state for a retry.",
 		Attributes: map[string]schema.Attribute{
 			"id":   schema.StringAttribute{Computed: true, MarkdownDescription: "Revert identifier (the node name).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"node": schema.StringAttribute{Required: true, MarkdownDescription: "Cluster node whose staged configuration is discarded. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
@@ -141,9 +141,11 @@ func (r *NodeNetworkRevertResource) revert(ctx context.Context, plan *nodeNetwor
 		diags.AddError("Unable to Revert Proxmox Node Network", err.Error())
 		return
 	}
-	if err := r.client.waitForNodeTask(ctx, node, upid); err != nil {
-		diags.AddError("Unable to Revert Proxmox Node Network", fmt.Sprintf("network revert task %q did not finish: %s", upid, err))
-		return
+	if upid != "" {
+		if err := r.client.waitForNodeTask(ctx, node, upid); err != nil {
+			diags.AddError("Unable to Revert Proxmox Node Network", fmt.Sprintf("network revert task %q did not finish: %s", upid, err))
+			return
+		}
 	}
 	next, readDiags := r.readState(ctx, plan)
 	diags.Append(readDiags...)
