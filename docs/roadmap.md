@@ -99,6 +99,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 - `proxmox_realm` 新增客户端证书**内容**上传：`cert_storage` + `cert_content`/`cert_key_content`（敏感），将 PEM 以 `.img` 上传到 iso 目录存储（`<path>/template/iso/terraform-realm-<realm>-{cert,key}.img`）并回填 `cert`/`certkey`；上传先于配置、失败与销毁清理文件、刷新时缺失自动恢复；与路径模式互斥并校验存储可用（iso content/path/enabled/active，跨节点提示需共享存储）。
 - `proxmox_qemu_vm` 新增 typed compound 设备：`hostpci`(0–15)、`usb`(0–13)、`rng`(rng0)、`virtiofs`(0–9)，含默认键互斥、槽位范围、枚举/格式校验、raw 回退与冲突检测；为 QEMU 新增 `delete` 表单与“仅发送新增/变更 compound 槽位”的 update 收敛，槽位移除按 delete 下发。
 
+- 补齐 SDN 列表数据源广度：`proxmox_sdn_subnets`（按 vnet）、`proxmox_sdn_ipams`、`proxmox_sdn_dns_providers`、`proxmox_sdn_controllers`、`proxmox_sdn_fabrics`、`proxmox_sdn_prefix_lists`、`proxmox_sdn_route_map_entries`（按 route map），全部输出 `state`/`pending` 并支持类型/协议过滤。
+
 ## 接下来
 
 ### 已完成（本轮）
@@ -119,7 +121,7 @@ user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步
 - Authentication realm 高级后续全部交付：列表数据源、LDAP/AD 目录同步与证书（路径与内容上传）、OpenID group claim、forced TFA、命令式 `proxmox_realm_sync` 与 `proxmox_user_tfa`；仅剩实机验收。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
 - Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；后续剩 `alias`/`eth` altname 重命名与 revert 资源化。
-- SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply、zones/vnets 数据源）；仅剩可选的数据源广度扩充与实机验收。
+- SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply）；数据源已覆盖 zones/vnets/subnets/ipams/dns providers/controllers/fabrics/prefix lists/route map entries；仅剩实机验收。
 - QEMU compound devices 已交付 `hostpci`/`usb`/`rng`/`virtiofs` typed 槽位（含 raw 回退与 delete 移除）；长尾选项（`romfile`、`legacy-igd`、PCI id 覆盖）仍由 `raw.extra_config` 覆盖。
 
 ### 持续约束

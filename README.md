@@ -110,6 +110,13 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_realms`
 - `proxmox_role`
 - `proxmox_roles`
+- `proxmox_sdn_controllers`
+- `proxmox_sdn_dns_providers`
+- `proxmox_sdn_fabrics`
+- `proxmox_sdn_ipams`
+- `proxmox_sdn_prefix_lists`
+- `proxmox_sdn_route_map_entries`
+- `proxmox_sdn_subnets`
 - `proxmox_sdn_vnets`
 - `proxmox_sdn_zones`
 - `proxmox_storage`
