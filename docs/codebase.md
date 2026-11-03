@@ -183,6 +183,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_storage_file_download` | 下载并管理 storage 中的 ISO、LXC template 或 import image。 |
 | `proxmox_user` | 管理 Proxmox 用户。 |
 | `proxmox_user_tfa` | 管理用户第二因子（`totp`/`recovery`/`yubico`），需 ticket 认证，recovery 码敏感输出。 |
+| `proxmox_user_tfa_unlock` | 清除用户 TFA 锁定（`PUT .../unlock-tfa`，triggers 驱动、destroy 无动作）。 |
 | `proxmox_user_token` | 管理用户 API token。 |
 
 下面记录 group、pool 和 QEMU VM 的关键生命周期边界；其它资源的用户 schema 以 `docs/resources/` 中的生成文档为准。
@@ -261,7 +262,11 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_version` | `data_source_version.go` | `GET /version`。 |
 | `proxmox_nodes` | `data_source_nodes.go` | `GET /nodes`，列出节点概要。 |
 | `proxmox_node` | `data_source_node.go` | `GET /nodes/{node}/status`，读取单节点详细状态。 |
+| `proxmox_node_apt_versions` | `data_source_node_inventory.go` | `GET /nodes/{node}/apt/versions`，按 package 排序。 |
 | `proxmox_node_dns` | `data_source_node_dns.go` | `GET /nodes/{node}/dns`。 |
+| `proxmox_node_hardware_pci` | `data_source_node_inventory.go` | `GET /nodes/{node}/hardware/pci`，按地址排序。 |
+| `proxmox_node_hardware_usb` | `data_source_node_inventory.go` | `GET /nodes/{node}/hardware/usb`，按 bus/port 排序。 |
+| `proxmox_node_services` | `data_source_node_inventory.go` | `GET /nodes/{node}/services`，按 service 排序。 |
 | `proxmox_node_firewall_options` | `data_source_infra_state.go` | `GET /nodes/{node}/firewall/options`。 |
 | `proxmox_node_network_interfaces` | `data_source_infra_state.go` | `GET /nodes/{node}/network`，含 `changes` diff。 |
 | `proxmox_acme_challenge_schema` | 列出 challenge 类型可用的 ACME 插件 id 与凭据字段。 |
@@ -334,7 +339,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 60 个资源和 59 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 61 个资源和 64 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -374,6 +379,7 @@ make generate
 - `resource_notification_test.go`：端点 exact-form、secret 跨刷新保留、webhook secret 名称合并、matcher 表单/状态与校验矩阵。
 - `resource_acme_test.go`、`data_source_acme_challenge_schema_test.go`：自定义证书生命周期、ACME account/plugin/order 的 UPID 路径、插件 data 编解码、challenge schema 过滤排序与校验矩阵。
 - `data_source_inventory_test.go`：storage content、guest snapshot、user token/TFA、节点网络与三处防火墙选项数据源的投影/排序/校验。
+- `data_source_node_inventory_test.go`：PCI/USB 硬件、APT 版本、服务列表与 TFA unlock 的投影/排序/校验。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

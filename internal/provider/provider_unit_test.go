@@ -111,7 +111,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		resourceNames = append(resourceNames, resp.TypeName)
 	}
 	sort.Strings(resourceNames)
-	if want := []string{"proxmox_acl", "proxmox_acme_account", "proxmox_acme_plugin", "proxmox_backup_job", "proxmox_cluster_firewall_alias", "proxmox_cluster_firewall_ip_set", "proxmox_cluster_firewall_ip_set_entry", "proxmox_cluster_firewall_options", "proxmox_cluster_firewall_security_group", "proxmox_cluster_mapping_dir", "proxmox_cluster_mapping_pci", "proxmox_cluster_mapping_usb", "proxmox_cluster_metrics_server", "proxmox_firewall_rule", "proxmox_group", "proxmox_guest_firewall_alias", "proxmox_guest_firewall_ip_set", "proxmox_guest_firewall_ip_set_entry", "proxmox_guest_firewall_options", "proxmox_ha_resource", "proxmox_ha_rule", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_nocloud_iso", "proxmox_node_acme_certificate", "proxmox_node_certificate", "proxmox_node_firewall_options", "proxmox_node_network_apply", "proxmox_node_network_interface", "proxmox_node_network_revert", "proxmox_notification_endpoint_gotify", "proxmox_notification_endpoint_sendmail", "proxmox_notification_endpoint_smtp", "proxmox_notification_endpoint_webhook", "proxmox_notification_matcher", "proxmox_pool", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_realm", "proxmox_realm_sync", "proxmox_replication_job", "proxmox_role", "proxmox_sdn_apply", "proxmox_sdn_controller", "proxmox_sdn_dns", "proxmox_sdn_fabric", "proxmox_sdn_fabric_node", "proxmox_sdn_ipam", "proxmox_sdn_prefix_list", "proxmox_sdn_rollback", "proxmox_sdn_route_map_entry", "proxmox_sdn_subnet", "proxmox_sdn_vnet", "proxmox_sdn_vnet_firewall_options", "proxmox_sdn_zone", "proxmox_storage", "proxmox_storage_file_download", "proxmox_user", "proxmox_user_tfa", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
+	if want := []string{"proxmox_acl", "proxmox_acme_account", "proxmox_acme_plugin", "proxmox_backup_job", "proxmox_cluster_firewall_alias", "proxmox_cluster_firewall_ip_set", "proxmox_cluster_firewall_ip_set_entry", "proxmox_cluster_firewall_options", "proxmox_cluster_firewall_security_group", "proxmox_cluster_mapping_dir", "proxmox_cluster_mapping_pci", "proxmox_cluster_mapping_usb", "proxmox_cluster_metrics_server", "proxmox_firewall_rule", "proxmox_group", "proxmox_guest_firewall_alias", "proxmox_guest_firewall_ip_set", "proxmox_guest_firewall_ip_set_entry", "proxmox_guest_firewall_options", "proxmox_ha_resource", "proxmox_ha_rule", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_nocloud_iso", "proxmox_node_acme_certificate", "proxmox_node_certificate", "proxmox_node_firewall_options", "proxmox_node_network_apply", "proxmox_node_network_interface", "proxmox_node_network_revert", "proxmox_notification_endpoint_gotify", "proxmox_notification_endpoint_sendmail", "proxmox_notification_endpoint_smtp", "proxmox_notification_endpoint_webhook", "proxmox_notification_matcher", "proxmox_pool", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_realm", "proxmox_realm_sync", "proxmox_replication_job", "proxmox_role", "proxmox_sdn_apply", "proxmox_sdn_controller", "proxmox_sdn_dns", "proxmox_sdn_fabric", "proxmox_sdn_fabric_node", "proxmox_sdn_ipam", "proxmox_sdn_prefix_list", "proxmox_sdn_rollback", "proxmox_sdn_route_map_entry", "proxmox_sdn_subnet", "proxmox_sdn_vnet", "proxmox_sdn_vnet_firewall_options", "proxmox_sdn_zone", "proxmox_storage", "proxmox_storage_file_download", "proxmox_user", "proxmox_user_tfa", "proxmox_user_tfa_unlock", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
 		t.Fatalf("unexpected resources: got %v want %v", resourceNames, want)
 	}
 
@@ -141,9 +141,13 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_lxc_containers",
 		"proxmox_lxc_snapshots",
 		"proxmox_node",
+		"proxmox_node_apt_versions",
 		"proxmox_node_dns",
 		"proxmox_node_firewall_options",
+		"proxmox_node_hardware_pci",
+		"proxmox_node_hardware_usb",
 		"proxmox_node_network_interfaces",
+		"proxmox_node_services",
 		"proxmox_node_time",
 		"proxmox_nodes",
 		"proxmox_pool",

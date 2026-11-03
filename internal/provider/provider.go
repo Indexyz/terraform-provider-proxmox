@@ -190,6 +190,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewStorageResource,
 		NewUserResource,
 		NewUserTFAResource,
+		NewUserTFAUnlockResource,
 		NewUserTokenResource,
 	}
 }
@@ -221,9 +222,13 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewRoleDataSource,
 		NewRolesDataSource,
 		NewReplicationJobsDataSource,
+		NewNodeAPTVersionsDataSource,
 		NewNodeDNSDataSource,
 		NewNodeFirewallOptionsDataSource,
+		NewNodeHardwarePCIDataSource,
+		NewNodeHardwareUSBDataSource,
 		NewNodeNetworkInterfacesDataSource,
+		NewNodeServicesDataSource,
 		NewNodeTimeDataSource,
 		NewSDNControllerDataSource,
 		NewSDNControllersDataSource,

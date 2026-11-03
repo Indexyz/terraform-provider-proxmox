@@ -128,6 +128,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增只读数据源补齐：`proxmox_storage_contents`、`proxmox_qemu_snapshots`、`proxmox_lxc_snapshots`、`proxmox_user_tokens`、`proxmox_user_tfa_entries`、`proxmox_node_network_interfaces`、`proxmox_cluster_firewall_options`、`proxmox_node_firewall_options`、`proxmox_guest_firewall_options`。
 
+- 新增 `proxmox_user_tfa_unlock` 与 `proxmox_node_hardware_pci`/`_usb`、`proxmox_node_apt_versions`、`proxmox_node_services` 数据源。
+
 ## 接下来
 
 ### 已完成（本轮）

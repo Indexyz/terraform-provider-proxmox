@@ -88,3 +88,14 @@ func (c *Client) DeleteUserTFA(ctx context.Context, userID, entryID string, pass
 	}
 	return err
 }
+
+// UnlockUserTFA clears the TFA lockout of a user.
+func (c *Client) UnlockUserTFA(ctx context.Context, userID string) (bool, error) {
+	form := url.Values{"userid": {userID}}
+	var result proxmoxOptionalInt64
+	err := c.do(ctx, http.MethodPut, "/access/users/"+url.PathEscape(userID)+"/unlock-tfa", nil, form, &result)
+	if err != nil {
+		return false, err
+	}
+	return result.Ptr() != nil && *result.Ptr() != 0, nil
+}
