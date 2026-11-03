@@ -35,4 +35,4 @@ website/vendor
 *.winfile eol=crlf
 
 /.omx/
-/pve-docs/
+/pve-docs/.e2e/
