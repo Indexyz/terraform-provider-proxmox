@@ -60,6 +60,14 @@ type BackupJobRequest struct {
 	Delete           []string
 }
 
+func (c *Client) BackupJobs(ctx context.Context) ([]BackupJob, error) {
+	var jobs []BackupJob
+	if err := c.do(ctx, http.MethodGet, "/cluster/backup", nil, nil, &jobs); err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
 func (c *Client) GetBackupJob(ctx context.Context, id string) (BackupJob, error) {
 	var job BackupJob
 	if err := c.do(ctx, http.MethodGet, "/cluster/backup/"+url.PathEscape(id), nil, nil, &job); err != nil {

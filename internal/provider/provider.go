@@ -181,6 +181,8 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 
 func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		NewACLDataSource,
+		NewBackupJobsDataSource,
 		NewClusterMetricsServersDataSource,
 		NewGroupDataSource,
 		NewGroupsDataSource,
@@ -196,6 +198,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewRealmsDataSource,
 		NewRoleDataSource,
 		NewRolesDataSource,
+		NewReplicationJobsDataSource,
 		NewNodeDNSDataSource,
 		NewNodeTimeDataSource,
 		NewSDNControllersDataSource,

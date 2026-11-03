@@ -96,6 +96,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 
 ## Supported Data Sources
 
+- `proxmox_acl`
+- `proxmox_backup_jobs`
 - `proxmox_cluster_metrics_servers`
 - `proxmox_cluster_resources`
 - `proxmox_group`
@@ -113,6 +115,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_qemu_vms`
 - `proxmox_realm`
 - `proxmox_realms`
+- `proxmox_replication_jobs`
 - `proxmox_role`
 - `proxmox_roles`
 - `proxmox_sdn_controllers`

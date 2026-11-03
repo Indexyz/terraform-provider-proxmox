@@ -111,6 +111,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_ha_resources` 与 `proxmox_ha_rules` 列表数据源（排序、类型过滤、`errors` 输出）。
 
+- 新增 `proxmox_acl`、`proxmox_backup_jobs`、`proxmox_replication_jobs` 列表数据源（path/type、node、guest 过滤，排序输出）。
+
 ## 接下来
 
 ### 已完成（本轮）

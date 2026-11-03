@@ -35,6 +35,14 @@ type ReplicationJobRequest struct {
 	Delete   []string
 }
 
+func (c *Client) ReplicationJobs(ctx context.Context) ([]ReplicationJob, error) {
+	var jobs []ReplicationJob
+	if err := c.do(ctx, http.MethodGet, "/cluster/replication", nil, nil, &jobs); err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
 func (c *Client) GetReplicationJob(ctx context.Context, id string) (ReplicationJob, error) {
 	var job ReplicationJob
 	if err := c.do(ctx, http.MethodGet, "/cluster/replication/"+url.PathEscape(id), nil, nil, &job); err != nil {
