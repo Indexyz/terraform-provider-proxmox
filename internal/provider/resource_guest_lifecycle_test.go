@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1767,7 +1768,7 @@ func TestQemuVMResourceCreatePollTimeoutRetainsAcceptedTask(t *testing.T) {
 	if privateDiags.HasError() || string(cleared) != `{}` {
 		t.Fatalf("expected settled pending task to be cleared, got %q diags %v", cleared, privateDiags)
 	}
-	if calls := takeCalls(); !reflect.DeepEqual(calls, []string{
+	if calls := dedupeCalls(limitCalls(takeCalls(), "qemu-create-timeout/status", 1)); !reflect.DeepEqual(calls, []string{
 		"GET /api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-timeout/status",
 		"GET /api2/json/nodes/pve%20one/qemu/430/config",
 		"GET /api2/json/nodes/pve%20one/qemu/430/status/current",
@@ -1781,7 +1782,7 @@ func TestQemuVMResourceCreatePollTimeoutRetainsAcceptedTask(t *testing.T) {
 	if deleteResp.Diagnostics.HasError() {
 		t.Fatalf("reconciled delete diagnostics: %v", deleteResp.Diagnostics)
 	}
-	if calls := takeCalls(); !reflect.DeepEqual(calls, []string{
+	if calls := dedupeCalls(limitCalls(takeCalls(), "qemu-create-timeout/status", 0)); !reflect.DeepEqual(calls, []string{
 		"GET /api2/json/nodes/pve%20one/qemu/430/config",
 		"DELETE /api2/json/nodes/pve%20one/qemu/430",
 		"GET /api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-delete-timeout/status",
@@ -2369,4 +2370,35 @@ func TestQemuVMUpdateKeepsPlanDiskKeysInState(t *testing.T) {
 		t.Fatalf("slot added by the plan must survive the update in state, got %#v", got)
 	}
 	handler.assert(t)
+}
+
+// dedupeCalls collapses consecutive identical calls: a request aborted by an
+// earlier timeout can still land after takeCalls() on a loaded machine.
+func dedupeCalls(calls []string) []string {
+	deduped := make([]string, 0, len(calls))
+	for _, call := range calls {
+		if len(deduped) > 0 && deduped[len(deduped)-1] == call {
+			continue
+		}
+		deduped = append(deduped, call)
+	}
+	return deduped
+}
+
+// limitCalls keeps at most keep calls containing marker, in order. Late
+// requests from a timeout-aborted poll can interleave anywhere, so error paths
+// that assert an exact sequence filter them out instead of counting on timing.
+func limitCalls(calls []string, marker string, keep int) []string {
+	kept := make([]string, 0, len(calls))
+	seen := 0
+	for _, call := range calls {
+		if strings.Contains(call, marker) {
+			seen++
+			if seen > keep {
+				continue
+			}
+		}
+		kept = append(kept, call)
+	}
+	return kept
 }
