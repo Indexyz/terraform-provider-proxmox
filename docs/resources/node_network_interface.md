@@ -26,7 +26,7 @@ resource "proxmox_node_network_interface" "vmbr1" {
   iface             = "vmbr1"
   type              = "bridge"
   address           = "10.0.1.2"
-  netmask           = "255.255.255.0"
+  netmask           = "24"
   bridge_ports      = ["eth1"]
   bridge_vlan_aware = true
   bridge_vids       = "2 4 100-200"
@@ -107,7 +107,7 @@ resource "proxmox_node_network_interface" "vmbr1_alias" {
 - `gateway` (String) IPv4 default gateway. Only one interface per node may define it.
 - `gateway6` (String) IPv6 default gateway. Only one interface per node may define it.
 - `mtu` (Number) Interface MTU between 1280 and 65520.
-- `netmask` (String) IPv4 netmask. Must be paired with `address`.
+- `netmask` (String) IPv4 prefix length such as `24`; dotted masks are converted to the API form. Must be paired with `address`.
 - `netmask6` (Number) IPv6 prefix length between 0 and 128. Must be paired with `address6`.
 - `ovs_bonds` (Set of String) Slave interfaces of an `OVSBond`.
 - `ovs_bridge` (String) Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise. Configuring it also attaches the port to the bridge port list on create and detaches it on destroy or when the parent changes.

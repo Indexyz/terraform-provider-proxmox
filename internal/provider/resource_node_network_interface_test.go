@@ -1010,10 +1010,19 @@ func TestNodeNetworkAliasCreateForm(t *testing.T) {
 	if got := gotForm.Get("type"); got != nodeNetworkTypeAlias {
 		t.Fatalf("unexpected alias type form: %q", got)
 	}
-	if got := gotForm.Get("iface"); got != "vmbr1:1" || gotForm.Get("address") != "10.0.0.2" || gotForm.Get("netmask") != "24" {
+	if got := gotForm.Get("iface"); got != "vmbr1:1" || gotForm.Get("address") != "10.0.0.2" || gotForm.Get("netmask") != "255.255.255.0" {
 		t.Fatalf("unexpected alias form: %#v", gotForm)
 	}
 	for _, failure := range handler.failures {
 		t.Fatal(failure)
+	}
+}
+
+func TestNetmaskForAPI(t *testing.T) {
+	cases := map[string]string{"24": "255.255.255.0", "32": "255.255.255.255", "255.255.0.0": "255.255.0.0", "bogus": "bogus"}
+	for input, want := range cases {
+		if got := netmaskForAPI(input); got != want {
+			t.Fatalf("netmaskForAPI(%q) = %q, want %q", input, got, want)
+		}
 	}
 }

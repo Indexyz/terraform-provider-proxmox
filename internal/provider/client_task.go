@@ -96,7 +96,7 @@ func (c *Client) waitForNodeTask(ctx context.Context, node string, upid string) 
 			return err
 		}
 		if finished {
-			if status.ExitStatus == "OK" {
+			if status.ExitStatus == "OK" || strings.HasPrefix(status.ExitStatus, "WARNINGS") {
 				return nil
 			}
 			return fmt.Errorf("task %q failed with exit status %q", upid, status.ExitStatus)

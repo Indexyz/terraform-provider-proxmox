@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -52,7 +53,7 @@ func (r *NodeACMECertificateResource) Schema(_ context.Context, _ resource.Schem
 			"account":        schema.StringAttribute{Required: true, MarkdownDescription: "ACME account name used for the order. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"domains":        schema.SetAttribute{Required: true, ElementType: types.StringType, MarkdownDescription: "Domains to put into the certificate. Must resolve publicly to this node. Changes require replacement."},
 			"domain_plugins": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Optional map of domain to ACME plugin id for the challenge; unmapped domains fall back to the wildcard plugin."},
-			"force":          schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Overwrite an existing certificate.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()}},
+			"force":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), MarkdownDescription: "Overwrite an existing certificate.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()}},
 			"triggers":       schema.MapAttribute{Required: true, ElementType: types.StringType, MarkdownDescription: "Values that decide when a new order is due; changing any of them orders again.", PlanModifiers: []planmodifier.Map{mapplanmodifier.RequiresReplace()}},
 			"upid":           schema.StringAttribute{Computed: true, MarkdownDescription: "Worker task UPID of the last order."},
 		},

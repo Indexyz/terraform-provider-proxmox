@@ -11,7 +11,7 @@ resource "proxmox_node_network_interface" "vmbr1" {
   iface             = "vmbr1"
   type              = "bridge"
   address           = "10.0.1.2"
-  netmask           = "255.255.255.0"
+  netmask           = "24"
   bridge_ports      = ["eth1"]
   bridge_vlan_aware = true
   bridge_vids       = "2 4 100-200"

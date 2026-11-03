@@ -154,6 +154,9 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增证书信息与订阅状态数据源。
 
+- 验收：双节点迁移与 HA resource-affinity 负亲和性（325 落到 pve2、326 留在 pve-e2e）、LDAP 登录与 realm sync（alice 登录成功并同步用户/组）、OVS 桥/内联口、SDN simple 区域数据面与 rollback、ACMECertificate 通过 Cloudflare quick tunnel 的 HTTP-01 签发成功。
+- 修复：network netmask 现接受前缀并写为点分形式；network apply 将 WARNINGS 视为成功；node ACME certificate 的 `force` 有了默认值。
+
 ## 接下来
 
 ### 已完成（本轮）

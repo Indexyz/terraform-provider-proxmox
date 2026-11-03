@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -102,7 +104,7 @@ func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.Sche
 			"comments":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv4 comment stored as `comments`."},
 			"comments6":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv6 comment stored as `comments6`."},
 			"address":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Static IPv4 address. Must be paired with `netmask`."},
-			"netmask":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv4 netmask. Must be paired with `address`."},
+			"netmask":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv4 prefix length such as `24`; dotted masks are converted to the API form. Must be paired with `address`."},
 			"gateway":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv4 default gateway. Only one interface per node may define it."},
 			"address6":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Static IPv6 address. Must be paired with `netmask6`."},
 			"netmask6":     schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "IPv6 prefix length between 0 and 128. Must be paired with `address6`."},
@@ -326,6 +328,9 @@ func nodeNetworkRequestFromModels(ctx context.Context, config, plan nodeNetworkM
 	setString(config.Comments6, &request.Comments6, plan.Comments6)
 	setString(config.Address, &request.Address, plan.Address)
 	setString(config.Netmask, &request.Netmask, plan.Netmask)
+	if request.Netmask != nil {
+		*request.Netmask = netmaskForAPI(*request.Netmask)
+	}
 	setString(config.Gateway, &request.Gateway, plan.Gateway)
 	setString(config.Address6, &request.Address6, plan.Address6)
 	setInt64(config.Netmask6, &request.Netmask6, plan.Netmask6)
@@ -679,4 +684,12 @@ func (r *NodeNetworkInterfaceResource) adoptOVSPort(ctx context.Context, plan no
 		return false
 	}
 	return true
+}
+
+func netmaskForAPI(value string) string {
+	prefix, err := strconv.Atoi(value)
+	if err != nil || prefix < 0 || prefix > 32 {
+		return value
+	}
+	return net.IP(net.CIDRMask(prefix, 32)).String()
 }
