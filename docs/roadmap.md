@@ -118,6 +118,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_sdn_zone`、`proxmox_sdn_vnet`、`proxmox_sdn_subnet`、`proxmox_sdn_ipam`、`proxmox_sdn_dns`、`proxmox_sdn_controller`、`proxmox_sdn_fabric`、`proxmox_sdn_fabric_node`、`proxmox_sdn_prefix_list`、`proxmox_sdn_route_map_entry`、`proxmox_sdn_vnet_firewall_options` 单对象数据源（staged 覆盖 + `pending` 透出）。
 
+- 新增 `proxmox_guest_firewall_alias`、`proxmox_guest_firewall_ip_set`、`proxmox_guest_firewall_ip_set_entry`：`node`/`guest_type`/`vmid` 作用域 + 名称/CIDR 身份、digest CAS、`nomatch`、import `node/guest/vmid/...`（研究见 [`research/proxmox-guest-firewall.md`](../research/proxmox-guest-firewall.md)）。
+
 ## 接下来
 
 ### 已完成（本轮）
@@ -158,3 +160,5 @@ user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步
 实机暴露并已修复的缺陷（均有回归测试）：DELETE 带 body 被 APIServer 501 拒绝（全部改为 query）、`proxmox_user` 密码更新未走 `PUT /access/password`、`keys` 在加 TFA 后被服务端改写为 `x` 导致不一致、TFA ValidateConfig 在 unknown 值下误报、recovery 条目无法 PUT（改为重建）且描述不回传、provider 登录对 enabled TFA 缺少两步 challenge、`/nodes/{node}/network` 的 `changes` 已变成 diff 字符串、整节点 revert 同步无 UPID、realm 证书与 HA rule 校验把 unknown 元素当空、ACL 未使用的绑定写成空列表、metrics server 的 computed 字段 apply 后仍 unknown。
 
 仍未实机验证：多节点（HA negative affinity、迁移、跨节点存储）、LDAP/AD 登录与 realm sync、hostpci/USB/virtiofs 需要真实硬件或 virtiofsd、LXC 生命周期、OVS 网络、cloud-init/DHCP 行为、`proxmox_sdn_rollback` 与 SDN 数据面。
+
+- 新增 guest 防火墙对象 `proxmox_guest_firewall_alias`、`proxmox_guest_firewall_ip_set`、`proxmox_guest_firewall_ip_set_entry`（`node`/`guest_type`/`vmid` 作用域，digest CAS，`nomatch`，import）。单节点实机验证：创建 alias/ipset/entry、wire 内容与 digest、就地更新（cidr/comment/nomatch 清除）、plan 无漂移、销毁清理均通过。

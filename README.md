@@ -55,6 +55,9 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_cluster_metrics_server`
 - `proxmox_firewall_rule`
 - `proxmox_group`
+- `proxmox_guest_firewall_alias`
+- `proxmox_guest_firewall_ip_set`
+- `proxmox_guest_firewall_ip_set_entry`
 - `proxmox_guest_firewall_options`
 - `proxmox_ha_resource`
 - `proxmox_ha_rule`
