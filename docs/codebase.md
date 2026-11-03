@@ -113,11 +113,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | Replication job methods | `/cluster/replication[/{id}]` | 存储复制计划 CRUD，不执行 run-now。 |
 | HA resource methods | `/cluster/ha/resources[/{sid}]` | PVE 9 HA enrollment/policy CRUD；collection read、digest update、`purge=0` destroy，不调用 guest 或 HA runtime 命令。 |
 | HA rule methods | `/cluster/ha/rules[/{rule}]` | PVE 9 `node-affinity`/`resource-affinity` 放置规则 CRUD；collection read、fresh digest update、managed-field `delete`、直接幂等 DELETE，不调用 migrate/relocate/CRM。 |
+| Node network methods | `/nodes/{node}/network[/{iface}]` | 节点接口 staged CRUD（读写均走 collection 的 pending 视图），`PUT`/`DELETE` 集合端点分别用于显式 reload（UPID）与手动 revert。 |
 | Firewall methods | `/cluster/firewall/{options,rules,aliases,ipset,groups}`、node/guest `/firewall/{options,rules}` | 集群命名对象、cluster/node/guest/group rules 及防火墙选项管理。 |
 
 ## 资源
 
-当前注册 **27 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **29 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -137,6 +138,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
+| `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
+| `proxmox_node_network_interface` | 管理单个 Linux 节点接口（bridge/bond/vlan/eth）的 staged 配置，不自动 reload。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子、显式 `power` 电源协调和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
@@ -259,7 +262,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 27 个资源和 21 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 29 个资源和 21 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -291,6 +294,7 @@ make generate
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `client_ha_rule_test.go`、`resource_ha_rule_test.go`：PVE 9 HA rule collection lookup、exact-form create/update（PUT 必带 `rule`、绝不带 `type`）、`nodes` 线路编码、fresh digest、variant 校验矩阵、effective defaults、feasibility error 透传与 managed-field deletion。
+- `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表）、`changes` 捕获、reload UPID 校验与任务等待、接口 variant 校验矩阵与 apply 的 no-op destroy。
 - `e2e_smoke_test.go`：三个真实 Proxmox API e2e 测试，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL，QEMU task-waiting 测试创建随机高 VMID 的空 source VM 与同节点 full clone，并验证 create/clone/delete UPID polling、正常 Terraform destroy 和带名称所有权校验的失败清理。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 

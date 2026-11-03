@@ -94,7 +94,7 @@ func (c *Client) UploadStorageFile(ctx context.Context, req UploadStorageFileReq
 	httpRequest.Header.Set("Content-Type", writer.FormDataContentType())
 
 	var upid string
-	if err := c.execute(httpRequest, &upid); err != nil {
+	if err := c.execute(httpRequest, &upid, nil); err != nil {
 		return "", "", err
 	}
 	if upid == "" {

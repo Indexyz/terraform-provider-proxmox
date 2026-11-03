@@ -6,10 +6,18 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+var (
+	// proxmoxNodeNamePattern is PVE's `pve-node` format.
+	proxmoxNodeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
+	// proxmoxIfacePattern is PVE's `pve-iface` format.
+	proxmoxIfacePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{1,20}([.:][0-9]+)?$`)
 )
 
 func clientFromProviderData(data any) (*Client, error) {

@@ -30,7 +30,6 @@ const haRuleManagedFieldsKey = "ha-rule-managed-fields"
 
 var (
 	haRuleIDPattern        = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]+$`)
-	haRuleNodePattern      = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
 	haRuleNodeEntryPattern = regexp.MustCompile(`^([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)(?::([0-9]+))?$`)
 )
 
@@ -135,7 +134,7 @@ func validateHARuleConfig(config haRuleModel) diag.Diagnostics {
 	nodes := haRuleConfiguredNodes(config.Nodes)
 	negativePriorities := false
 	for node, priority := range nodes {
-		if !haRuleNodePattern.MatchString(node) {
+		if !proxmoxNodeNamePattern.MatchString(node) {
 			diags.AddAttributeError(path.Root("nodes"), "Invalid HA node name", fmt.Sprintf("%q must contain only letters, numbers, and inner hyphens.", node))
 		}
 		if priority < 0 {

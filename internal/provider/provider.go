@@ -148,6 +148,8 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewLXCSnapshotResource,
 		NewNoCloudISOResource,
 		NewNodeFirewallOptionsResource,
+		NewNodeNetworkApplyResource,
+		NewNodeNetworkInterfaceResource,
 		NewPoolResource,
 		NewQemuSnapshotResource,
 		NewQemuVMResource,

@@ -201,8 +201,15 @@ type ticketResponse struct {
 }
 
 type apiResponseEnvelope struct {
-	Data   json.RawMessage `json:"data"`
-	Errors any             `json:"errors"`
+	Data    json.RawMessage `json:"data"`
+	Changes []string        `json:"changes"`
+	Errors  any             `json:"errors"`
+}
+
+// apiResult carries response-level result attributes that Proxmox puts next to
+// `data`. Only the node network index reports `changes` today.
+type apiResult struct {
+	Changes []string
 }
 
 type APIError struct {
@@ -485,6 +492,15 @@ func (c *Client) requestURL(apiPath string) (*url.URL, error) {
 }
 
 func (c *Client) do(ctx context.Context, method, apiPath string, query url.Values, form url.Values, out any) error {
+	return c.doRequest(ctx, method, apiPath, query, form, out, nil)
+}
+
+// doResult is do plus capture of response result attributes.
+func (c *Client) doResult(ctx context.Context, method, apiPath string, query url.Values, out any, result *apiResult) error {
+	return c.doRequest(ctx, method, apiPath, query, nil, out, result)
+}
+
+func (c *Client) doRequest(ctx context.Context, method, apiPath string, query url.Values, form url.Values, out any, result *apiResult) error {
 	requestURL, err := c.requestURL(apiPath)
 	if err != nil {
 		return err
@@ -508,12 +524,12 @@ func (c *Client) do(ctx context.Context, method, apiPath string, query url.Value
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 
-	return c.execute(req, out)
+	return c.execute(req, out, result)
 }
 
 // execute sends an already-built request through the shared client transport
 // and authentication, and decodes the standard Proxmox response envelope.
-func (c *Client) execute(req *http.Request, out any) error {
+func (c *Client) execute(req *http.Request, out any, result *apiResult) error {
 	req.Header.Set("Accept", "application/json")
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
@@ -554,6 +570,10 @@ func (c *Client) execute(req *http.Request, out any) error {
 	var envelope apiResponseEnvelope
 	if err := json.Unmarshal(bodyBytes, &envelope); err != nil {
 		return fmt.Errorf("unable to decode Proxmox API response: %w", err)
+	}
+
+	if result != nil {
+		result.Changes = envelope.Changes
 	}
 
 	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
