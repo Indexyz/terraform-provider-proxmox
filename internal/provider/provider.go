@@ -132,6 +132,8 @@ func (p *ProxmoxProvider) Configure(ctx context.Context, req provider.ConfigureR
 func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewACLResource,
+		NewACMEAccountResource,
+		NewACMEPluginResource,
 		NewBackupJobResource,
 		NewClusterFirewallAliasResource,
 		NewClusterFirewallIPSetResource,
@@ -153,6 +155,8 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewLXCContainerResource,
 		NewLXCSnapshotResource,
 		NewNoCloudISOResource,
+		NewNodeACMECertificateResource,
+		NewNodeCertificateResource,
 		NewNodeFirewallOptionsResource,
 		NewNodeNetworkApplyResource,
 		NewNodeNetworkInterfaceResource,
@@ -193,6 +197,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewACLDataSource,
+		NewACMEChallengeSchemaDataSource,
 		NewBackupJobsDataSource,
 		NewClusterMappingDataSource,
 		NewClusterMetricsServersDataSource,

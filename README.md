@@ -46,6 +46,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 ## Supported Resources
 
 - `proxmox_acl`
+- `proxmox_acme_account`
+- `proxmox_acme_plugin`
 - `proxmox_backup_job`
 - `proxmox_cluster_firewall_alias`
 - `proxmox_cluster_firewall_ip_set`
@@ -74,6 +76,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_notification_endpoint_smtp`
 - `proxmox_notification_endpoint_webhook`
 - `proxmox_notification_matcher`
+- `proxmox_node_acme_certificate`
+- `proxmox_node_certificate`
 - `proxmox_node_firewall_options`
 - `proxmox_node_network_apply`
 - `proxmox_node_network_interface`
@@ -108,6 +112,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 ## Supported Data Sources
 
 - `proxmox_acl`
+- `proxmox_acme_challenge_schema`
 - `proxmox_backup_jobs`
 - `proxmox_cluster_mapping`
 - `proxmox_cluster_metrics_servers`

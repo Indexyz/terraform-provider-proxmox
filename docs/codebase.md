@@ -124,6 +124,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | 资源 | 主要职责 |
 | --- | --- |
 | `proxmox_acl` | 管理 path 下的 role 与 user/group 权限绑定。 |
+| `proxmox_acme_account` | 注册 ACME 账户（contact/directory/tos，异步等待，敏感 EAB）。 |
+| `proxmox_acme_plugin` | 管理 ACME DNS 插件（`data` base64 编解码、digest CAS）。 |
 | `proxmox_backup_job` | 管理 cluster-wide vzdump 备份计划、guest 选择和 retention。 |
 | `proxmox_cluster_firewall_alias` | 管理集群级防火墙 IP/network alias。 |
 | `proxmox_cluster_firewall_ip_set` | 管理集群级命名 IP set。 |
@@ -144,6 +146,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_ha_rule` | 管理 PVE 9 HA 放置规则（node-affinity/resource-affinity）。 |
 | `proxmox_ha_rule` | 管理 PVE 9 `node-affinity`/`resource-affinity` 放置规则（含 negative affinity 与 `disable`），以 computed `feasibility_errors` 暴露服务端不可行状态。 |
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
+| `proxmox_node_certificate` | 安装节点自定义证书链与私钥（sensitive、force/restart、销毁回退默认证书）。 |
+| `proxmox_node_acme_certificate` | 写入节点 ACME 配置并下单/吊销（UPID 等待，triggers 驱动）。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_notification_endpoint_smtp` | 管理 SMTP 通知端点（密码 sensitive 且不回传，TLS mode 校验）。 |
@@ -258,6 +262,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_nodes` | `data_source_nodes.go` | `GET /nodes`，列出节点概要。 |
 | `proxmox_node` | `data_source_node.go` | `GET /nodes/{node}/status`，读取单节点详细状态。 |
 | `proxmox_node_dns` | `data_source_node_dns.go` | `GET /nodes/{node}/dns`。 |
+| `proxmox_acme_challenge_schema` | 列出 challenge 类型可用的 ACME 插件 id 与凭据字段。 |
 | `proxmox_node_time` | `data_source_node_time.go` | `GET /nodes/{node}/time`。 |
 | `proxmox_cluster_resources` | `data_source_cluster_resources.go` | `GET /cluster/resources`，支持 `type` 过滤。 |
 | `proxmox_firewall_rules` | `data_source_firewall_rules.go` | 按 scope（cluster/node/guest/security_group/vnet）读取对应 ruleset，输出 `pos`/`digest` 与全部规则字段。 |
@@ -320,7 +325,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 56 个资源和 50 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 60 个资源和 51 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -358,6 +363,7 @@ make generate
 - `resource_guest_firewall_test.go`：guest alias/ipset/entry 的 exact-form client、alias 生命周期（digest、managed comment）、scope 校验与 import 解析。
 - `resource_cluster_mapping_test.go`、`data_source_cluster_mapping_test.go`：mapping 的 property string 编解码、exact-form CRUD、kind 校验矩阵、import 与数据源投影。
 - `resource_notification_test.go`：端点 exact-form、secret 跨刷新保留、webhook secret 名称合并、matcher 表单/状态与校验矩阵。
+- `resource_acme_test.go`、`data_source_acme_challenge_schema_test.go`：自定义证书生命周期、ACME account/plugin/order 的 UPID 路径、插件 data 编解码、challenge schema 过滤排序与校验矩阵。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

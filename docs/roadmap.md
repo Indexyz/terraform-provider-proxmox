@@ -124,6 +124,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增通知端点（smtp/gotify/sendmail/webhook）与 matcher：sensitive secret 保留、webhook header/secret property string、内置目标 import、`delete` 清理（研究见 [`research/proxmox-notifications.md`](../research/proxmox-notifications.md)）。
 
+- 新增 `proxmox_node_certificate`、`proxmox_acme_account`、`proxmox_acme_plugin`、`proxmox_node_acme_certificate` 与 `proxmox_acme_challenge_schema` 数据源（异步 UPID、敏感材料、节点 ACME 配置与 challenge 字段；研究见 [`research/proxmox-certificates.md`](../research/proxmox-certificates.md)）。
+
 ## 接下来
 
 ### 已完成（本轮）
