@@ -175,6 +175,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_network_revert` | 丢弃节点全部 staged 网络配置（DELETE + UPID 等待，destroy 无动作，保留 `pending_changes` 观测）。 |
 | `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/alias/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
+| `proxmox_qemu_agent_exec` | 通过 guest agent 执行命令并轮询退出状态（triggers 驱动）。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置（含 `hostpci`/`usb`/`rng`/`virtiofs` compound 设备及 PCI ROM/id 覆盖）、生命周期钩子、显式 `power` 和 NoCloud seed 槽位标记。 |
 | `proxmox_nocloud_iso` | 生成并管理 cloud-init NoCloud seed ISO（`CIDATA` 卷标）的 storage content；全部创建输入 RequiresReplace，已存在目标文件拒绝而不采纳。 |
@@ -312,6 +313,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_lxc_containers` | `data_source_lxc_containers.go` | `/cluster/resources?type=vm` 客户端剔除 QEMU 后按 `template`/`name`/`node` 过滤并按 VMID 升序输出。 |
 | `proxmox_lxc_snapshots` | `data_source_guest_snapshots.go` | `GET /nodes/{node}/lxc/{vmid}/snapshot`，按 name 排序。 |
 | `proxmox_pool` | `data_source_pool.go` | `GET /pools?poolid=...`。 |
+| `proxmox_qemu_agent` | `data_source_qemu_agent.go` | 聚合 agent 命令、osinfo、hostname、timezone、文件系统与网卡。 |
 | `proxmox_pools` | `data_source_pools.go` | `GET /pools`。 |
 | `proxmox_qemu_snapshots` | `data_source_guest_snapshots.go` | `GET /nodes/{node}/qemu/{vmid}/snapshot`，按 name 排序并含 `vmstate`。 |
 | `proxmox_qemu_vm` | `data_source_qemu_vm.go` | 读取 QEMU `/config` 和 `/status/current`，共享 QEMU typed/raw 映射。 |
@@ -363,7 +365,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 77 个资源和 72 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 78 个资源和 73 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -408,6 +410,7 @@ make generate
 - `resource_node_service_test.go`：服务 start/stop、APT update、仓库 toggle（digest 冲突重试）与 apt repositories 数据源投影。
 - `resource_node_backup_test.go`：vzdump、prune（DELETE query + UPID）、backup-info 三个数据源。
 - `resource_cluster_bulk_action_test.go`：bulk action 表单、校验矩阵、生命周期与通知 target 测试。
+- `data_source_qemu_agent_test.go`：exec 表单/轮询、agent facts 数据源与 exec 生命周期。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

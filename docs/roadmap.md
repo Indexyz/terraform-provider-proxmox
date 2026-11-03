@@ -138,6 +138,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_cluster_bulk_action` 与 `proxmox_notification_target_test`。
 
+- 新增 `proxmox_qemu_agent_exec` 与 `proxmox_qemu_agent` 数据源。
+
 ## 接下来
 
 ### 已完成（本轮）

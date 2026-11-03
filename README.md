@@ -97,6 +97,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_notification_matcher`
 - `proxmox_notification_target_test`
 - `proxmox_pool`
+- `proxmox_qemu_agent_exec`
 - `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`
 - `proxmox_realm`
@@ -161,6 +162,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_nodes`
 - `proxmox_pool`
 - `proxmox_pools`
+- `proxmox_qemu_agent`
 - `proxmox_qemu_snapshots`
 - `proxmox_qemu_vm`
 - `proxmox_qemu_vms`
