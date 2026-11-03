@@ -128,6 +128,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_acme_plugin` | 管理 ACME DNS 插件（`data` base64 编解码、digest CAS）。 |
 | `proxmox_backup_job` | 管理 cluster-wide vzdump 备份计划、guest 选择和 retention。 |
 | `proxmox_cluster_bulk_action` | cluster-wide 批量 start/shutdown/suspend/migrate（UPID 等待）。 |
+| `proxmox_cluster_ceph_flag` | 启停 Ceph cluster flag（destroy 关闭）。 |
 | `proxmox_cluster_firewall_alias` | 管理集群级防火墙 IP/network alias。 |
 | `proxmox_cluster_firewall_ip_set` | 管理集群级命名 IP set。 |
 | `proxmox_cluster_firewall_ip_set_entry` | 管理集群级 IP set 地址、网络或 alias 条目。 |
@@ -151,6 +152,9 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_ha_rule` | 管理 PVE 9 HA 放置规则（node-affinity/resource-affinity）。 |
 | `proxmox_ha_rule` | 管理 PVE 9 `node-affinity`/`resource-affinity` 放置规则（含 negative affinity 与 `disable`），以 computed `feasibility_errors` 暴露服务端不可行状态。 |
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
+| `proxmox_node_ceph_monitor` | 创建/删除 Ceph mon（UPID 等待，import）。 |
+| `proxmox_node_ceph_osd` | 创建 OSD 并按 out→stop→destroy 清理；import。 |
+| `proxmox_node_ceph_pool` | 管理 Ceph pool（size/min_size/pg/autoscale）。 |
 | `proxmox_node_certificate` | 安装节点自定义证书链与私钥（sensitive、force/restart、销毁回退默认证书）。 |
 | `proxmox_node_disk_zfs` | 建 ZFS pool（devices/raid/ashift/compression/draid，销毁清 config+磁盘）。 |
 | `proxmox_node_dns` | 设置节点 DNS 与 search domain（PUT，destroy 保留）。 |
@@ -294,6 +298,9 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_nodes` | `data_source_nodes.go` | `GET /nodes`，列出节点概要。 |
 | `proxmox_node` | `data_source_node.go` | `GET /nodes/{node}/status`，读取单节点详细状态。 |
 | `proxmox_node_apt_versions` | `data_source_node_inventory.go` | `GET /nodes/{node}/apt/versions`，按 package 排序。 |
+| `proxmox_node_ceph_monitors` | `data_source_ceph.go` | `GET /nodes/{node}/ceph/mon`。 |
+| `proxmox_node_ceph_osd_tree` | `data_source_ceph.go` | `GET /nodes/{node}/ceph/osd`，原样 JSON。 |
+| `proxmox_node_ceph_pools` | `data_source_ceph.go` | `GET /nodes/{node}/ceph/pool`。 |
 | `proxmox_node_certificates_info` | `data_source_node_certificates.go` | `GET /nodes/{node}/certificates/info`。 |
 | `proxmox_node_apt_repositories` | `data_source_node_apt.go` | `GET /nodes/{node}/apt/repositories`，按 path 排序，输出条目 index 位置。 |
 | `proxmox_node_dns` | `data_source_node_dns.go` | `GET /nodes/{node}/dns`。 |
@@ -311,6 +318,8 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_cluster_resources` | `data_source_cluster_resources.go` | `GET /cluster/resources`，支持 `type` 过滤。 |
 | `proxmox_firewall_rules` | `data_source_firewall_rules.go` | 按 scope（cluster/node/guest/security_group/vnet）读取对应 ruleset，输出 `pos`/`digest` 与全部规则字段。 |
 | `proxmox_acl` | `data_source_acl.go` | `GET /access/acl`，按 path/type 过滤、按 path+type+ugid 排序。 |
+| `proxmox_ceph_flags` | `data_source_ceph.go` | `GET /cluster/ceph/flags`。 |
+| `proxmox_ceph_status` | `data_source_ceph.go` | `GET /cluster/ceph/status`，原样 JSON。 |
 | `proxmox_backup_job_included_volumes` | `data_source_backup_info.go` | `GET /cluster/backup/{id}/included_volumes`，展开 children。 |
 | `proxmox_backup_not_backed_up` | `data_source_backup_info.go` | `GET /cluster/backup-info/not-backed-up`，按 vmid 排序。 |
 | `proxmox_backup_jobs` | `data_source_backup_jobs.go` | `GET /cluster/backup`，按 `node` 过滤、按 id 排序。 |
@@ -381,7 +390,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 87 个资源和 80 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 91 个资源和 85 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -434,6 +443,7 @@ make generate
 - `resource_guest_migration_test.go`：qemu/lxc 迁移表单与生命周期（暂无第二节点）。
 - `resource_storage_volume_test.go`：卷元数据表单、生命周期、import 与 transfer。
 - `data_source_node_certificates_test.go`：证书信息与订阅状态数据源。
+- `resource_ceph_test.go`：flag、pool、OSD 表单/生命周期与 status/pools 数据源。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

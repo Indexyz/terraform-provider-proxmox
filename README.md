@@ -50,6 +50,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_acme_plugin`
 - `proxmox_backup_job`
 - `proxmox_cluster_bulk_action`
+- `proxmox_cluster_ceph_flag`
 - `proxmox_cluster_firewall_alias`
 - `proxmox_cluster_firewall_ip_set`
 - `proxmox_cluster_firewall_ip_set_entry`
@@ -78,6 +79,9 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_apt_repository`
 - `proxmox_node_apt_update`
 - `proxmox_node_backup_prune`
+- `proxmox_node_ceph_monitor`
+- `proxmox_node_ceph_osd`
+- `proxmox_node_ceph_pool`
 - `proxmox_node_certificate`
 - `proxmox_node_disk_directory`
 - `proxmox_node_disk_lvm`
@@ -140,6 +144,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_backup_job_included_volumes`
 - `proxmox_backup_jobs`
 - `proxmox_backup_not_backed_up`
+- `proxmox_ceph_flags`
+- `proxmox_ceph_status`
 - `proxmox_cluster_config`
 - `proxmox_cluster_firewall_options`
 - `proxmox_cluster_mapping`
@@ -160,6 +166,9 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node`
 - `proxmox_node_apt_repositories`
 - `proxmox_node_apt_versions`
+- `proxmox_node_ceph_monitors`
+- `proxmox_node_ceph_osd_tree`
+- `proxmox_node_ceph_pools`
 - `proxmox_node_certificates_info`
 - `proxmox_node_disk_smart`
 - `proxmox_node_disks`
