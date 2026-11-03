@@ -207,3 +207,75 @@ func TestClientApplySDNUnlocksOnFailureAndRejectsEmptyUPID(t *testing.T) {
 }
 
 const sdnZoneJSON = `{"zone":"vz1","type":"vlan","nodes":"node1,node2","mtu":"9000","bridge":"vmbr0","state":"changed","digest":"sdn-digest","pending":{"bridge":"vmbr1","dns":"deleted"}}`
+
+func TestClientSDNZoneExtraTypeForms(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertTokenAuth(t, r)
+		if r.Method != http.MethodPost || r.URL.Path != "/api2/json/cluster/sdn/zones" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm() error: %v", err)
+		}
+		switch r.Form.Get("type") {
+		case sdnZoneTypeQinQ:
+			assertFormValues(t, r, url.Values{
+				"bridge":        {"vmbr1"},
+				"lock-token":    {testSDNLockToken},
+				"tag":           {"100"},
+				"type":          {sdnZoneTypeQinQ},
+				"vlan-protocol": {"802.1ad"},
+				"zone":          {"qz1"},
+			})
+		case sdnZoneTypeEVPN:
+			assertFormValues(t, r, url.Values{
+				"advertise-subnets":          {"1"},
+				"controller":                 {"evpnctl"},
+				"disable-arp-nd-suppression": {"0"},
+				"exitnodes":                  {"node2,node3"},
+				"exitnodes-local-routing":    {"1"},
+				"exitnodes-primary":          {"node2"},
+				"lock-token":                 {testSDNLockToken},
+				"mac":                        {"AA:BB:CC:DD:EE:FF"},
+				"rt-import":                  {"65000:100"},
+				"secondary-controllers":      {"ctl2", "ctl3"},
+				"type":                       {sdnZoneTypeEVPN},
+				"vrf-vxlan":                  {"1000"},
+				"vxlan-port":                 {"4789"},
+				"zone":                       {"ez1"},
+			})
+		default:
+			t.Fatalf("unexpected zone type: %q", r.Form.Get("type"))
+		}
+		writeEnvelope(t, w, nil)
+	}))
+	defer server.Close()
+
+	client := newHAResourceTestClient(t, server.URL)
+	if err := client.CreateSDNZone(context.Background(), "qz1", SDNZoneRequest{
+		Type:         sdnZoneTypeQinQ,
+		Bridge:       stringPtr("vmbr1"),
+		Tag:          intPtr64(100),
+		VLANProtocol: stringPtr("802.1ad"),
+		LockToken:    testSDNLockToken,
+	}); err != nil {
+		t.Fatalf("CreateSDNZone(qinq) unexpected error: %v", err)
+	}
+	if err := client.CreateSDNZone(context.Background(), "ez1", SDNZoneRequest{
+		Type:                    sdnZoneTypeEVPN,
+		VRFVXLAN:                intPtr64(1000),
+		Controller:              stringPtr("evpnctl"),
+		SecondaryControllers:    []string{"ctl3", "ctl2"},
+		ExitNodes:               []string{"node3", "node2"},
+		ExitNodesLocalRouting:   boolPtr(true),
+		ExitNodesPrimary:        stringPtr("node2"),
+		AdvertiseSubnets:        boolPtr(true),
+		DisableARPNDSuppression: boolPtr(false),
+		MAC:                     stringPtr("AA:BB:CC:DD:EE:FF"),
+		RTImport:                stringPtr("65000:100"),
+		VXLANPort:               intPtr64(4789),
+		LockToken:               testSDNLockToken,
+	}); err != nil {
+		t.Fatalf("CreateSDNZone(evpn) unexpected error: %v", err)
+	}
+}

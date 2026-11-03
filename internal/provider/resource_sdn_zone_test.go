@@ -26,7 +26,7 @@ func TestSDNZoneSchema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Schema() unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	if got, want := len(resp.Schema.Attributes), 14; got != want {
+	if got, want := len(resp.Schema.Attributes), 30; got != want {
 		t.Fatalf("unexpected attribute count: got %d want %d", got, want)
 	}
 	for _, name := range []string{"zone", "type"} {
@@ -40,9 +40,9 @@ func TestSDNZoneSchema(t *testing.T) {
 			t.Fatalf("%s must be computed", name)
 		}
 	}
-	for _, excluded := range []string{"digest", "lock_token", "lock-token", "vrf_vxlan", "controller"} {
+	for _, excluded := range []string{"digest", "lock_token", "lock-token", "fabric_nodes"} {
 		if _, ok := resp.Schema.Attributes[excluded]; ok {
-			t.Fatalf("slice 1 must not expose %q", excluded)
+			t.Fatalf("all extra zones must not expose %q", excluded)
 		}
 	}
 }
@@ -57,7 +57,6 @@ func validVLANZone(t *testing.T) sdnZoneModel {
 		MTU:        types.Int64Value(9000),
 		DNS:        types.StringValue("dns1"),
 		DNSZone:    types.StringValue("example.com"),
-		DHCP:       types.StringValue("dnsmasq"),
 		IPAM:       types.StringValue("pve"),
 		ReverseDNS: types.StringValue("rev1"),
 	}
@@ -71,6 +70,34 @@ func TestValidateSDNZoneConfig(t *testing.T) {
 	if diags := validateSDNZoneConfig(simple); diags.HasError() {
 		t.Fatalf("valid simple config diagnostics: %v", diags)
 	}
+	qinq := sdnZoneModel{
+		Zone: types.StringValue("qz"), Type: types.StringValue(sdnZoneTypeQinQ), Bridge: types.StringValue("vmbr0"),
+		Tag: types.Int64Value(100), VLANProtocol: types.StringValue("802.1ad"),
+	}
+	if diags := validateSDNZoneConfig(qinq); diags.HasError() {
+		t.Fatalf("valid qinq config diagnostics: %v", diags)
+	}
+	vxlan := sdnZoneModel{
+		Zone: types.StringValue("xz"), Type: types.StringValue(sdnZoneTypeVXLAN),
+		Peers: testStringSet(t, "10.0.0.1", "2001:db8::1"), VXLANPort: types.Int64Value(4789),
+	}
+	if diags := validateSDNZoneConfig(vxlan); diags.HasError() {
+		t.Fatalf("valid vxlan config diagnostics: %v", diags)
+	}
+	evpn := sdnZoneModel{
+		Zone: types.StringValue("ez"), Type: types.StringValue(sdnZoneTypeEVPN), VRFVXLAN: types.Int64Value(1000),
+		Controller: types.StringValue("evpnctl"), SecondaryControllers: testStringSet(t, "ctl2"), ExitNodes: testStringSet(t, "node2"),
+		MAC: types.StringValue("AA:BB:CC:DD:EE:FF"), ExitNodesPrimary: types.StringValue("node2"),
+		AdvertiseSubnets: types.BoolValue(true), DisableARPNDSuppression: types.BoolValue(false),
+		RTImport: types.StringValue("65000:100"), ExitNodesLocalRouting: types.BoolValue(true), VXLANPort: types.Int64Value(4789),
+	}
+	if diags := validateSDNZoneConfig(evpn); diags.HasError() {
+		t.Fatalf("valid evpn config diagnostics: %v", diags)
+	}
+	faucet := sdnZoneModel{Zone: types.StringValue("fz"), Type: types.StringValue(sdnZoneTypeFaucet), Controller: types.StringValue("faucetctl"), DPID: types.Int64Value(1)}
+	if diags := validateSDNZoneConfig(faucet); diags.HasError() {
+		t.Fatalf("valid faucet config diagnostics: %v", diags)
+	}
 	unknownType := sdnZoneModel{Zone: types.StringValue("uz"), Type: types.StringUnknown(), Bridge: types.StringValue("vmbr0")}
 	if diags := validateSDNZoneConfig(unknownType); diags.HasError() {
 		t.Fatalf("unknown type must defer the variant matrix: %v", diags)
@@ -81,7 +108,7 @@ func TestValidateSDNZoneConfig(t *testing.T) {
 		"long zone":           func(m *sdnZoneModel) { m.Zone = types.StringValue("abcdefghi") },
 		"hyphen in zone":      func(m *sdnZoneModel) { m.Zone = types.StringValue("a-b") },
 		"leading digit":       func(m *sdnZoneModel) { m.Zone = types.StringValue("1ab") },
-		"unknown type":        func(m *sdnZoneModel) { m.Type = types.StringValue("qinq") },
+		"unknown type":        func(m *sdnZoneModel) { m.Type = types.StringValue("foobar") },
 		"vlan without bridge": func(m *sdnZoneModel) { m.Bridge = types.StringNull() },
 		"mtu zero":            func(m *sdnZoneModel) { m.MTU = types.Int64Value(0) },
 		"mtu too large":       func(m *sdnZoneModel) { m.MTU = types.Int64Value(70000) },
@@ -95,6 +122,74 @@ func TestValidateSDNZoneConfig(t *testing.T) {
 			m.Type = types.StringValue(sdnZoneTypeSimple)
 			m.Bridge = types.StringNull()
 			m.BridgeDisableMACLearning = types.BoolValue(true)
+		},
+		"dhcp on vlan": func(m *sdnZoneModel) { m.DHCP = types.StringValue("dnsmasq") },
+		"tag on vlan":  func(m *sdnZoneModel) { m.Tag = types.Int64Value(100) },
+		"peers on vlan": func(m *sdnZoneModel) {
+			m.Peers = testStringSet(t, "10.0.0.1")
+		},
+		"qinq without tag": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeQinQ)
+		},
+		"qinq tag out of range": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeQinQ)
+			m.Tag = types.Int64Value(1)
+		},
+		"bad vlan protocol": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeQinQ)
+			m.Tag = types.Int64Value(100)
+			m.VLANProtocol = types.StringValue("802.1x")
+		},
+		"bad vxlan peer": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeVXLAN)
+			m.Peers = testStringSet(t, "peer")
+		},
+		"vxlan port out of range": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeVXLAN)
+			m.VXLANPort = types.Int64Value(70000)
+		},
+		"evpn without vrf": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeEVPN)
+			m.Controller = types.StringValue("ctl")
+		},
+		"evpn without controller": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeEVPN)
+			m.VRFVXLAN = types.Int64Value(1000)
+		},
+		"evpn vrf out of range": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeEVPN)
+			m.VRFVXLAN = types.Int64Value(0)
+			m.Controller = types.StringValue("ctl")
+		},
+		"bad mac": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeEVPN)
+			m.VRFVXLAN = types.Int64Value(1000)
+			m.Controller = types.StringValue("ctl")
+			m.MAC = types.StringValue("not-a-mac")
+		},
+		"bad secondary controller": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeEVPN)
+			m.VRFVXLAN = types.Int64Value(1000)
+			m.Controller = types.StringValue("ctl")
+			m.SecondaryControllers = testStringSet(t, "-ctl")
+		},
+		"bad exit node": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeEVPN)
+			m.VRFVXLAN = types.Int64Value(1000)
+			m.Controller = types.StringValue("ctl")
+			m.ExitNodes = testStringSet(t, "node_2")
+		},
+		"faucet without dp id": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeFaucet)
+			m.Controller = types.StringValue("ctl")
+			m.Bridge = types.StringNull()
+		},
+		"port on faucet": func(m *sdnZoneModel) {
+			m.Type = types.StringValue(sdnZoneTypeFaucet)
+			m.Controller = types.StringValue("ctl")
+			m.DPID = types.Int64Value(1)
+			m.Bridge = types.StringNull()
+			m.VXLANPort = types.Int64Value(4789)
 		},
 	}
 	for name, mutate := range invalid {
@@ -298,6 +393,9 @@ func TestSDNZoneLifecycleLockUnlockAndWarning(t *testing.T) {
 		Nodes:  testStringSet(t, "node1"),
 	}
 	config.Pending = types.MapNull(types.StringType)
+	config.Peers = types.SetNull(types.StringType)
+	config.ExitNodes = types.SetNull(types.StringType)
+	config.SecondaryControllers = types.SetNull(types.StringType)
 	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
 	initializeResourcePrivate(t, &createResp)
 	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
@@ -367,4 +465,39 @@ func rawZoneList(zones map[string]map[string]any) []map[string]any {
 		result = append(result, entry)
 	}
 	return result
+}
+
+func TestSDNZoneStateMapsExtraTypes(t *testing.T) {
+	state, diags := sdnZoneStateFromAPI(context.Background(), SDNZone{
+		Zone:                 "ez1",
+		Type:                 sdnZoneTypeEVPN,
+		VRFVXLAN:             proxmoxOptionalInt64{value: intPtr64(1000)},
+		Controller:           "ctl",
+		SecondaryControllers: []string{"ctl2"},
+		ExitNodes:            "node2",
+		State:                "changed",
+		Pending: map[string]json.RawMessage{
+			"secondary-controllers": json.RawMessage(`["ctl2","ctl3"]`),
+			"exitnodes":             json.RawMessage(`"node3,node2"`),
+			"tag":                   json.RawMessage(`"100"`),
+			"rt-import":             json.RawMessage(`"deleted"`),
+		},
+	})
+	if diags.HasError() {
+		t.Fatalf("state mapping diagnostics: %v", diags)
+	}
+	var controllers []string
+	if diags := state.SecondaryControllers.ElementsAs(context.Background(), &controllers, false); diags.HasError() || len(controllers) != 2 {
+		t.Fatalf("staged controller array was not applied: %#v (%v)", controllers, diags)
+	}
+	var exitNodes []string
+	if diags := state.ExitNodes.ElementsAs(context.Background(), &exitNodes, false); diags.HasError() || len(exitNodes) != 2 {
+		t.Fatalf("staged exit nodes were not applied: %#v (%v)", exitNodes, diags)
+	}
+	if state.VRFVXLAN.ValueInt64() != 1000 || state.Controller.ValueString() != "ctl" {
+		t.Fatalf("running values were not preserved: %#v", state)
+	}
+	if !state.RTImport.IsNull() || state.Tag.ValueInt64() != 100 {
+		t.Fatalf("staged scalar handling is wrong: rt=%#v tag=%#v", state.RTImport, state.Tag)
+	}
 }

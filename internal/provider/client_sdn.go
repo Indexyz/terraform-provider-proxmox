@@ -27,6 +27,22 @@ type SDNZone struct {
 	DHCP                    string                     `json:"dhcp"`
 	Bridge                  string                     `json:"bridge"`
 	BridgeDisableMACLearned proxmoxOptionalBool        `json:"bridge-disable-mac-learning"`
+	Tag                     proxmoxOptionalInt64       `json:"tag"`
+	VLANProtocol            string                     `json:"vlan-protocol"`
+	Peers                   string                     `json:"peers"`
+	Fabric                  string                     `json:"fabric"`
+	VXLANPort               proxmoxOptionalInt64       `json:"vxlan-port"`
+	VRFVXLAN                proxmoxOptionalInt64       `json:"vrf-vxlan"`
+	Controller              string                     `json:"controller"`
+	SecondaryControllers    []string                   `json:"secondary-controllers"`
+	MAC                     string                     `json:"mac"`
+	ExitNodes               string                     `json:"exitnodes"`
+	ExitNodesLocalRouting   proxmoxOptionalBool        `json:"exitnodes-local-routing"`
+	ExitNodesPrimary        string                     `json:"exitnodes-primary"`
+	AdvertiseSubnets        proxmoxOptionalBool        `json:"advertise-subnets"`
+	DisableARPNDSuppression proxmoxOptionalBool        `json:"disable-arp-nd-suppression"`
+	RTImport                string                     `json:"rt-import"`
+	DPID                    proxmoxOptionalInt64       `json:"dp-id"`
 	State                   string                     `json:"state"`
 	Pending                 map[string]json.RawMessage `json:"pending"`
 	Digest                  string                     `json:"digest"`
@@ -44,6 +60,22 @@ type SDNZoneRequest struct {
 	DHCP                    *string
 	Bridge                  *string
 	BridgeDisableMACLearned *bool
+	Tag                     *int64
+	VLANProtocol            *string
+	Peers                   []string
+	Fabric                  *string
+	VXLANPort               *int64
+	VRFVXLAN                *int64
+	Controller              *string
+	SecondaryControllers    []string
+	MAC                     *string
+	ExitNodes               []string
+	ExitNodesLocalRouting   *bool
+	ExitNodesPrimary        *string
+	AdvertiseSubnets        *bool
+	DisableARPNDSuppression *bool
+	RTImport                *string
+	DPID                    *int64
 	LockToken               string
 	Digest                  *string
 	Delete                  []string
@@ -146,6 +178,28 @@ func sdnZoneForm(req SDNZoneRequest) url.Values {
 	setOptionalString(form, "dhcp", req.DHCP)
 	setOptionalString(form, "bridge", req.Bridge)
 	setOptionalBool(form, "bridge-disable-mac-learning", req.BridgeDisableMACLearned)
+	setOptionalInt64(form, "tag", req.Tag)
+	setOptionalString(form, "vlan-protocol", req.VLANProtocol)
+	if req.Peers != nil {
+		form.Set("peers", strings.Join(sortedStrings(req.Peers), ","))
+	}
+	setOptionalString(form, "fabric", req.Fabric)
+	setOptionalInt64(form, "vxlan-port", req.VXLANPort)
+	setOptionalInt64(form, "vrf-vxlan", req.VRFVXLAN)
+	setOptionalString(form, "controller", req.Controller)
+	for _, controller := range sortedStrings(req.SecondaryControllers) {
+		form.Add("secondary-controllers", controller)
+	}
+	setOptionalString(form, "mac", req.MAC)
+	if req.ExitNodes != nil {
+		form.Set("exitnodes", strings.Join(sortedStrings(req.ExitNodes), ","))
+	}
+	setOptionalBool(form, "exitnodes-local-routing", req.ExitNodesLocalRouting)
+	setOptionalString(form, "exitnodes-primary", req.ExitNodesPrimary)
+	setOptionalBool(form, "advertise-subnets", req.AdvertiseSubnets)
+	setOptionalBool(form, "disable-arp-nd-suppression", req.DisableARPNDSuppression)
+	setOptionalString(form, "rt-import", req.RTImport)
+	setOptionalInt64(form, "dp-id", req.DPID)
 	return form
 }
 

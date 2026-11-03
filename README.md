@@ -7,7 +7,7 @@ The current baseline is designed against the official [Proxmox VE documentation]
 - A real Proxmox API client with ticket auth and API token auth
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
 - Declarative QEMU VM and LXC container management, including clone workflows, typed device configuration, snapshots, raw configuration escape hatches, and opt-in declarative `power` reconciliation (graceful shutdown with a server-side forced-stop fallback)
-- Storage, pool, Proxmox VE 9 high-availability enrollment and placement rules, external authentication realm with directory sync, RBAC, API token, ACL, cluster/node/guest firewall management, staged node network interfaces and staged SDN zones with explicit apply steps
+- Storage, pool, Proxmox VE 9 high-availability enrollment and placement rules, external authentication realm with directory sync, RBAC, API token, ACL, cluster/node/guest firewall management, staged node network interfaces and staged SDN zones (all zone types), VNets and subnets with explicit apply steps
 - Inventory data sources for guests, storage, pools, access control objects, node settings, metrics servers, and cluster resources; `proxmox_qemu_vms` and `proxmox_lxc_containers` list guests with client-side filters
 
 ## Requirements

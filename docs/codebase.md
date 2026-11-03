@@ -151,7 +151,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_sdn_apply` | 全局提交 staged SDN 配置（`PUT /cluster/sdn` + `reloadnetworkall` UPID 等待，destroy 无动作）。 |
 | `proxmox_sdn_subnet` | 管理 staged SDN subnet（CIDR 身份、`gateway`/`snat`/`dhcp_range`/`dnszoneprefix`）；请求身份由 vnet + CIDR 映射到 Proxmox 内部 subnet id。 |
 | `proxmox_sdn_vnet` | 管理 staged SDN VNet（`zone` 引用、`tag`、`vlanaware`、`isolate_ports`、`alias`）；有 subnet 时 PVE 拒绝删除与 `vlanaware`。 |
-| `proxmox_sdn_zone` | 管理 `simple`/`vlan` SDN zone 的 staged 配置，锁令牌 + digest CAS，不自动提交。 |
+| `proxmox_sdn_zone` | 管理 `simple`/`vlan`/`qinq`/`vxlan`/`evpn`/`faucet` 全部 zone 类型的 staged 配置（逐类型字段矩阵），锁令牌 + digest CAS，不自动提交。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
 | `proxmox_storage_file_download` | 下载并管理 storage 中的 ISO、LXC template 或 import image。 |
 | `proxmox_user` | 管理 Proxmox 用户。 |
