@@ -202,15 +202,40 @@ type ticketResponse struct {
 }
 
 type apiResponseEnvelope struct {
-	Data    json.RawMessage `json:"data"`
-	Changes []string        `json:"changes"`
-	Errors  any             `json:"errors"`
+	Data    json.RawMessage    `json:"data"`
+	Changes nodeNetworkChanges `json:"changes"`
+	Errors  any                `json:"errors"`
+}
+
+// nodeNetworkChanges accepts both the per-line list of older releases and the
+// unified diff string current Proxmox returns for the node network index.
+type nodeNetworkChanges []string
+
+func (c *nodeNetworkChanges) UnmarshalJSON(raw []byte) error {
+	if len(raw) > 0 && raw[0] == '"' {
+		var diff string
+		if err := json.Unmarshal(raw, &diff); err != nil {
+			return err
+		}
+		for _, line := range strings.Split(diff, "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				*c = append(*c, line)
+			}
+		}
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return err
+	}
+	*c = list
+	return nil
 }
 
 // apiResult carries response-level result attributes that Proxmox puts next to
 // `data`. Only the node network index reports `changes` today.
 type apiResult struct {
-	Changes []string
+	Changes nodeNetworkChanges
 }
 
 type APIError struct {

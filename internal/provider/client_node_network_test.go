@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -210,5 +211,21 @@ func TestClientNodeNetworkOVSForms(t *testing.T) {
 		Type: nodeNetworkTypeOVSPort, OVSTag: intPtr64(200), Delete: []string{"ovs_options"},
 	}); err != nil {
 		t.Fatalf("UpdateNodeNetworkInterface(OVSPort) unexpected error: %v", err)
+	}
+}
+
+func TestClientNodeNetworkAcceptsDiffStringChanges(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"iface":"vmbr9","type":"bridge"}],"changes":"--- a\n+++ b\n@@ -1 +1 @@\n+iface vmbr9\n"}`))
+	}))
+	defer server.Close()
+
+	_, changes, err := newHAResourceTestClient(t, server.URL).NodeNetworkInterfaces(context.Background(), "node1")
+	if err != nil {
+		t.Fatalf("NodeNetworkInterfaces() unexpected error: %v", err)
+	}
+	want := []string{"--- a", "+++ b", "@@ -1 +1 @@", "+iface vmbr9"}
+	if fmt.Sprint(changes) != fmt.Sprint(want) {
+		t.Fatalf("unexpected changes: %#v", changes)
 	}
 }
