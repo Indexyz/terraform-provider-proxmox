@@ -112,6 +112,7 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 - 新增 `proxmox_ha_resources` 与 `proxmox_ha_rules` 列表数据源（排序、类型过滤、`errors` 输出）。
 
 - 新增 `proxmox_acl`、`proxmox_backup_jobs`、`proxmox_replication_jobs` 列表数据源（path/type、node、guest 过滤，排序输出）。
+- 数据源仍可选补齐：storage 目录内容、snapshot 列表、user token/TFA、节点网络接口与 apply 状态、cluster/node/guest 防火墙选项。
 
 - 新增 `proxmox_firewall_rules` 列表数据源：按 scope（cluster/node/guest/security_group/vnet）读取，输出 `pos`/`digest` 与全部规则字段。
 
