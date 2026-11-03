@@ -103,3 +103,30 @@ func TestClusterMetricsServerReadPreservesToken(t *testing.T) {
 		t.Fatal("readState() did not preserve write-only token")
 	}
 }
+
+func TestMetricsServerReadClearsUnknownOptionalFields(t *testing.T) {
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		handler.envelope(w, map[string]any{"id": "m1", "type": "graphite", "server": "127.0.0.1", "port": 2003})
+	}))
+	defer server.Close()
+
+	res := &ClusterMetricsServerResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := clusterMetricsServerModel{
+		ID: types.StringUnknown(), ServerID: types.StringValue("m1"), Type: types.StringValue("graphite"),
+		Server: types.StringValue("127.0.0.1"), Port: types.Int64Value(2003),
+		Token: types.StringUnknown(), OpenTelemetryHeaders: types.StringUnknown(),
+	}
+	state, diags := res.readState(context.Background(), "m1", "graphite", config)
+	if diags.HasError() {
+		t.Fatalf("read diagnostics: %v", diags)
+	}
+	if state.Token.IsUnknown() || state.OpenTelemetryHeaders.IsUnknown() {
+		t.Fatalf("unknown optional fields must become null: %#v", state)
+	}
+	_ = schema
+}

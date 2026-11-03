@@ -443,6 +443,8 @@ func (r *ClusterMetricsServerResource) readState(ctx context.Context, id, server
 	state.Bucket = stringOrNull(server.Bucket)
 	if server.Token != "" {
 		state.Token = types.StringValue(server.Token)
+	} else if state.Token.IsUnknown() {
+		state.Token = types.StringNull()
 	}
 	state.VerifyCertificate = boolOrNull(server.VerifyCertificate.Ptr())
 	state.MaxBodySize = int64OrNull(server.MaxBodySize)
@@ -450,6 +452,8 @@ func (r *ClusterMetricsServerResource) readState(ctx context.Context, id, server
 	state.OpenTelemetryCompress = stringOrNull(server.OpenTelemetryCompress)
 	if server.OpenTelemetryHeaders != "" {
 		state.OpenTelemetryHeaders = types.StringValue(server.OpenTelemetryHeaders)
+	} else if state.OpenTelemetryHeaders.IsUnknown() {
+		state.OpenTelemetryHeaders = types.StringNull()
 	}
 	state.OpenTelemetryMaxBody = int64OrNull(server.OpenTelemetryMaxBody)
 	state.OpenTelemetryPath = stringOrNull(server.OpenTelemetryPath)
