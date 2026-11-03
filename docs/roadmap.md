@@ -126,6 +126,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_node_certificate`、`proxmox_acme_account`、`proxmox_acme_plugin`、`proxmox_node_acme_certificate` 与 `proxmox_acme_challenge_schema` 数据源（异步 UPID、敏感材料、节点 ACME 配置与 challenge 字段；研究见 [`research/proxmox-certificates.md`](../research/proxmox-certificates.md)）。
 
+- 新增只读数据源补齐：`proxmox_storage_contents`、`proxmox_qemu_snapshots`、`proxmox_lxc_snapshots`、`proxmox_user_tokens`、`proxmox_user_tfa_entries`、`proxmox_node_network_interfaces`、`proxmox_cluster_firewall_options`、`proxmox_node_firewall_options`、`proxmox_guest_firewall_options`。
+
 ## 接下来
 
 ### 已完成（本轮）

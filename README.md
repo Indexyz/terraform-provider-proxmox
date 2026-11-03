@@ -70,6 +70,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_ha_rules`
 - `proxmox_lxc_container`
 - `proxmox_lxc_containers`
+- `proxmox_lxc_snapshots`
 - `proxmox_lxc_snapshot`
 - `proxmox_notification_endpoint_gotify`
 - `proxmox_notification_endpoint_sendmail`
@@ -85,6 +86,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_nocloud_iso`
 - `proxmox_pool`
 - `proxmox_qemu_snapshot`
+- `proxmox_qemu_snapshots`
 - `proxmox_qemu_vm`
 - `proxmox_realm`
 - `proxmox_realm_sync`
@@ -104,8 +106,11 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_vnet_firewall_options`
 - `proxmox_sdn_zone`
 - `proxmox_storage`
+- `proxmox_storage_contents`
 - `proxmox_storage_file_download`
 - `proxmox_user`
+- `proxmox_user_tfa_entries`
+- `proxmox_user_tokens`
 - `proxmox_user_tfa`
 - `proxmox_user_token`
 
@@ -114,17 +119,21 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_acl`
 - `proxmox_acme_challenge_schema`
 - `proxmox_backup_jobs`
+- `proxmox_cluster_firewall_options`
 - `proxmox_cluster_mapping`
 - `proxmox_cluster_metrics_servers`
 - `proxmox_cluster_resources`
 - `proxmox_firewall_rules`
 - `proxmox_group`
 - `proxmox_groups`
+- `proxmox_guest_firewall_options`
 - `proxmox_ha_resources`
 - `proxmox_ha_rules`
 - `proxmox_lxc_container`
 - `proxmox_node`
 - `proxmox_node_dns`
+- `proxmox_node_firewall_options`
+- `proxmox_node_network_interfaces`
 - `proxmox_node_time`
 - `proxmox_nodes`
 - `proxmox_pool`

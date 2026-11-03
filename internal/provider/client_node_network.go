@@ -18,6 +18,10 @@ import (
 // reflects pending changes until the node network is applied.
 type NodeNetworkInterface struct {
 	Iface              string               `json:"iface"`
+	Active             proxmoxOptionalBool  `json:"active"`
+	Exists             proxmoxOptionalBool  `json:"exists"`
+	CIDR               string               `json:"cidr"`
+	CIDR6              string               `json:"cidr6"`
 	Type               string               `json:"type"`
 	Autostart          proxmoxOptionalBool  `json:"autostart"`
 	MTU                proxmoxOptionalInt64 `json:"mtu"`
