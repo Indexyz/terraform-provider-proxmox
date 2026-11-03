@@ -3,12 +3,12 @@
 page_title: "proxmox_node_network_revert Resource - proxmox"
 subcategory: ""
 description: |-
-  Discards the staged network configuration of one Proxmox VE node through DELETE /nodes/{node}/network and waits for the worker task. Proxmox reverts the whole node at once, so this drops every staged interface change, not one interface. Destroy is a no-op: an applied configuration stays applied. A failed revert keeps the instance in state for a retry.
+  Discards the staged network configuration of one Proxmox VE node through DELETE /nodes/{node}/network; Proxmox unlinks the staged file synchronously and answers without a worker task. Proxmox reverts the whole node at once, so this drops every staged interface change, not one interface. Destroy is a no-op: an applied configuration stays applied. A failed revert keeps the instance in state for a retry.
 ---
 
 # proxmox_node_network_revert (Resource)
 
-Discards the staged network configuration of one Proxmox VE node through `DELETE /nodes/{node}/network` and waits for the worker task. Proxmox reverts the whole node at once, so this drops every staged interface change, not one interface. Destroy is a no-op: an applied configuration stays applied. A failed revert keeps the instance in state for a retry.
+Discards the staged network configuration of one Proxmox VE node through `DELETE /nodes/{node}/network`; Proxmox unlinks the staged file synchronously and answers without a worker task. Proxmox reverts the whole node at once, so this drops every staged interface change, not one interface. Destroy is a no-op: an applied configuration stays applied. A failed revert keeps the instance in state for a retry.
 
 ## Example Usage
 
