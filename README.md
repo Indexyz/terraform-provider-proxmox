@@ -125,8 +125,11 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_ipams`
 - `proxmox_sdn_prefix_lists`
 - `proxmox_sdn_route_map_entries`
+- `proxmox_sdn_subnet`
 - `proxmox_sdn_subnets`
+- `proxmox_sdn_vnet`
 - `proxmox_sdn_vnets`
+- `proxmox_sdn_zone`
 - `proxmox_sdn_zones`
 - `proxmox_storage`
 - `proxmox_storages`

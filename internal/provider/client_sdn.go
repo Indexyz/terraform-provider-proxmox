@@ -364,7 +364,7 @@ func (c *Client) GetSDNSubnet(ctx context.Context, vnet, cidr string) (SDNSubnet
 		return SDNSubnet{}, err
 	}
 	for _, entry := range subnets {
-		if entry.CIDR == cidr {
+		if entry.CIDR == cidr || entry.Subnet == cidr {
 			return entry, nil
 		}
 	}
