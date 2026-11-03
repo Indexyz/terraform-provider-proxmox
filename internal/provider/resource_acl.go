@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -106,7 +107,7 @@ func (r *ACLResource) Create(ctx context.Context, req resource.CreateRequest, re
 		resp.Diagnostics.AddError("Unable to Create Proxmox ACL", err.Error())
 		return
 	}
-	state, diags := r.readACLState(ctx, plan.Path.ValueString())
+	state, diags := r.readACLState(ctx, plan.Path.ValueString(), plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -120,7 +121,7 @@ func (r *ACLResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	refreshed, diags := r.readACLState(ctx, state.Path.ValueString())
+	refreshed, diags := r.readACLState(ctx, state.Path.ValueString(), state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -153,7 +154,7 @@ func (r *ACLResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		resp.Diagnostics.AddError("Unable to Update Proxmox ACL", err.Error())
 		return
 	}
-	refreshed, diags := r.readACLState(ctx, plan.Path.ValueString())
+	refreshed, diags := r.readACLState(ctx, plan.Path.ValueString(), plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -265,7 +266,7 @@ func (r *ACLResource) deleteBinding(ctx context.Context, binding ACLEntry) error
 	return r.client.SetACL(ctx, req)
 }
 
-func (r *ACLResource) readACLState(ctx context.Context, aclPath string) (aclResourceModel, diag.Diagnostics) {
+func (r *ACLResource) readACLState(ctx context.Context, aclPath string, prior aclResourceModel) (aclResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	entries, err := r.client.GetACL(ctx)
 	if err != nil {
@@ -311,11 +312,15 @@ func (r *ACLResource) readACLState(ctx context.Context, aclPath string) (aclReso
 		var userDiags diag.Diagnostics
 		userList, userDiags = types.ListValueFrom(ctx, types.StringType, users)
 		diags.Append(userDiags...)
+	} else if !prior.Users.IsNull() {
+		userList = types.ListValueMust(types.StringType, []attr.Value{})
 	}
 	if len(groups) > 0 {
 		var groupDiags diag.Diagnostics
 		groupList, groupDiags = types.ListValueFrom(ctx, types.StringType, groups)
 		diags.Append(groupDiags...)
+	} else if !prior.Groups.IsNull() {
+		groupList = types.ListValueMust(types.StringType, []attr.Value{})
 	}
 	if diags.HasError() {
 		return aclResourceModel{}, diags

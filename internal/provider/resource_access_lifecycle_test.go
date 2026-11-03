@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -694,5 +695,14 @@ func TestACLResourceReadKeepsUnusedBindingNull(t *testing.T) {
 	}
 	if !state.Groups.IsNull() || state.Users.IsNull() {
 		t.Fatalf("unused binding must stay null: %#v", state)
+	}
+
+	explicit := config
+	explicit.Groups = types.ListValueMust(types.StringType, []attr.Value{})
+	readEmpty := resource.ReadResponse{State: testResourceState(t, schema, explicit)}
+	res.Read(context.Background(), resource.ReadRequest{State: readEmpty.State}, &readEmpty)
+	var emptyState aclResourceModel
+	if diags := readEmpty.State.Get(context.Background(), &emptyState); diags.HasError() || emptyState.Groups.IsNull() {
+		t.Fatalf("configured empty binding must stay an empty list: %#v (%v)", emptyState, diags)
 	}
 }
