@@ -142,6 +142,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_node_time`、`proxmox_node_dns` 与 syslog/journal 数据源。
 
+- 新增节点/QEMU rrddata 数据源。
+
 ## 接下来
 
 ### 已完成（本轮）

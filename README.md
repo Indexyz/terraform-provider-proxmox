@@ -160,6 +160,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_hardware_usb`
 - `proxmox_node_journal`
 - `proxmox_node_network_interfaces`
+- `proxmox_node_rrddata`
 - `proxmox_node_services`
 - `proxmox_node_syslog`
 - `proxmox_node_time`
@@ -167,6 +168,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_pool`
 - `proxmox_pools`
 - `proxmox_qemu_agent`
+- `proxmox_qemu_rrddata`
 - `proxmox_qemu_snapshots`
 - `proxmox_qemu_vm`
 - `proxmox_qemu_vms`
