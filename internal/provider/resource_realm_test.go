@@ -17,7 +17,7 @@ func TestRealmResourceSchema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Schema() unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	if got, want := len(resp.Schema.Attributes), 43; got != want {
+	if got, want := len(resp.Schema.Attributes), 46; got != want {
 		t.Fatalf("unexpected attribute count: got %d want %d", got, want)
 	}
 	if _, ok := resp.Schema.Attributes["raw"]; ok {

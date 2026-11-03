@@ -68,3 +68,22 @@ resource "proxmox_realm" "sso_groups" {
   groups_autocreate = true
   groups_overwrite  = true
 }
+
+# Client certificate content instead of a path: the PEM files are uploaded to
+# the iso directory of the given storage and the realm points at them. Use a
+# shared storage on multi-node clusters so every node can read the files.
+resource "proxmox_realm" "ldap_cert_content" {
+  realm     = "corp-ldap-cert"
+  type      = "ldap"
+  server1   = "ldap.example.com"
+  base_dn   = "dc=example,dc=com"
+  user_attr = "uid"
+
+  bind_dn               = "cn=terraform,dc=example,dc=com"
+  bind_password         = var.proxmox_ldap_bind_password
+  bind_password_version = 1
+
+  cert_storage     = "local"
+  cert_content     = file("realm-client.crt")
+  cert_key_content = file("realm-client.key")
+}

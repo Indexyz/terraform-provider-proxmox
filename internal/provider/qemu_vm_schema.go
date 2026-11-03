@@ -52,6 +52,10 @@ type qemuVMModel struct {
 	Disk          types.Map     `tfsdk:"disk"`
 	DiskResize    types.Map     `tfsdk:"disk_resize"`
 	Serial        types.Map     `tfsdk:"serial"`
+	HostPCI       types.Map     `tfsdk:"hostpci"`
+	USB           types.Map     `tfsdk:"usb"`
+	RNG           types.Map     `tfsdk:"rng"`
+	Virtiofs      types.Map     `tfsdk:"virtiofs"`
 	EFIDisk       types.Object  `tfsdk:"efi_disk"`
 	TPMState      types.Object  `tfsdk:"tpm_state"`
 	VGA           types.Object  `tfsdk:"vga"`
@@ -669,6 +673,10 @@ func qemuVMDataSourceAttributes() map[string]datasourceschema.Attribute {
 		"disk":        qemuVMDiskDataSourceAttribute(),
 		"disk_resize": datasourceschema.MapAttribute{Computed: true, ElementType: types.Int64Type, MarkdownDescription: "Terraform-side resize targets; data source reads return null. Observed sizes are available in disk."},
 		"serial":      datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0`."},
+		"hostpci":     qemuVMHostPciDataSourceAttribute(),
+		"usb":         qemuVMUSBDataSourceAttribute(),
+		"rng":         qemuVMRNGDataSourceAttribute(),
+		"virtiofs":    qemuVMVirtiofsDataSourceAttribute(),
 		"efi_disk":    qemuVMEFIDiskDataSourceAttribute(),
 		"tpm_state":   qemuVMTPMStateDataSourceAttribute(),
 		"vga":         qemuVMVGADataSourceAttribute(),
@@ -764,6 +772,10 @@ func qemuVMResourceAttributes() map[string]schema.Attribute {
 		"disk":        qemuVMDiskResourceAttribute(),
 		"disk_resize": schema.MapAttribute{Optional: true, ElementType: types.Int64Type, MarkdownDescription: "Absolute target sizes in GiB for existing hard disks, keyed by slot (for example scsi0 = 64). Uses the asynchronous resize API, never replaces or allocates a disk. Reconciled on create after clone/config and on update before starting. Equal sizes are no-ops; shrinking, missing disks and CD-ROMs are rejected. Targets are Terraform-side policy echoed in state; refresh never resizes. Do not also configure the same slot through disk or raw.extra_config. Guest partition/filesystem expansion is separate."},
 		"serial":      schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough)."},
+		"hostpci":     qemuVMHostPciResourceAttribute(),
+		"usb":         qemuVMUSBResourceAttribute(),
+		"rng":         qemuVMRNGResourceAttribute(),
+		"virtiofs":    qemuVMVirtiofsResourceAttribute(),
 		"efi_disk":    qemuVMEFIDiskResourceAttribute(),
 		"tpm_state":   qemuVMTPMStateResourceAttribute(),
 		"vga":         qemuVMVGAResourceAttribute(),

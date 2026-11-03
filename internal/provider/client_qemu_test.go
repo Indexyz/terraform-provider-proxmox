@@ -510,7 +510,7 @@ func TestDecodeQemuVMConfigProtectionBoolVariants(t *testing.T) {
 			if _, ok := config.ExtraConfig["protection"]; ok {
 				t.Fatalf("expected protection to be decoded as typed field, got extra config %#v", config.ExtraConfig)
 			}
-			if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+			if got := config.HostPCI["hostpci0"]; got != "0000:00:1f.0" {
 				t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 			}
 		})
@@ -533,7 +533,7 @@ func TestDecodeQemuVMConfigSCSIHWIsTyped(t *testing.T) {
 	if _, ok := config.ExtraConfig["scsihw"]; ok {
 		t.Fatalf("expected scsihw to be decoded as typed field, got extra config %#v", config.ExtraConfig)
 	}
-	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+	if got := config.HostPCI["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 	}
 }
@@ -554,7 +554,7 @@ func TestDecodeQemuVMConfigTabletIsTyped(t *testing.T) {
 	if _, ok := config.ExtraConfig["tablet"]; ok {
 		t.Fatalf("expected tablet to be decoded as typed field, got extra config %#v", config.ExtraConfig)
 	}
-	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+	if got := config.HostPCI["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 	}
 }
@@ -582,7 +582,7 @@ func TestDecodeQemuVMConfigSerialSlotsAreTyped(t *testing.T) {
 	if _, ok := config.ExtraConfig["serial1"]; ok {
 		t.Fatalf("expected serial1 to be decoded as typed slot, got extra config %#v", config.ExtraConfig)
 	}
-	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+	if got := config.HostPCI["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 	}
 }
@@ -617,7 +617,7 @@ func TestDecodeQemuVMConfigCPUFieldsAreTyped(t *testing.T) {
 			t.Fatalf("expected %s to be decoded as typed field, got extra config %#v", key, config.ExtraConfig)
 		}
 	}
-	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+	if got := config.HostPCI["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 	}
 }
@@ -648,7 +648,7 @@ func TestDecodeQemuVMConfigMemoryFieldsAreTyped(t *testing.T) {
 			t.Fatalf("expected %s to be decoded as typed field, got extra config %#v", key, config.ExtraConfig)
 		}
 	}
-	if got := config.ExtraConfig["hostpci0"]; got != "0000:00:1f.0" {
+	if got := config.HostPCI["hostpci0"]; got != "0000:00:1f.0" {
 		t.Fatalf("expected unrelated raw key to remain raw, got %#v", config.ExtraConfig)
 	}
 }

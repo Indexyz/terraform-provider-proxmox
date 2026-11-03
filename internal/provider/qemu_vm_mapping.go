@@ -38,12 +38,21 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 	diags.Append(projectDiags...)
 	serialValue, serialDiags := qemuVMSerialStateValue(ctx, config.Serial)
 	diags.Append(serialDiags...)
+	hostPCIValue, hostPCIRaw, hostPCIDiags := qemuVMHostPciStateValue(ctx, config.HostPCI)
+	diags.Append(hostPCIDiags...)
+	usbValue, usbRaw, usbDiags := qemuVMUSBStateValue(ctx, config.USB)
+	diags.Append(usbDiags...)
+	rngValue, rngRaw, rngDiags := qemuVMRNGStateValue(ctx, config.RNG)
+	diags.Append(rngDiags...)
+	virtiofsValue, virtiofsRaw, virtiofsDiags := qemuVMVirtiofsStateValue(ctx, config.Virtiofs)
+	diags.Append(virtiofsDiags...)
 	tpmStateValue, extraConfigRaw, tpmStateDiags := qemuVMTPMStateValue(ctx, config.ExtraConfig)
 	diags.Append(tpmStateDiags...)
 	efiDiskValue, extraConfigRaw, efiDiskDiags := qemuVMEFIDiskStateValue(ctx, extraConfigRaw)
 	diags.Append(efiDiskDiags...)
 	vgaValue, extraConfigRaw, vgaDiags := qemuVMVGAStateValue(ctx, extraConfigRaw)
 	diags.Append(vgaDiags...)
+	extraConfigRaw = mergeQemuVMRawUnsupported(extraConfigRaw, hostPCIRaw, usbRaw, rngRaw, virtiofsRaw)
 	rawValue, rawDiags := qemuVMRawStateValue(ctx, extraConfigRaw, networkRaw, diskRaw)
 	diags.Append(rawDiags...)
 	cloneValue := qemuVMCloneStateValue(prior)
@@ -111,6 +120,10 @@ func qemuVMStateFromAPI(ctx context.Context, node string, vmID int64, config Qem
 		Network:           networkValue,
 		Disk:              diskValue,
 		Serial:            serialValue,
+		HostPCI:           hostPCIValue,
+		USB:               usbValue,
+		RNG:               rngValue,
+		Virtiofs:          virtiofsValue,
 		EFIDisk:           efiDiskValue,
 		TPMState:          tpmStateValue,
 		VGA:               vgaValue,
@@ -369,6 +382,14 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 	if !model.Serial.IsNull() && !model.Serial.IsUnknown() {
 		diags.Append(model.Serial.ElementsAs(ctx, &serialValues, false)...)
 	}
+	hostPCIValues, hostPciDiags := expandQemuVMHostPciModelMap(ctx, model.HostPCI)
+	diags.Append(hostPciDiags...)
+	usbValues, usbDiags := expandQemuVMUSBModelMap(ctx, model.USB)
+	diags.Append(usbDiags...)
+	rngValues, rngDiags := expandQemuVMRNGModelMap(ctx, model.RNG)
+	diags.Append(rngDiags...)
+	virtiofsValues, virtiofsDiags := expandQemuVMVirtiofsModelMap(ctx, model.Virtiofs)
+	diags.Append(virtiofsDiags...)
 	efiDisk, efiDiskDiags := expandQemuVMEFIDiskModel(ctx, model.EFIDisk)
 	diags.Append(efiDiskDiags...)
 	vga, vgaDiags := expandQemuVMVGAModel(ctx, model.VGA)
@@ -452,6 +473,10 @@ func qemuVMConfigRequestFromModel(ctx context.Context, model qemuVMModel) (qemuV
 		Network:     networkValues,
 		Disk:        diskValues,
 		Serial:      serialValues,
+		HostPCI:     hostPCIValues,
+		USB:         usbValues,
+		RNG:         rngValues,
+		Virtiofs:    virtiofsValues,
 		ExtraConfig: extraConfig,
 	}, diags
 }
@@ -839,6 +864,14 @@ func qemuVMTypedConfigKeys(ctx context.Context, model qemuVMModel, diags *diag.D
 		var serial map[string]string
 		diags.Append(model.Serial.ElementsAs(ctx, &serial, false)...)
 		for key := range serial {
+			keys = append(keys, key)
+		}
+	}
+	for _, deviceMap := range []types.Map{model.HostPCI, model.USB, model.RNG, model.Virtiofs} {
+		if deviceMap.IsNull() || deviceMap.IsUnknown() {
+			continue
+		}
+		for key := range deviceMap.Elements() {
 			keys = append(keys, key)
 		}
 	}
@@ -1637,4 +1670,16 @@ func qemuInt64Value(value types.Int64) int64 {
 		return 0
 	}
 	return value.ValueInt64()
+}
+
+func mergeQemuVMRawUnsupported(target map[string]string, sources ...map[string]string) map[string]string {
+	for _, source := range sources {
+		for key, value := range source {
+			if target == nil {
+				target = map[string]string{}
+			}
+			target[key] = value
+		}
+	}
+	return target
 }

@@ -146,6 +146,7 @@ resource "proxmox_qemu_vm" "example" {
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates preserve inherited disks without adopting media from refreshed state. A different ISO in the marked slot may be replaced on a stopped VM only with provider private attachment history (or an explicit exact-volume `nocloud_seed_update_from` migration grant), live digest compare-and-swap and attachment readback verification. Refresh/import never grants ownership; foreign media, hard disks and second seeds remain rejected. Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source. (see [below for nested schema](#nestedatt--disk))
 - `disk_resize` (Map of Number) Absolute target sizes in GiB for existing hard disks, keyed by slot (for example scsi0 = 64). Uses the asynchronous resize API, never replaces or allocates a disk. Reconciled on create after clone/config and on update before starting. Equal sizes are no-ops; shrinking, missing disks and CD-ROMs are rejected. Targets are Terraform-side policy echoed in state; refresh never resizes. Do not also configure the same slot through disk or raw.extra_config. Guest partition/filesystem expansion is separate.
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
+- `hostpci` (Attributes Map) Typed host PCI passthrough keyed by `hostpci0` to `hostpci15`. Configure either `host` (`bus:dev.func`, optionally a semicolon list of virtual functions) or a cluster `mapping` id. Passthrough devices usually make the guest non-migratable. Slots removed from configuration are deleted. Unparsable slots stay in `raw.extra_config`. (see [below for nested schema](#nestedatt--hostpci))
 - `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 - `machine` (String) Configured machine type managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
@@ -161,6 +162,7 @@ resource "proxmox_qemu_vm" "example" {
 - `power_shutdown_timeout` (Number) Seconds the Proxmox shutdown task waits for a graceful shutdown before forcing the guest off, used only when `power = false`. Defaults to the Proxmox default of 60 when unset. Must be between 1 and 600.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
+- `rng` (Attributes Map) Typed entropy source at the only slot `rng0`. `source` is required (`/dev/urandom`, `/dev/random`, or `/dev/hwrng`); `max_bytes` and `period` limit the injection rate. Removing the slot deletes it. (see [below for nested schema](#nestedatt--rng))
 - `scsihw` (String) SCSI controller hardware type managed through `/config`.
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` (unix socket for `qm terminal`) or `/dev/ttyS0` (host device passthrough).
 - `shares` (Number) Memory shares for auto-ballooning managed through `/config`.
@@ -171,8 +173,10 @@ resource "proxmox_qemu_vm" "example" {
 - `tablet` (Boolean) Whether the USB tablet device is enabled for this VM, usually needed for absolute mouse positioning with VNC.
 - `tags` (String) Comma-separated Proxmox tags managed through `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage. Unsupported grammar remains available through `raw.extra_config["tpmstate0"]`. (see [below for nested schema](#nestedatt--tpm_state))
+- `usb` (Attributes Map) Typed USB passthrough keyed by `usb0` to `usb13`. Configure either `host` (`bus-port` path, `vendor:product` id, or `spice`) or a cluster `mapping` id. Slots removed from configuration are deleted. Unparsable slots stay in `raw.extra_config`. (see [below for nested schema](#nestedatt--usb))
 - `vcpus` (Number) Number of hotplugged vCPUs managed through `/config`.
 - `vga` (Attributes) Typed VGA hardware configuration managed through `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
+- `virtiofs` (Attributes Map) Typed virtiofs directory sharing keyed by `virtiofs0` to `virtiofs9`. `dirid` names a cluster directory mapping and doubles as the guest mount tag. Slots removed from configuration are deleted. (see [below for nested schema](#nestedatt--virtiofs))
 - `vm_id` (Number) Numeric VMID of the QEMU virtual machine. When omitted, the provider allocates the next free cluster VMID through `GET /cluster/nextid` before the create or clone task starts.
 - `vm_id_start` (Number) Lower bound for automatic `vm_id` allocation. Only valid when `vm_id` is omitted: the provider allocates the first free cluster VMID greater than or equal to this value through `GET /cluster/nextid`. Conflicts with `vm_id`.
 
@@ -279,6 +283,20 @@ Optional:
 - `volume` (String)
 
 
+<a id="nestedatt--hostpci"></a>
+### Nested Schema for `hostpci`
+
+Optional:
+
+- `driver` (String)
+- `host` (String)
+- `mapping` (String)
+- `mdev` (String)
+- `pcie` (Boolean)
+- `rombar` (Boolean)
+- `x_vga` (Boolean)
+
+
 <a id="nestedatt--network"></a>
 ### Nested Schema for `network`
 
@@ -304,6 +322,16 @@ Optional:
 - `extra_config` (Map of String) Raw Proxmox config entries keyed by their exact `/config` key such as `hostpci0` or unsupported disk/network slots.
 
 
+<a id="nestedatt--rng"></a>
+### Nested Schema for `rng`
+
+Optional:
+
+- `max_bytes` (Number)
+- `period` (Number)
+- `source` (String)
+
+
 <a id="nestedatt--tpm_state"></a>
 ### Nested Schema for `tpm_state`
 
@@ -316,6 +344,16 @@ Optional:
 - `volume` (String)
 
 
+<a id="nestedatt--usb"></a>
+### Nested Schema for `usb`
+
+Optional:
+
+- `host` (String)
+- `mapping` (String)
+- `usb3` (Boolean)
+
+
 <a id="nestedatt--vga"></a>
 ### Nested Schema for `vga`
 
@@ -324,3 +362,15 @@ Optional:
 - `clipboard` (String) Clipboard selection such as `vnc` managed through `/config`.
 - `memory` (Number) VGA memory in MiB managed through `/config`.
 - `type` (String) VGA hardware type such as `std`, `virtio`, `qxl`, or `serial0`. The primary positional part of the Proxmox `vga` value; the block is emitted only when `type` is set.
+
+
+<a id="nestedatt--virtiofs"></a>
+### Nested Schema for `virtiofs`
+
+Optional:
+
+- `cache` (String)
+- `direct_io` (Boolean)
+- `dirid` (String)
+- `expose_acl` (Boolean)
+- `expose_xattr` (Boolean)

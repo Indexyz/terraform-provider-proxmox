@@ -178,6 +178,10 @@ type QemuVMConfig struct {
 	Network     map[string]string      `json:"-"`
 	Disk        map[string]string      `json:"-"`
 	Serial      map[string]string      `json:"-"`
+	HostPCI     map[string]string      `json:"-"`
+	USB         map[string]string      `json:"-"`
+	RNG         map[string]string      `json:"-"`
+	Virtiofs    map[string]string      `json:"-"`
 	ExtraConfig map[string]string      `json:"-"`
 }
 
@@ -222,6 +226,11 @@ type qemuVMConfigRequest struct {
 	IPConfig    map[string]string
 	Network     map[string]string
 	Disk        map[string]string
+	HostPCI     map[string]string
+	USB         map[string]string
+	RNG         map[string]string
+	Virtiofs    map[string]string
+	Delete      []string
 	Serial      map[string]string
 	ExtraConfig map[string]string
 }
@@ -446,6 +455,10 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 	config.Network = map[string]string{}
 	config.Disk = map[string]string{}
 	config.Serial = map[string]string{}
+	config.HostPCI = map[string]string{}
+	config.USB = map[string]string{}
+	config.RNG = map[string]string{}
+	config.Virtiofs = map[string]string{}
 	config.ExtraConfig = map[string]string{}
 
 	knownKeys := map[string]struct{}{
@@ -474,6 +487,14 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 			config.Disk[key] = decoded
 		case isQemuVMSerialKey(key):
 			config.Serial[key] = decoded
+		case isQemuVMHostPciKey(key):
+			config.HostPCI[key] = decoded
+		case isQemuVMUSBKey(key):
+			config.USB[key] = decoded
+		case isQemuVMRNGKey(key):
+			config.RNG[key] = decoded
+		case isQemuVMVirtiofsKey(key):
+			config.Virtiofs[key] = decoded
 		default:
 			config.ExtraConfig[key] = decoded
 		}
@@ -490,6 +511,18 @@ func decodeQemuVMConfig(raw map[string]json.RawMessage) (QemuVMConfig, error) {
 	}
 	if len(config.Serial) == 0 {
 		config.Serial = nil
+	}
+	if len(config.HostPCI) == 0 {
+		config.HostPCI = nil
+	}
+	if len(config.USB) == 0 {
+		config.USB = nil
+	}
+	if len(config.RNG) == 0 {
+		config.RNG = nil
+	}
+	if len(config.Virtiofs) == 0 {
+		config.Virtiofs = nil
 	}
 	if len(config.ExtraConfig) == 0 {
 		config.ExtraConfig = nil
@@ -535,6 +568,13 @@ func encodeQemuVMFields(form url.Values, req qemuVMConfigRequest) {
 	setSortedStringMap(form, req.Network)
 	setSortedStringMap(form, req.Disk)
 	setSortedStringMap(form, req.Serial)
+	setSortedStringMap(form, req.HostPCI)
+	setSortedStringMap(form, req.USB)
+	setSortedStringMap(form, req.RNG)
+	setSortedStringMap(form, req.Virtiofs)
+	if len(req.Delete) > 0 {
+		form.Set("delete", strings.Join(sortedStrings(req.Delete), ","))
+	}
 	setSortedStringMap(form, req.ExtraConfig)
 }
 

@@ -79,6 +79,9 @@ func (r *RealmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"groups_overwrite":      schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Overwrite existing Proxmox group memberships from OpenID group claims."},
 			"cert":                  schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Path on the cluster to the LDAP/AD client certificate."},
 			"cert_key":              schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Path on the cluster to the LDAP/AD client certificate key."},
+			"cert_storage":          schema.StringAttribute{Optional: true, MarkdownDescription: "Iso-capable directory storage holding `cert_content` and `cert_key_content`. Shared storage is required on multi-node clusters, otherwise only the upload node can read the files. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"cert_content":          schema.StringAttribute{Optional: true, Sensitive: true, MarkdownDescription: "PEM client certificate, uploaded as `<cert_storage>/template/iso/terraform-realm-<realm>-cert.img` and referenced through `cert`. Mutually exclusive with `cert`. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"cert_key_content":      schema.StringAttribute{Optional: true, Sensitive: true, MarkdownDescription: "PEM client certificate key belonging to `cert_content`. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"filter":                schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "LDAP/AD filter applied during user sync."},
 			"sync_attributes":       schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Comma separated `pveField=ldapAttribute` mappings applied during user sync, for example `email=mail`."},
 			"user_classes":          schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Comma separated object classes that identify user entries during sync."},
@@ -120,7 +123,26 @@ func (r *RealmResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.CreateRealm(ctx, realmRequestFromModels(config, realmModel{}, true)); err != nil {
+	createReq := realmRequestFromModels(config, realmModel{}, true)
+	var attachment realmClientCert
+	attached := false
+	if isConfiguredValue(config.CertContent) {
+		var err error
+		attachment, err = uploadRealmClientCert(ctx, r.client, config.Realm.ValueString(), config.CertStorage.ValueString(), []byte(config.CertContent.ValueString()), []byte(config.CertKeyContent.ValueString()))
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Upload Realm Client Certificate", err.Error())
+			return
+		}
+		attached = true
+		createReq.Cert = &attachment.CertPath
+		createReq.CertKey = &attachment.KeyPath
+	}
+	if err := r.client.CreateRealm(ctx, createReq); err != nil {
+		if attached {
+			if cleanupErr := removeRealmClientCert(ctx, r.client, attachment); cleanupErr != nil {
+				resp.Diagnostics.AddWarning("Unable to Clean Up Uploaded Realm Client Certificate", cleanupErr.Error())
+			}
+		}
 		resp.Diagnostics.AddError("Unable to Create Proxmox Realm", err.Error())
 		return
 	}
@@ -131,6 +153,9 @@ func (r *RealmResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	r.storeManagedFields(ctx, config, resp.Private, &resp.Diagnostics)
+	if attached {
+		resp.Diagnostics.Append(writeRealmClientCert(ctx, resp.Private, attachment)...)
+	}
 }
 
 func (r *RealmResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -148,6 +173,7 @@ func (r *RealmResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		resp.State.RemoveResource(ctx)
 		return
 	}
+	resp.Diagnostics.Append(r.healClientCert(ctx, &state, &refreshed, req.Private)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &refreshed)...)
 }
 
@@ -166,6 +192,19 @@ func (r *RealmResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 	updateReq := realmRequestFromModels(config, prior, false)
 	updateReq.Delete = realmDeleteKeys(config, previouslyManaged)
+	if isConfiguredValue(config.CertContent) {
+		attachment, attachDiags := readRealmClientCert(ctx, req.Private)
+		resp.Diagnostics.Append(attachDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if attachment.CertPath == "" || attachment.KeyPath == "" {
+			resp.Diagnostics.AddError("Missing Realm Client Certificate State", "the uploaded certificate attachment is no longer tracked; replace the resource to upload it again.")
+			return
+		}
+		updateReq.Cert = &attachment.CertPath
+		updateReq.CertKey = &attachment.KeyPath
+	}
 	if !updateReq.IsEmpty() {
 		current, err := r.client.GetRealm(ctx, prior.Realm.ValueString())
 		if err != nil {
@@ -195,8 +234,16 @@ func (r *RealmResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	attachment, attachDiags := readRealmClientCert(ctx, req.Private)
+	resp.Diagnostics.Append(attachDiags...)
 	if err := r.client.DeleteRealm(ctx, state.Realm.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Unable to Delete Proxmox Realm", err.Error())
+		return
+	}
+	if attachment.CertVolID != "" {
+		if err := removeRealmClientCert(ctx, r.client, attachment); err != nil {
+			resp.Diagnostics.AddWarning("Unable to Delete Uploaded Realm Client Certificate", err.Error())
+		}
 	}
 }
 
@@ -246,4 +293,49 @@ func readRealmManagedFields(ctx context.Context, private realmPrivateData) ([]st
 		diags.AddError("Unable to Read Realm State", fmt.Sprintf("unable to decode managed fields: %v", err))
 	}
 	return fields, diags
+}
+
+// healClientCert re-uploads vanished certificate files. Refresh stays otherwise
+// side-effect free, but a realm whose certificate path points at a deleted file
+// fails every LDAP login, so the files are restored from the configured content.
+func (r *RealmResource) healClientCert(ctx context.Context, prior, refreshed *realmModel, private realmPrivateData) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if !isConfiguredValue(prior.CertContent) {
+		return diags
+	}
+	attachment, attachDiags := readRealmClientCert(ctx, private)
+	diags.Append(attachDiags...)
+	if diags.HasError() || attachment.CertVolID == "" {
+		return diags
+	}
+	exists, err := realmCertFilesExist(ctx, r.client, attachment)
+	if err != nil {
+		diags.AddWarning("Unable to Verify Realm Client Certificate", err.Error())
+		return diags
+	}
+	if exists {
+		return diags
+	}
+	fresh, err := uploadRealmClientCert(ctx, r.client, prior.Realm.ValueString(), prior.CertStorage.ValueString(), []byte(prior.CertContent.ValueString()), []byte(prior.CertKeyContent.ValueString()))
+	if err != nil {
+		diags.AddWarning("Unable to Restore Realm Client Certificate", err.Error())
+		return diags
+	}
+	current, err := r.client.GetRealm(ctx, prior.Realm.ValueString())
+	if err != nil {
+		diags.AddWarning("Unable to Restore Realm Client Certificate", err.Error())
+		return diags
+	}
+	request := RealmRequest{Cert: &fresh.CertPath, CertKey: &fresh.KeyPath}
+	if current.Digest != "" {
+		request.Digest = &current.Digest
+	}
+	if err := r.client.UpdateRealm(ctx, prior.Realm.ValueString(), request); err != nil {
+		diags.AddWarning("Unable to Restore Realm Client Certificate", err.Error())
+		return diags
+	}
+	refreshed.Cert = types.StringValue(fresh.CertPath)
+	refreshed.CertKey = types.StringValue(fresh.KeyPath)
+	diags.Append(writeRealmClientCert(ctx, private, fresh)...)
+	return diags
 }

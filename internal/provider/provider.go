@@ -173,6 +173,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewStorageFileDownloadResource,
 		NewStorageResource,
 		NewUserResource,
+		NewUserTFAResource,
 		NewUserTokenResource,
 	}
 }

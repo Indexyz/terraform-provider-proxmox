@@ -50,6 +50,9 @@ type realmModel struct {
 	Audiences           types.String `tfsdk:"audiences"`
 	Cert                types.String `tfsdk:"cert"`
 	CertKey             types.String `tfsdk:"cert_key"`
+	CertStorage         types.String `tfsdk:"cert_storage"`
+	CertContent         types.String `tfsdk:"cert_content"`
+	CertKeyContent      types.String `tfsdk:"cert_key_content"`
 	Filter              types.String `tfsdk:"filter"`
 	SyncAttrs           types.String `tfsdk:"sync_attributes"`
 	UserClasses         types.String `tfsdk:"user_classes"`
@@ -113,6 +116,7 @@ func validateRealmConfig(config realmModel) diag.Diagnostics {
 		diags.AddAttributeError(path.Root("mode"), "Invalid LDAP mode", "mode must be ldap, ldaps, or ldap+starttls.")
 	}
 	validateRealmSecretPair(&diags, "bind_password", config.BindPassword, "bind_password_version", config.BindPasswordVersion)
+	validateRealmCertContent(&diags, config)
 	validateRealmSecretPair(&diags, "client_key", config.ClientKey, "client_key_version", config.ClientKeyVersion)
 	validateRealmTextLimits(&diags, config)
 	validateRealmSyncLists(&diags, config)
@@ -301,6 +305,9 @@ func addDirectoryRealmFields(fields *[]string, config realmModel) {
 	}{
 		{"cert", !config.Cert.IsNull()},
 		{"cert_key", !config.CertKey.IsNull()},
+		{"cert_storage", !config.CertStorage.IsNull()},
+		{"cert_content", !config.CertContent.IsNull()},
+		{"cert_key_content", !config.CertKeyContent.IsNull()},
 		{"filter", !config.Filter.IsNull()},
 		{"sync_attributes", !config.SyncAttrs.IsNull()},
 		{"user_classes", !config.UserClasses.IsNull()},
@@ -354,6 +361,14 @@ func realmStateFromAPI(config Realm, prior *realmModel) (realmModel, diag.Diagno
 		}
 	}
 	tfa, diags := realmTFAObject(config.TFA)
+	certStorage := types.StringNull()
+	certContent := types.StringNull()
+	certKeyContent := types.StringNull()
+	if prior != nil {
+		certStorage = prior.CertStorage
+		certContent = prior.CertContent
+		certKeyContent = prior.CertKeyContent
+	}
 	return realmModel{
 		ID:                  types.StringValue(config.Realm),
 		Realm:               types.StringValue(config.Realm),
@@ -397,6 +412,9 @@ func realmStateFromAPI(config Realm, prior *realmModel) (realmModel, diag.Diagno
 		GroupsClaim:         stringOrNull(config.GroupsClaim),
 		GroupsAutocreate:    boolOrNull(config.GroupsCreate.Ptr()),
 		GroupsOverwrite:     boolOrNull(config.GroupsOverwr.Ptr()),
+		CertStorage:         certStorage,
+		CertContent:         certContent,
+		CertKeyContent:      certKeyContent,
 		TFA:                 tfa,
 	}, diags
 }
@@ -553,6 +571,9 @@ func realmManagedFields(config realmModel) []string {
 	addString("audiences", config.Audiences)
 	addString("cert", config.Cert)
 	addString("certkey", config.CertKey)
+	if isConfiguredValue(config.CertContent) {
+		fields = append(fields, "cert", "certkey")
+	}
 	addString("filter", config.Filter)
 	addString("sync_attributes", config.SyncAttrs)
 	addString("user_classes", config.UserClasses)
@@ -613,4 +634,24 @@ func realmDeleteKeys(config realmModel, previouslyManaged []string) []string {
 	}
 	slices.Sort(deleted)
 	return deleted
+}
+
+// validateRealmCertContent enforces the mutual exclusion between certificate
+// paths and uploaded certificate content.
+func validateRealmCertContent(diags *diag.Diagnostics, config realmModel) {
+	hasContent := isConfiguredValue(config.CertContent)
+	hasKeyContent := isConfiguredValue(config.CertKeyContent)
+	hasStorage := isConfiguredValue(config.CertStorage)
+	if hasContent != hasKeyContent {
+		diags.AddError("Incomplete realm client certificate", "cert_content and cert_key_content must be configured together.")
+	}
+	if (hasContent || hasKeyContent) && !hasStorage {
+		diags.AddAttributeError(path.Root("cert_storage"), "Missing certificate storage", "cert_storage is required when certificate content is uploaded.")
+	}
+	if hasStorage && !hasContent && !hasKeyContent {
+		diags.AddAttributeError(path.Root("cert_storage"), "Unexpected certificate storage", "cert_storage is only used together with cert_content.")
+	}
+	if (hasContent || hasKeyContent) && isConfiguredValue(config.Cert) {
+		diags.AddAttributeError(path.Root("cert"), "Conflicting client certificate", "configure either cert/cert_key paths or cert_content/cert_key_content, not both.")
+	}
 }

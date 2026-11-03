@@ -95,6 +95,10 @@ SDN VNet firewall 已接入：`proxmox_firewall_rule` 新增 `vnet` scope（`/cl
 SDN 切片 5 已完成：`proxmox_sdn_fabric`（`openfabric`/`ospf`/`wireguard`/`bgp` 逐协议字段矩阵、`redistribute` 为 property string）、`proxmox_sdn_fabric_node`（fabric_id/node_id 身份、wireguard 专属字段与 role、「其他协议拒绝 wireguard 字段」）与 `proxmox_sdn_prefix_list`（entries 为 property string、拒绝 Proxmox 保留 id）、`proxmox_sdn_route_map_entry`（`route_map_id`+`order` 身份、set/match/exit_action、保留 id 拒绝）。四者的 `delete` 均为重复 key 数组。另新增 `proxmox_sdn_rollback`（`POST /cluster/sdn/rollback` / 锁令牌、`triggers` RequiresReplace、`remaining_pending`/`remaining_pending_zones` 计算输出、destroy 无动作）与 `proxmox_sdn_zones`/`proxmox_sdn_vnets` 列表数据源（`?pending=1`、排序、过滤、`state`/`pending` 原样输出）。注册 42 资源 / 25 数据源；property-string 列表改用 `sdnStagedRawList`（按 JSON 数组解码，不按逗号拆）。
 Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond` 接入资源类型矩阵，`ovs_ports` 为 OVSBridge 的 computed 字段，由 provider 从端口资源维护成员关系（create 追加、destroy/换父桥移除，因为 PVE 只为 OVSIntPort/OVSBond 自动维护）、`ovs_bridge` 对 OVSIntPort/OVSBond 必填、`ovs_tag`/`ovs_options`/`ovs_bonds` typed、OVS 端口禁 `autostart`（服务端强制 0）、bond_mode 按 Linux/OVS 两套枚举分别校验。
 
+- 新增 `proxmox_user_tfa`（第二因子）：`totp`/`recovery`/`yubico`，`user_id`+server id 身份、`description`/`enable` 可变、`totp`/`value`/`password` 敏感、`recovery_codes` 计算且敏感、import `user/entry`；类型/URI/OTP 与 password 校验，文档声明该 endpoint 拒绝 API token（必须 ticket 认证）。
+- `proxmox_realm` 新增客户端证书**内容**上传：`cert_storage` + `cert_content`/`cert_key_content`（敏感），将 PEM 以 `.img` 上传到 iso 目录存储（`<path>/template/iso/terraform-realm-<realm>-{cert,key}.img`）并回填 `cert`/`certkey`；上传先于配置、失败与销毁清理文件、刷新时缺失自动恢复；与路径模式互斥并校验存储可用（iso content/path/enabled/active，跨节点提示需共享存储）。
+- `proxmox_qemu_vm` 新增 typed compound 设备：`hostpci`(0–15)、`usb`(0–13)、`rng`(rng0)、`virtiofs`(0–9)，含默认键互斥、槽位范围、枚举/格式校验、raw 回退与冲突检测；为 QEMU 新增 `delete` 表单与“仅发送新增/变更 compound 槽位”的 update 收敛，槽位移除按 delete 下发。
+
 ## 接下来
 
 ### 已完成（本轮）
@@ -107,14 +111,16 @@ input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B N
 
 SDN epic 功能面已完成（含 apply 与 rollback 两个显式执行面）：全部 zone 类型、VNet（含防火墙 options/scope）、subnet、ipam/dns/controller、fabric/fabric node、prefix list、route map entry、全局 apply，以及 zones/vnets 列表数据源。剩余：实物验收（见下）与可选的数据源扩充。
 
+user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步只剩实机验收（TFA 需 ticket 认证与真实 LDAP、证书内容需真实存储与 LDAP 登录、compound 设备需可透传硬件/virtiofsd）与数据源广度扩充。
+
 ### 后续中大型功能
 
 - `proxmox_lxc_containers` 列表数据源已完成（见上方已完成条目）；同类 guest 列表后续可考虑统一的跨类型查询体验。
-- Authentication realm 高级后续已完成（列表数据源、LDAP/AD 目录同步与证书、OpenID group claim、forced TFA），`/sync` 也已作为命令式 `proxmox_realm_sync`（triggers 驱动、UPID 等待、destroy 无动作、`remove_vanished` 破坏性语义）交付；仍待：client certificate 内容上传与 user TFA 管理。
+- Authentication realm 高级后续全部交付：列表数据源、LDAP/AD 目录同步与证书（路径与内容上传）、OpenID group claim、forced TFA、命令式 `proxmox_realm_sync` 与 `proxmox_user_tfa`；仅剩实机验收。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
 - Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；后续剩 `alias`/`eth` altname 重命名与 revert 资源化。
 - SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply、zones/vnets 数据源）；仅剩可选的数据源广度扩充与实机验收。
-- QEMU `hostpci`、`usb`、`rng`、`virtiofs` 等 compound device：按现有 slot parser/encoder 和 whole-slot raw fallback 模式实现；现有 `raw.extra_config` 可覆盖长尾，因此低于集群级能力。
+- QEMU compound devices 已交付 `hostpci`/`usb`/`rng`/`virtiofs` typed 槽位（含 raw 回退与 delete 移除）；长尾选项（`romfile`、`legacy-igd`、PCI id 覆盖）仍由 `raw.extra_config` 覆盖。
 
 ### 持续约束
 
@@ -124,4 +130,4 @@ SDN epic 功能面已完成（含 apply 与 rollback 两个显式执行面）：
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。
 
-研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。候选比较见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)；HA resource 的 PVE 9.2 schema、生命周期和验证边界见 [`research/proxmox-ha-resource.md`](../research/proxmox-ha-resource.md)；HA rule 的 PVE 9.2 终点、可行性交叉检查、digest 生命周期与迁移 gate 见 [`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)；节点网络的 staged/`changes`/reload 契约与断连边界见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；LXC guest 列表的类型剔除与过滤契约见 [`research/proxmox-lxc-containers.md`](../research/proxmox-lxc-containers.md)；realm 索引、目录同步、客户端证书与 TFA 语法见 [`research/proxmox-realm-advanced.md`](../research/proxmox-realm-advanced.md)；SDN 的全局锁、pending/running 与切片计划见 [`research/proxmox-sdn.md`](../research/proxmox-sdn.md)；QEMU/LXC linked clone 的 PVE 契约（`full` 默认、`storage`/`format` 拒绝、存储 `clone` feature 矩阵、base 镜像生命周期）见 [`research/proxmox-linked-clone.md`](../research/proxmox-linked-clone.md)。
+研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。候选比较见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)；HA resource 的 PVE 9.2 schema、生命周期和验证边界见 [`research/proxmox-ha-resource.md`](../research/proxmox-ha-resource.md)；HA rule 的 PVE 9.2 终点、可行性交叉检查、digest 生命周期与迁移 gate 见 [`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)；节点网络的 staged/`changes`/reload 契约与断连边界见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；LXC guest 列表的类型剔除与过滤契约见 [`research/proxmox-lxc-containers.md`](../research/proxmox-lxc-containers.md)；realm 索引、目录同步、客户端证书与 TFA 语法见 [`research/proxmox-realm-advanced.md`](../research/proxmox-realm-advanced.md)；SDN 的全局锁、pending/running 与切片计划见 [`research/proxmox-sdn.md`](../research/proxmox-sdn.md)； TFA/证书内容/compound 设备的 PVE 契约与边界见 [`research/proxmox-tfa-cert-devices.md`](../research/proxmox-tfa-cert-devices.md)；QEMU/LXC linked clone 的 PVE 契约（`full` 默认、`storage`/`format` 拒绝、存储 `clone` feature 矩阵、base 镜像生命周期）见 [`research/proxmox-linked-clone.md`](../research/proxmox-linked-clone.md)。

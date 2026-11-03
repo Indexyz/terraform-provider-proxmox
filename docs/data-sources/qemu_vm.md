@@ -51,6 +51,7 @@ data "proxmox_qemu_vm" "example" {
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0` when fully covered by this provider version. (see [below for nested schema](#nestedatt--disk))
 - `disk_resize` (Map of Number) Terraform-side resize targets; data source reads return null. Observed sizes are available in disk.
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--efi_disk))
+- `hostpci` (Attributes Map) Typed host PCI passthrough keyed by slot. (see [below for nested schema](#nestedatt--hostpci))
 - `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) from `/config`.
 - `id` (String) Terraform identifier in `node/vm_id` form.
 - `machine` (String) Configured machine type from `/config`.
@@ -67,6 +68,7 @@ data "proxmox_qemu_vm" "example" {
 - `power_shutdown_timeout` (Number) Shutdown timeout of the `proxmox_qemu_vm` resource in seconds. Terraform-side policy is not stored in Proxmox, so data source reads always return null.
 - `protection` (Boolean) Whether Proxmox protection is enabled for this VM, disabling remove VM and remove disk operations.
 - `raw` (Attributes) Escape hatch for advanced `/config` keys that this provider version does not type yet. (see [below for nested schema](#nestedatt--raw))
+- `rng` (Attributes Map) Typed entropy source at `rng0`. (see [below for nested schema](#nestedatt--rng))
 - `scsihw` (String) SCSI controller hardware type from `/config`.
 - `serial` (Map of String) Typed serial devices keyed by Proxmox slot name such as `serial0`, with values like `socket` or `/dev/ttyS0`.
 - `shares` (Number) Memory shares for auto-ballooning from `/config`.
@@ -80,8 +82,10 @@ data "proxmox_qemu_vm" "example" {
 - `template` (Boolean) Whether the guest is a template, as reported by `/config`.
 - `tpm_state` (Attributes) Typed `tpmstate0` storage when the provider fully understands the current grammar; unsupported variants remain in `raw.extra_config`. (see [below for nested schema](#nestedatt--tpm_state))
 - `uptime` (Number) Observed guest uptime in seconds from `/status/current`.
+- `usb` (Attributes Map) Typed USB passthrough keyed by slot. (see [below for nested schema](#nestedatt--usb))
 - `vcpus` (Number) Number of hotplugged vCPUs from `/config`.
 - `vga` (Attributes) Typed VGA hardware configuration from `/config`. Unsupported grammar remains available through `raw.extra_config["vga"]`. (see [below for nested schema](#nestedatt--vga))
+- `virtiofs` (Attributes Map) Typed virtiofs directory shares keyed by slot. (see [below for nested schema](#nestedatt--virtiofs))
 - `vm_id_start` (Number) Create-time allocation floor for `vm_id` in the `proxmox_qemu_vm` resource. Proxmox does not expose allocation provenance, so data source reads always return null.
 
 <a id="nestedatt--clone"></a>
@@ -177,6 +181,20 @@ Read-Only:
 - `volume` (String)
 
 
+<a id="nestedatt--hostpci"></a>
+### Nested Schema for `hostpci`
+
+Read-Only:
+
+- `driver` (String)
+- `host` (String)
+- `mapping` (String)
+- `mdev` (String)
+- `pcie` (Boolean)
+- `rombar` (Boolean)
+- `x_vga` (Boolean)
+
+
 <a id="nestedatt--network"></a>
 ### Nested Schema for `network`
 
@@ -202,6 +220,16 @@ Read-Only:
 - `extra_config` (Map of String) Raw Proxmox config entries keyed by their exact `/config` key such as `hostpci0` or unsupported disk/network slots.
 
 
+<a id="nestedatt--rng"></a>
+### Nested Schema for `rng`
+
+Read-Only:
+
+- `max_bytes` (Number)
+- `period` (Number)
+- `source` (String)
+
+
 <a id="nestedatt--tpm_state"></a>
 ### Nested Schema for `tpm_state`
 
@@ -214,6 +242,16 @@ Read-Only:
 - `volume` (String)
 
 
+<a id="nestedatt--usb"></a>
+### Nested Schema for `usb`
+
+Read-Only:
+
+- `host` (String)
+- `mapping` (String)
+- `usb3` (Boolean)
+
+
 <a id="nestedatt--vga"></a>
 ### Nested Schema for `vga`
 
@@ -222,3 +260,15 @@ Read-Only:
 - `clipboard` (String) Clipboard selection such as `vnc` from `/config`.
 - `memory` (Number) VGA memory in MiB from `/config`.
 - `type` (String) VGA hardware type such as `std`, `virtio`, `qxl`, or `serial0` from `/config`.
+
+
+<a id="nestedatt--virtiofs"></a>
+### Nested Schema for `virtiofs`
+
+Read-Only:
+
+- `cache` (String)
+- `direct_io` (Boolean)
+- `dirid` (String)
+- `expose_acl` (Boolean)
+- `expose_xattr` (Boolean)

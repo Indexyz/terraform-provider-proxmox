@@ -530,6 +530,15 @@ func (r *QemuVMResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 	updateReq.Network = narrowedNetwork
 
+	// The compound device maps inherit the same Optional+Computed echo problem;
+	// narrow them the same way and delete slots that left the configuration.
+	deletedDevices := qemuVMDeletedDeviceSlots(priorReq, updateReq.qemuVMConfigRequest)
+	updateReq.HostPCI = qemuVMNarrowDeviceSlots(updateReq.HostPCI, priorReq.HostPCI)
+	updateReq.USB = qemuVMNarrowDeviceSlots(updateReq.USB, priorReq.USB)
+	updateReq.RNG = qemuVMNarrowDeviceSlots(updateReq.RNG, priorReq.RNG)
+	updateReq.Virtiofs = qemuVMNarrowDeviceSlots(updateReq.Virtiofs, priorReq.Virtiofs)
+	updateReq.Delete = append(updateReq.Delete, deletedDevices...)
+
 	if seedSwap || seedHistory.Pending != "" {
 		status, err := r.client.GetQemuVMStatus(ctx, plan.Node.ValueString(), plan.VMID.ValueInt64())
 		if err != nil {
@@ -1244,4 +1253,39 @@ func (r *QemuVMResource) readQemuVMState(ctx context.Context, node string, vmID 
 	state, stateDiags := qemuVMStateFromAPI(ctx, node, vmID, config, status, prior)
 	diags.Append(stateDiags...)
 	return state, diags
+}
+
+// qemuVMNarrowDeviceSlots keeps only slots that are new or changed relative to
+// the prior state, mirroring the disk/network narrowing.
+func qemuVMNarrowDeviceSlots(planned, prior map[string]string) map[string]string {
+	narrowed := make(map[string]string, len(planned))
+	for slot, value := range planned {
+		if previous, ok := prior[slot]; !ok || previous != value {
+			narrowed[slot] = value
+		}
+	}
+	return narrowed
+}
+
+// qemuVMDeletedDeviceSlots returns compound device slots that the prior state
+// still carried but the plan no longer configures.
+func qemuVMDeletedDeviceSlots(prior, planned qemuVMConfigRequest) []string {
+	families := []struct {
+		prior map[string]string
+		plan  map[string]string
+	}{
+		{prior.HostPCI, planned.HostPCI},
+		{prior.USB, planned.USB},
+		{prior.RNG, planned.RNG},
+		{prior.Virtiofs, planned.Virtiofs},
+	}
+	var deleted []string
+	for _, family := range families {
+		for slot := range family.prior {
+			if _, ok := family.plan[slot]; !ok {
+				deleted = append(deleted, slot)
+			}
+		}
+	}
+	return deleted
 }
