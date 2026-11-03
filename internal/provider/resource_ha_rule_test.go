@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -474,5 +475,17 @@ func TestHARuleResourceLifecycleKeepsPUTShape(t *testing.T) {
 
 	for _, failure := range handler.failures {
 		t.Fatal(failure)
+	}
+}
+
+func TestHARuleValidationDefersUnknownElements(t *testing.T) {
+	config := haRuleModel{
+		Rule:      types.StringValue("prefer"),
+		Type:      types.StringValue(haRuleTypeNodeAffinity),
+		Resources: types.SetValueMust(types.StringType, []attr.Value{types.StringUnknown()}),
+		Nodes:     types.MapValueMust(types.Int64Type, map[string]attr.Value{"pve-1": types.Int64Unknown()}),
+	}
+	if diags := validateHARuleConfig(config); diags.HasError() {
+		t.Fatalf("unknown elements must defer: %v", diags)
 	}
 }

@@ -642,6 +642,11 @@ func validateRealmCertContent(diags *diag.Diagnostics, config realmModel) {
 	hasContent := isConfiguredValue(config.CertContent)
 	hasKeyContent := isConfiguredValue(config.CertKeyContent)
 	hasStorage := isConfiguredValue(config.CertStorage)
+	// Terraform evaluates the config again with unknown values; only judge
+	// combinations where all three fields are known.
+	if config.CertContent.IsUnknown() || config.CertKeyContent.IsUnknown() || config.CertStorage.IsUnknown() {
+		return
+	}
 	if hasContent != hasKeyContent {
 		diags.AddError("Incomplete realm client certificate", "cert_content and cert_key_content must be configured together.")
 	}

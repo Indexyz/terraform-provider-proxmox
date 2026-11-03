@@ -122,7 +122,8 @@ func validateHARuleConfig(config haRuleModel) diag.Diagnostics {
 	}
 
 	resources := haRuleConfiguredResources(config.Resources)
-	if len(resources) == 0 && !config.Resources.IsUnknown() {
+	resourcesKnown := !config.Resources.IsUnknown() && !haRuleElementsUnknown(config.Resources)
+	if len(resources) == 0 && resourcesKnown {
 		diags.AddAttributeError(path.Root("resources"), "Missing HA rule resources", "resources must contain at least one canonical vm:<vmid> or ct:<vmid> identifier.")
 	}
 	for _, sid := range resources {
@@ -132,6 +133,7 @@ func validateHARuleConfig(config haRuleModel) diag.Diagnostics {
 	}
 
 	nodes := haRuleConfiguredNodes(config.Nodes)
+	nodesKnown := !config.Nodes.IsUnknown() && !haRuleMapUnknown(config.Nodes)
 	negativePriorities := false
 	for node, priority := range nodes {
 		if !proxmoxNodeNamePattern.MatchString(node) {
@@ -151,7 +153,7 @@ func validateHARuleConfig(config haRuleModel) diag.Diagnostics {
 
 	switch config.Type.ValueString() {
 	case haRuleTypeNodeAffinity:
-		if len(nodes) == 0 && !config.Nodes.IsUnknown() {
+		if len(nodes) == 0 && nodesKnown {
 			diags.AddAttributeError(path.Root("nodes"), "Missing HA node-affinity nodes", "nodes must map at least one cluster node for a node-affinity rule.")
 		}
 		if !config.Affinity.IsNull() && !config.Affinity.IsUnknown() && config.Affinity.ValueString() == "negative" {
@@ -201,6 +203,24 @@ func haRuleConfiguredResources(value types.Set) []string {
 		resources = append(resources, stringValue.ValueString())
 	}
 	return resources
+}
+
+func haRuleElementsUnknown(value types.Set) bool {
+	for _, element := range value.Elements() {
+		if element.IsUnknown() {
+			return true
+		}
+	}
+	return false
+}
+
+func haRuleMapUnknown(value types.Map) bool {
+	for _, element := range value.Elements() {
+		if element.IsUnknown() {
+			return true
+		}
+	}
+	return false
 }
 
 func haRuleConfiguredNodes(value types.Map) map[string]int64 {
