@@ -114,12 +114,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | HA resource methods | `/cluster/ha/resources[/{sid}]` | PVE 9 HA enrollment/policy CRUD；collection read、digest update、`purge=0` destroy，不调用 guest 或 HA runtime 命令。 |
 | HA rule methods | `/cluster/ha/rules[/{rule}]` | PVE 9 `node-affinity`/`resource-affinity` 放置规则 CRUD；collection read、fresh digest update、managed-field `delete`、直接幂等 DELETE，不调用 migrate/relocate/CRM。 |
 | Node network methods | `/nodes/{node}/network[/{iface}]` | 节点接口 staged CRUD（读写均走 collection 的 pending 视图），`PUT`/`DELETE` 集合端点分别用于显式 reload（UPID）与手动 revert。 |
-| SDN methods | `/cluster/sdn[/lock,/zones[/{zone}],/vnets[/{vnet}],/vnets/{vnet}/subnets[/{subnet}]]` | 全局锁令牌 + staged zone/vnet/subnet CRUD（digest CAS、`state`/`pending` 读取），`PUT /cluster/sdn` 才提交并 reload 全集群；subnet 创建发 CIDR、后续操作发内部 id。 |
+| SDN methods | `/cluster/sdn[/lock,/zones[/{zone}],/vnets[/{vnet}],/vnets/{vnet}/subnets[/{subnet}],/ipams[/{ipam}],/dns[/{dns}],/controllers[/{controller}]]` | 全局锁令牌 + staged 全部 SDN 对象 CRUD（digest CAS、`state`/`pending` 读取），`PUT /cluster/sdn` 才提交并 reload 全集群；subnet 创建发 CIDR、后续操作发内部 id。 |
 | Firewall methods | `/cluster/firewall/{options,rules,aliases,ipset,groups}`、node/guest `/firewall/{options,rules}` | 集群命名对象、cluster/node/guest/group rules 及防火墙选项管理。 |
 
 ## 资源
 
-当前注册 **33 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **36 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -149,6 +149,9 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_replication_job` | 管理 cluster storage replication 计划，不隐式运行复制或清理数据。 |
 | `proxmox_role` | 管理 RBAC 角色和权限集合。 |
 | `proxmox_sdn_apply` | 全局提交 staged SDN 配置（`PUT /cluster/sdn` + `reloadnetworkall` UPID 等待，destroy 无动作）。 |
+| `proxmox_sdn_controller` | 管理 `bgp`/`evpn`/`faucet`/`isis` controller 的 staged 配置（逐类型字段矩阵）。 |
+| `proxmox_sdn_dns` | 管理 `powerdns` DNS provider 的 staged 配置。 |
+| `proxmox_sdn_ipam` | 管理 `pve`/`netbox`/`phpipam` IPAM 的 staged 配置。 |
 | `proxmox_sdn_subnet` | 管理 staged SDN subnet（CIDR 身份、`gateway`/`snat`/`dhcp_range`/`dnszoneprefix`）；请求身份由 vnet + CIDR 映射到 Proxmox 内部 subnet id。 |
 | `proxmox_sdn_vnet` | 管理 staged SDN VNet（`zone` 引用、`tag`、`vlanaware`、`isolate_ports`、`alias`）；有 subnet 时 PVE 拒绝删除与 `vlanaware`。 |
 | `proxmox_sdn_zone` | 管理 `simple`/`vlan`/`qinq`/`vxlan`/`evpn`/`faucet` 全部 zone 类型的 staged 配置（逐类型字段矩阵），锁令牌 + digest CAS，不自动提交。 |
@@ -269,7 +272,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 33 个资源和 23 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 36 个资源和 23 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -306,6 +309,7 @@ make generate
 - `client_sdn_test.go`、`resource_sdn_zone_test.go`、`resource_sdn_apply_test.go`：SDN 锁令牌获取/释放、staged zone CRUD exact-form 与 digest、`state`/`pending` 解码与 staged 覆盖、释放失败告警、commit UPID/任务失败、空触发与 no-op destroy。
 - `client_sdn_vnet_test.go`、`resource_sdn_vnet_test.go`：staged vnet CRUD exact-form、可变 `zone`、staged 覆盖与 deleted 缺席、variant/范围校验、import 与生命周期。
 - `client_sdn_subnet_test.go`、`resource_sdn_subnet_test.go`：CIDR→内部 id 转换、多值 `dhcp-range` 编码、staged range 覆盖与删除、CIDR/IP/前缀校验、import 与生命周期。
+- `resource_sdn_{ipam,dns,controller}_test.go`：三类对象的 exact-form CRUD（含 lock-token/digest/delete）、逐类型字段矩阵与必填项、staged 覆盖、deleted 缺席、import 与生命周期。
 - `e2e_smoke_test.go`：三个真实 Proxmox API e2e 测试，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL，QEMU task-waiting 测试创建随机高 VMID 的空 source VM 与同节点 full clone，并验证 create/clone/delete UPID polling、正常 Terraform destroy 和带名称所有权校验的失败清理。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 

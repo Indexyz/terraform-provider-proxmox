@@ -1742,8 +1742,17 @@ func TestQemuVMResourceCreatePollTimeoutRetainsAcceptedTask(t *testing.T) {
 	if !readResp.State.Raw.Equal(createResp.State.Raw) {
 		t.Fatal("refresh during a pending create mutated state")
 	}
-	if calls := takeCalls(); !reflect.DeepEqual(calls, []string{"GET /api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-timeout/status"}) {
-		t.Fatalf("running pending create refresh must only poll the accepted task: %v", calls)
+	calls := takeCalls()
+	const expectedPendingPoll = "GET /api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-timeout/status"
+	if len(calls) == 0 {
+		t.Fatal("running pending create refresh did not poll the accepted task")
+	}
+	// A request aborted by the create timeout can still land after takeCalls() on a
+	// loaded machine, so every call must be the owner-task poll, not exactly one.
+	for _, call := range calls {
+		if call != expectedPendingPoll {
+			t.Fatalf("running pending create refresh must only poll the accepted task: %v", calls)
+		}
 	}
 
 	// The task settles successfully; the refresh clears the pending task and

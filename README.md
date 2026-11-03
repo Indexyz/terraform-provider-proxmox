@@ -72,6 +72,9 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_replication_job`
 - `proxmox_role`
 - `proxmox_sdn_apply`
+- `proxmox_sdn_controller`
+- `proxmox_sdn_dns`
+- `proxmox_sdn_ipam`
 - `proxmox_sdn_subnet`
 - `proxmox_sdn_vnet`
 - `proxmox_sdn_zone`

@@ -90,6 +90,7 @@ SDN 切片 1 已交付（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)
 SDN 切片 2 已交付：`proxmox_sdn_vnet`（`zone` 可变引用、`tag` 1–16777215、`vlanaware`、`isolate_ports`、`alias`），沿用切片 1 的锁令牌/digest/`state`/`pending` 契约与 `deleted` 视为缺席；PVE 在有 subnet 时拒绝删除与 `vlanaware`，已写入文档。注册 32 资源。
 SDN 切片 3 已交付：`proxmox_sdn_subnet`（CIDR 身份，`vnet`/`cidr` RequiresReplace，`gateway`/`snat`/`dhcp_range`/`dhcp_dns_server`/`dnszoneprefix` typed，创建发 CIDR、后续操作发 PVE 内部 subnet id，同一锁/digest/`state` 契约与 `deleted` 缺席；staged `dhcp-range` 以 JSON 数组覆盖回 typed 列表）。注册 33 资源。
 SDN 切片 4a 已交付：`proxmox_sdn_zone` 扩展到全部 zone 类型——新增 `qinq`（`tag` 2–4094 + `bridge` 必填、`vlan_protocol` 枚举）、`vxlan`（`peers` IP 列表、`fabric`、`vxlan_port`）、`evpn`（`vrf_vxlan` + `controller` 必填、`secondary_controllers`、`exitnodes`/`-local-routing`/`-primary`、`advertise_subnets`、`disable_arp_nd_suppression`、`mac`、`rt_import`、`vxlan_port`）、`faucet`（`controller` + `dp_id` 必填），`dhcp` 收敛为 simple-only；字段矩阵/必填项驱动校验，`secondary-controllers` 按数组发送、pending 中的 JSON 数组在读取时解码回集合。
+SDN 切片 4b 已交付：`proxmox_sdn_ipam`（`pve`/`netbox`/`phpipam`）、`proxmox_sdn_dns`（`powerdns`）、`proxmox_sdn_controller`（`bgp`/`evpn`/`faucet`/`isis`），均沿用锁令牌 + digest + `state`/`pending` 契约与 `deleted` 缺席；逐类型字段矩阵与必填项（netbox url+token、phpipam url+token+section、powerdns url+key、bgp node/asn/peers、evpn asn、isis domain/net/ifaces/node），ASN/跳数/IS-IS NET/MAC/peer IP 均校验。注册 36 资源。
 
 ## 接下来
 
@@ -97,7 +98,7 @@ SDN 切片 4a 已交付：`proxmox_sdn_zone` 扩展到全部 zone 类型——�
 
 input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B NoCloud ISO 资源、Stage C CD-ROM 安全集成与指南）、Review round 1 九项必修（1–9）、Review round 2 三处缺陷修复与 Review round 4（无 delay 异步 DELETE 空/畸形 UPID 应答拒绝，覆盖 VM 与 NoCloud ISO 两路删除）已全部完成；真实模板根盘的 Terraform Core 盘映射一致性缺陷已在切片 B 修复（盘状态投影边界 + 真实 CLI 根盘 fixture 全链验证），refresh 所有权缺陷已按终审要求以拒绝路径修复（标记化 update 不再认可 prior-state 自有 seed 的就地更换，seed 更替走 VM 替换）。残留边界：未标记（无 `nocloud_cdrom_slot`）工作流（typed 与 raw 透传均）不做 CD-ROM 附着安全检查（严格检查按 owner 决策限定 marker 工作流；标记工作流的计划期 raw 盘槽自 round 2 修复起并入安全检查，不再是接受的绕过）。真实环境 DHCP/cloud-init/Runner 行为按指南验收清单人工确认，仍未验证。
 
-下一项实现 SDN 切片 4b：`ipam`/`dns`/`controller` 对象资源（同样锁令牌 + digest + `state` 契约），之后才考虑 fabrics/route-maps/prefix-lists。
+下一项：SDN 列表数据源与 VNet firewall scope（`/cluster/sdn/vnets/{vnet}/firewall`）；之后是 fabrics/route-maps/prefix-lists，最后做完整审计再收尾。
 
 ### 后续中大型功能
 
@@ -105,7 +106,7 @@ input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B N
 - Authentication realm 高级后续已完成（列表数据源、LDAP/AD 目录同步与证书、OpenID group claim、forced TFA）；仍待：`/sync` 命令式触发设计（可参考 `proxmox_node_network_apply` 的显式执行形式）、client certificate 内容上传与 user TFA 管理。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
 - Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；后续剩 OVS 系列（需父桥 `ovs_ports` 交叉写）、`alias`/`eth` altname 重命名与 revert 资源化。
-- SDN zones/VNets/subnets：epic 研究已交付（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)），切片 1–3 与全部 zone 类型已完成；继续 ipam/dns/controller 对象，再谈 fabrics/route-maps/prefix-lists。
+- SDN：zone（全部类型）、VNet、subnet、ipam、dns、controller 与全局 apply 均已完成；剩：列表/详情数据源、VNet firewall 接入、fabrics（含 fabric node）、route-maps、prefix-lists。
 - QEMU `hostpci`、`usb`、`rng`、`virtiofs` 等 compound device：按现有 slot parser/encoder 和 whole-slot raw fallback 模式实现；现有 `raw.extra_config` 可覆盖长尾，因此低于集群级能力。
 
 ### 持续约束

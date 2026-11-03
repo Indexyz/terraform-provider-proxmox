@@ -417,3 +417,302 @@ func sdnSubnetForm(req SDNSubnetRequest) url.Values {
 	setOptionalString(form, "dhcp-dns-server", req.DHCPDNSServer)
 	return form
 }
+
+// SDNIPAM is one IPAM entry of the staged SDN configuration.
+type SDNIPAM struct {
+	IPAM        string                     `json:"ipam"`
+	Type        string                     `json:"type"`
+	URL         string                     `json:"url"`
+	Token       string                     `json:"token"`
+	Section     proxmoxOptionalInt64       `json:"section"`
+	Fingerprint string                     `json:"fingerprint"`
+	State       string                     `json:"state"`
+	Pending     map[string]json.RawMessage `json:"pending"`
+	Digest      string                     `json:"digest"`
+}
+
+type SDNIPAMRequest struct {
+	Type        string
+	URL         *string
+	Token       *string
+	Section     *int64
+	Fingerprint *string
+	LockToken   string
+	Digest      *string
+	Delete      []string
+}
+
+// SDNDNS is one DNS provider entry of the staged SDN configuration.
+type SDNDNS struct {
+	DNS           string                     `json:"dns"`
+	Type          string                     `json:"type"`
+	URL           string                     `json:"url"`
+	Key           string                     `json:"key"`
+	TTL           proxmoxOptionalInt64       `json:"ttl"`
+	ReverseMaskV6 proxmoxOptionalInt64       `json:"reversemaskv6"`
+	Fingerprint   string                     `json:"fingerprint"`
+	State         string                     `json:"state"`
+	Pending       map[string]json.RawMessage `json:"pending"`
+	Digest        string                     `json:"digest"`
+}
+
+type SDNDNSRequest struct {
+	Type          string
+	URL           *string
+	Key           *string
+	TTL           *int64
+	ReverseMaskV6 *int64
+	Fingerprint   *string
+	LockToken     string
+	Digest        *string
+	Delete        []string
+}
+
+// SDNController is one SDN controller entry of the staged SDN configuration.
+type SDNController struct {
+	Controller       string                     `json:"controller"`
+	Type             string                     `json:"type"`
+	ASN              proxmoxOptionalInt64       `json:"asn"`
+	Node             string                     `json:"node"`
+	Peers            string                     `json:"peers"`
+	Nodes            string                     `json:"nodes"`
+	Fabric           string                     `json:"fabric"`
+	PeerGroupName    string                     `json:"peer-group-name"`
+	BGPMode          string                     `json:"bgp-mode"`
+	EBGP             proxmoxOptionalBool        `json:"ebgp"`
+	EBGPMultihop     proxmoxOptionalInt64       `json:"ebgp-multihop"`
+	MultipathASRelax proxmoxOptionalBool        `json:"bgp-multipath-as-path-relax"`
+	Loopback         string                     `json:"loopback"`
+	ISISDomain       string                     `json:"isis-domain"`
+	ISISIfaces       string                     `json:"isis-ifaces"`
+	ISISNet          string                     `json:"isis-net"`
+	RouteMapIn       string                     `json:"route-map-in"`
+	RouteMapOut      string                     `json:"route-map-out"`
+	State            string                     `json:"state"`
+	Pending          map[string]json.RawMessage `json:"pending"`
+	Digest           string                     `json:"digest"`
+}
+
+type SDNControllerRequest struct {
+	Type             string
+	ASN              *int64
+	Node             *string
+	Peers            []string
+	Nodes            []string
+	Fabric           *string
+	PeerGroupName    *string
+	BGPMode          *string
+	EBGP             *bool
+	EBGPMultihop     *int64
+	MultipathASRelax *bool
+	Loopback         *string
+	ISISDomain       *string
+	ISISIfaces       []string
+	ISISNet          *string
+	RouteMapIn       *string
+	RouteMapOut      *string
+	LockToken        string
+	Digest           *string
+	Delete           []string
+}
+
+func (c *Client) sdnSectionList(ctx context.Context, apiPath string) ([]json.RawMessage, error) {
+	var objects []json.RawMessage
+	query := url.Values{"pending": {"1"}}
+	if err := c.do(ctx, http.MethodGet, apiPath, query, nil, &objects); err != nil {
+		return nil, err
+	}
+	return objects, nil
+}
+
+func (c *Client) createSDNObject(ctx context.Context, apiPath, idParam, id, objectType, lockToken string, form url.Values) error {
+	form.Set(idParam, id)
+	form.Set("type", objectType)
+	form.Set("lock-token", lockToken)
+	return c.do(ctx, http.MethodPost, apiPath, nil, form, nil)
+}
+
+func (c *Client) updateSDNObject(ctx context.Context, apiPath, idParam, id, objectType, lockToken string, digest *string, deleteKeys []string, form url.Values) error {
+	form.Set(idParam, id)
+	form.Set("type", objectType)
+	form.Set("lock-token", lockToken)
+	setOptionalString(form, "digest", digest)
+	if len(deleteKeys) > 0 {
+		form.Set("delete", strings.Join(sortedStrings(deleteKeys), ","))
+	}
+	return c.do(ctx, http.MethodPut, apiPath+"/"+url.PathEscape(id), nil, form, nil)
+}
+
+func (c *Client) deleteSDNObject(ctx context.Context, apiPath, id, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, apiPath+"/"+url.PathEscape(id), nil, form, nil)
+}
+
+func (c *Client) SDNIPAMs(ctx context.Context) ([]SDNIPAM, error) {
+	objects, err := c.sdnSectionList(ctx, "/cluster/sdn/ipams")
+	if err != nil {
+		return nil, err
+	}
+	var ipams []SDNIPAM
+	for _, raw := range objects {
+		var ipam SDNIPAM
+		if err := json.Unmarshal(raw, &ipam); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN IPAM: %w", err)
+		}
+		ipams = append(ipams, ipam)
+	}
+	return ipams, nil
+}
+
+func (c *Client) GetSDNIPAM(ctx context.Context, ipam string) (SDNIPAM, error) {
+	ipams, err := c.SDNIPAMs(ctx)
+	if err != nil {
+		return SDNIPAM{}, err
+	}
+	for _, entry := range ipams {
+		if entry.IPAM == ipam {
+			return entry, nil
+		}
+	}
+	return SDNIPAM{}, errNotFound
+}
+
+func (c *Client) CreateSDNIPAM(ctx context.Context, ipam string, req SDNIPAMRequest) error {
+	return c.createSDNObject(ctx, "/cluster/sdn/ipams", "ipam", ipam, req.Type, req.LockToken, sdnIPAMForm(req))
+}
+
+func (c *Client) UpdateSDNIPAM(ctx context.Context, ipam string, req SDNIPAMRequest) error {
+	return c.updateSDNObject(ctx, "/cluster/sdn/ipams", "ipam", ipam, req.Type, req.LockToken, req.Digest, req.Delete, sdnIPAMForm(req))
+}
+
+func (c *Client) DeleteSDNIPAM(ctx context.Context, ipam, lockToken string) error {
+	return c.deleteSDNObject(ctx, "/cluster/sdn/ipams", ipam, lockToken)
+}
+
+func sdnIPAMForm(req SDNIPAMRequest) url.Values {
+	form := url.Values{}
+	setOptionalString(form, "url", req.URL)
+	setOptionalString(form, "token", req.Token)
+	setOptionalInt64(form, "section", req.Section)
+	setOptionalString(form, "fingerprint", req.Fingerprint)
+	return form
+}
+
+func (c *Client) SDNDNSs(ctx context.Context) ([]SDNDNS, error) {
+	objects, err := c.sdnSectionList(ctx, "/cluster/sdn/dns")
+	if err != nil {
+		return nil, err
+	}
+	var servers []SDNDNS
+	for _, raw := range objects {
+		var server SDNDNS
+		if err := json.Unmarshal(raw, &server); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN DNS provider: %w", err)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+func (c *Client) GetSDNDNS(ctx context.Context, dns string) (SDNDNS, error) {
+	servers, err := c.SDNDNSs(ctx)
+	if err != nil {
+		return SDNDNS{}, err
+	}
+	for _, entry := range servers {
+		if entry.DNS == dns {
+			return entry, nil
+		}
+	}
+	return SDNDNS{}, errNotFound
+}
+
+func (c *Client) CreateSDNDNS(ctx context.Context, dns string, req SDNDNSRequest) error {
+	return c.createSDNObject(ctx, "/cluster/sdn/dns", "dns", dns, req.Type, req.LockToken, sdnDNSForm(req))
+}
+
+func (c *Client) UpdateSDNDNS(ctx context.Context, dns string, req SDNDNSRequest) error {
+	return c.updateSDNObject(ctx, "/cluster/sdn/dns", "dns", dns, req.Type, req.LockToken, req.Digest, req.Delete, sdnDNSForm(req))
+}
+
+func (c *Client) DeleteSDNDNS(ctx context.Context, dns, lockToken string) error {
+	return c.deleteSDNObject(ctx, "/cluster/sdn/dns", dns, lockToken)
+}
+
+func sdnDNSForm(req SDNDNSRequest) url.Values {
+	form := url.Values{}
+	setOptionalString(form, "url", req.URL)
+	setOptionalString(form, "key", req.Key)
+	setOptionalInt64(form, "ttl", req.TTL)
+	setOptionalInt64(form, "reversemaskv6", req.ReverseMaskV6)
+	setOptionalString(form, "fingerprint", req.Fingerprint)
+	return form
+}
+
+func (c *Client) SDNControllers(ctx context.Context) ([]SDNController, error) {
+	objects, err := c.sdnSectionList(ctx, "/cluster/sdn/controllers")
+	if err != nil {
+		return nil, err
+	}
+	var controllers []SDNController
+	for _, raw := range objects {
+		var controller SDNController
+		if err := json.Unmarshal(raw, &controller); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN controller: %w", err)
+		}
+		controllers = append(controllers, controller)
+	}
+	return controllers, nil
+}
+
+func (c *Client) GetSDNController(ctx context.Context, controller string) (SDNController, error) {
+	controllers, err := c.SDNControllers(ctx)
+	if err != nil {
+		return SDNController{}, err
+	}
+	for _, entry := range controllers {
+		if entry.Controller == controller {
+			return entry, nil
+		}
+	}
+	return SDNController{}, errNotFound
+}
+
+func (c *Client) CreateSDNController(ctx context.Context, controller string, req SDNControllerRequest) error {
+	return c.createSDNObject(ctx, "/cluster/sdn/controllers", "controller", controller, req.Type, req.LockToken, sdnControllerForm(req))
+}
+
+func (c *Client) UpdateSDNController(ctx context.Context, controller string, req SDNControllerRequest) error {
+	return c.updateSDNObject(ctx, "/cluster/sdn/controllers", "controller", controller, req.Type, req.LockToken, req.Digest, req.Delete, sdnControllerForm(req))
+}
+
+func (c *Client) DeleteSDNController(ctx context.Context, controller, lockToken string) error {
+	return c.deleteSDNObject(ctx, "/cluster/sdn/controllers", controller, lockToken)
+}
+
+func sdnControllerForm(req SDNControllerRequest) url.Values {
+	form := url.Values{}
+	setOptionalInt64(form, "asn", req.ASN)
+	setOptionalString(form, "node", req.Node)
+	if req.Peers != nil {
+		form.Set("peers", strings.Join(sortedStrings(req.Peers), ","))
+	}
+	if req.Nodes != nil {
+		form.Set("nodes", strings.Join(sortedStrings(req.Nodes), ","))
+	}
+	setOptionalString(form, "fabric", req.Fabric)
+	setOptionalString(form, "peer-group-name", req.PeerGroupName)
+	setOptionalString(form, "bgp-mode", req.BGPMode)
+	setOptionalBool(form, "ebgp", req.EBGP)
+	setOptionalInt64(form, "ebgp-multihop", req.EBGPMultihop)
+	setOptionalBool(form, "bgp-multipath-as-path-relax", req.MultipathASRelax)
+	setOptionalString(form, "loopback", req.Loopback)
+	setOptionalString(form, "isis-domain", req.ISISDomain)
+	if req.ISISIfaces != nil {
+		form.Set("isis-ifaces", strings.Join(sortedStrings(req.ISISIfaces), ","))
+	}
+	setOptionalString(form, "isis-net", req.ISISNet)
+	setOptionalString(form, "route-map-in", req.RouteMapIn)
+	setOptionalString(form, "route-map-out", req.RouteMapOut)
+	return form
+}
