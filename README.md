@@ -75,6 +75,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_acme_certificate`
 - `proxmox_node_apt_repository`
 - `proxmox_node_apt_update`
+- `proxmox_node_backup_prune`
 - `proxmox_node_certificate`
 - `proxmox_node_disk_directory`
 - `proxmox_node_disk_lvm`
@@ -87,6 +88,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_network_interface`
 - `proxmox_node_network_revert`
 - `proxmox_node_service`
+- `proxmox_node_vzdump`
 - `proxmox_notification_endpoint_gotify`
 - `proxmox_notification_endpoint_sendmail`
 - `proxmox_notification_endpoint_smtp`
@@ -123,12 +125,15 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 
 - `proxmox_acl`
 - `proxmox_acme_challenge_schema`
+- `proxmox_backup_job_included_volumes`
 - `proxmox_backup_jobs`
+- `proxmox_backup_not_backed_up`
 - `proxmox_cluster_config`
 - `proxmox_cluster_firewall_options`
 - `proxmox_cluster_mapping`
 - `proxmox_cluster_metrics_servers`
 - `proxmox_cluster_options`
+- `proxmox_cluster_realm_sync_jobs`
 - `proxmox_cluster_resources`
 - `proxmox_firewall_rules`
 - `proxmox_group`

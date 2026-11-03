@@ -159,6 +159,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_acme_certificate` | 写入节点 ACME 配置并下单/吊销（UPID 等待，triggers 驱动）。 |
 | `proxmox_node_apt_repository` | 启停单个 APT 源条目（凭整体配置 digest，冲突重试）。 |
 | `proxmox_node_apt_update` | 运行 `apt update`（UPID 等待，triggers 驱动）。 |
+| `proxmox_node_backup_prune` | 按策略清理指定 guest 的备份（DELETE + UPID 等待）。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_notification_endpoint_smtp` | 管理 SMTP 通知端点（密码 sensitive 且不回传，TLS mode 校验）。 |
@@ -167,6 +168,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_notification_endpoint_webhook` | 管理 webhook 端点（header 为 base64 property string，secret 名称脱敏回读）。 |
 | `proxmox_notification_matcher` | 管理通知 matcher（target/mode/severity/calendar/invert，空规则走 delete）。 |
 | `proxmox_node_service` | 管理服务运行状态（running/stopped），destroy 保持运行。 |
+| `proxmox_node_vzdump` | 触发 vzdump 备份（UPID 等待，triggers 驱动）。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
 | `proxmox_node_network_revert` | 丢弃节点全部 staged 网络配置（DELETE + UPID 等待，destroy 无动作，保留 `pending_changes` 观测）。 |
 | `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/alias/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
@@ -267,6 +269,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 4. `qemu_vm_mapping_test.go` 和相关 resource/data source schema 测试。
 5. 运行 `make generate` 更新 Terraform schema 文档。
 | `proxmox_cluster_config` | `data_source_cluster_config.go` | totem/apiversion/nodes 读取。 |
+| `proxmox_cluster_realm_sync_jobs` | `data_source_backup_info.go` | `GET /cluster/jobs/realm-sync`，按 realm 排序。 |
 | `proxmox_cluster_options` | `data_source_cluster_options.go` | `GET /cluster/options`。 |
 
 ## 数据源
@@ -291,6 +294,8 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_cluster_resources` | `data_source_cluster_resources.go` | `GET /cluster/resources`，支持 `type` 过滤。 |
 | `proxmox_firewall_rules` | `data_source_firewall_rules.go` | 按 scope（cluster/node/guest/security_group/vnet）读取对应 ruleset，输出 `pos`/`digest` 与全部规则字段。 |
 | `proxmox_acl` | `data_source_acl.go` | `GET /access/acl`，按 path/type 过滤、按 path+type+ugid 排序。 |
+| `proxmox_backup_job_included_volumes` | `data_source_backup_info.go` | `GET /cluster/backup/{id}/included_volumes`，展开 children。 |
+| `proxmox_backup_not_backed_up` | `data_source_backup_info.go` | `GET /cluster/backup-info/not-backed-up`，按 vmid 排序。 |
 | `proxmox_backup_jobs` | `data_source_backup_jobs.go` | `GET /cluster/backup`，按 `node` 过滤、按 id 排序。 |
 | `proxmox_cluster_firewall_options` | `data_source_infra_state.go` | `GET /cluster/firewall/options`。 |
 | `proxmox_cluster_mapping` | `data_source_cluster_mapping.go` | 按 `kind`+`id` 读取单个硬件映射，输出原始 property string map。 |
@@ -356,7 +361,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 73 个资源和 69 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 75 个资源和 72 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -399,6 +404,7 @@ make generate
 - `data_source_node_inventory_test.go`：PCI/USB 硬件、APT 版本、服务列表与 TFA unlock 的投影/排序/校验。
 - `resource_node_disk_test.go`、`resource_cluster_options_test.go`：磁盘与集群选项的 exact-form、校验矩阵、命令式资源生命周期与数据源投影。
 - `resource_node_service_test.go`：服务 start/stop、APT update、仓库 toggle（digest 冲突重试）与 apt repositories 数据源投影。
+- `resource_node_backup_test.go`：vzdump、prune（DELETE query + UPID）、backup-info 三个数据源。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

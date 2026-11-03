@@ -161,6 +161,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewNodeACMECertificateResource,
 		NewNodeAPTRepositoryResource,
 		NewNodeAPTUpdateResource,
+		NewNodeBackupPruneResource,
 		NewNodeCertificateResource,
 		NewNodeDiskDirectoryResource,
 		NewNodeDiskLVMResource,
@@ -173,6 +174,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewNodeNetworkInterfaceResource,
 		NewNodeNetworkRevertResource,
 		NewNodeServiceResource,
+		NewNodeVzdumpResource,
 		NewNotificationEndpointGotifyResource,
 		NewNotificationEndpointSendmailResource,
 		NewNotificationEndpointSMTPResource,
@@ -211,7 +213,9 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 	return []func() datasource.DataSource{
 		NewACLDataSource,
 		NewACMEChallengeSchemaDataSource,
+		NewBackupJobIncludedVolumesDataSource,
 		NewBackupJobsDataSource,
+		NewBackupNotBackedUpDataSource,
 		NewClusterConfigDataSource,
 		NewClusterFirewallOptionsDataSource,
 		NewClusterMappingDataSource,
@@ -277,6 +281,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewVersionDataSource,
 		NewNodesDataSource,
 		NewNodeDataSource,
+		NewClusterRealmSyncJobsDataSource,
 		NewClusterResourcesDataSource,
 	}
 }
