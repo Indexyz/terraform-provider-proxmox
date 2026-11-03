@@ -152,6 +152,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
 | `proxmox_node_certificate` | 安装节点自定义证书链与私钥（sensitive、force/restart、销毁回退默认证书）。 |
 | `proxmox_node_disk_zfs` | 建 ZFS pool（devices/raid/ashift/compression/draid，销毁清 config+磁盘）。 |
+| `proxmox_node_dns` | 设置节点 DNS 与 search domain（PUT，destroy 保留）。 |
 | `proxmox_node_disk_lvm` | 建 LVM VG。 |
 | `proxmox_node_disk_lvmthin` | 建 VG+thin pool（`device` 原盘）。 |
 | `proxmox_node_disk_directory` | 格式化并挂载目录存储（ext4/xfs）。 |
@@ -169,6 +170,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_notification_endpoint_webhook` | 管理 webhook 端点（header 为 base64 property string，secret 名称脱敏回读）。 |
 | `proxmox_notification_matcher` | 管理通知 matcher（target/mode/severity/calendar/invert，空规则走 delete）。 |
 | `proxmox_node_service` | 管理服务运行状态（running/stopped），destroy 保持运行。 |
+| `proxmox_node_time` | 设置节点时区并回报 time/localtime（PUT，destroy 保留）。 |
 | `proxmox_notification_target_test` | 向通知 target 发送测试消息（triggers 驱动）。 |
 | `proxmox_node_vzdump` | 触发 vzdump 备份（UPID 等待，triggers 驱动）。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
@@ -289,6 +291,8 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_node_dns` | `data_source_node_dns.go` | `GET /nodes/{node}/dns`。 |
 | `proxmox_node_hardware_pci` | `data_source_node_inventory.go` | `GET /nodes/{node}/hardware/pci`，按地址排序。 |
 | `proxmox_node_hardware_usb` | `data_source_node_inventory.go` | `GET /nodes/{node}/hardware/usb`，按 bus/port 排序。 |
+| `proxmox_node_journal` | `data_source_node_logs.go` | `GET /nodes/{node}/journal`，透传过滤参数。 |
+| `proxmox_node_syslog` | `data_source_node_logs.go` | `GET /nodes/{node}/syslog`，透传过滤参数。 |
 | `proxmox_node_services` | `data_source_node_inventory.go` | `GET /nodes/{node}/services`，按 service 排序。 |
 | `proxmox_node_firewall_options` | `data_source_infra_state.go` | `GET /nodes/{node}/firewall/options`。 |
 | `proxmox_node_network_interfaces` | `data_source_infra_state.go` | `GET /nodes/{node}/network`，含 `changes` diff。 |
@@ -365,7 +369,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 78 个资源和 73 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 80 个资源和 75 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -411,6 +415,7 @@ make generate
 - `resource_node_backup_test.go`：vzdump、prune（DELETE query + UPID）、backup-info 三个数据源。
 - `resource_cluster_bulk_action_test.go`：bulk action 表单、校验矩阵、生命周期与通知 target 测试。
 - `data_source_qemu_agent_test.go`：exec 表单/轮询、agent facts 数据源与 exec 生命周期。
+- `resource_node_config_test.go`：time/DNS 表单与生命周期、import、syslog/journal 数据源。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

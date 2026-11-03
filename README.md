@@ -83,12 +83,14 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_disk_lvmthin`
 - `proxmox_node_disk_wipe`
 - `proxmox_node_disk_zfs`
+- `proxmox_node_dns`
 - `proxmox_node_firewall_options`
 - `proxmox_node_gpt_init`
 - `proxmox_node_network_apply`
 - `proxmox_node_network_interface`
 - `proxmox_node_network_revert`
 - `proxmox_node_service`
+- `proxmox_node_time`
 - `proxmox_node_vzdump`
 - `proxmox_notification_endpoint_gotify`
 - `proxmox_notification_endpoint_sendmail`
@@ -156,8 +158,10 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_firewall_options`
 - `proxmox_node_hardware_pci`
 - `proxmox_node_hardware_usb`
+- `proxmox_node_journal`
 - `proxmox_node_network_interfaces`
 - `proxmox_node_services`
+- `proxmox_node_syslog`
 - `proxmox_node_time`
 - `proxmox_nodes`
 - `proxmox_pool`
