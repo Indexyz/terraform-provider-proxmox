@@ -18,6 +18,7 @@ import (
 )
 
 var _ resource.Resource = &UserResource{}
+var _ resource.ResourceWithValidateConfig = &UserResource{}
 var _ resource.ResourceWithImportState = &UserResource{}
 
 type UserResource struct {
@@ -71,16 +72,27 @@ func (r *UserResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"firstname": schema.StringAttribute{Optional: true, MarkdownDescription: "First name."},
 			"lastname":  schema.StringAttribute{Optional: true, MarkdownDescription: "Last name."},
 			"groups":    schema.StringAttribute{Optional: true, MarkdownDescription: "Comma-separated list of group IDs."},
-			"keys":      schema.StringAttribute{Optional: true, MarkdownDescription: "Keys for two-factor auth (yubico)."},
+			"keys":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Legacy per-user Yubico keys. Proxmox replaces the value with `x` once the user has any TFA entry, so the attribute is computed.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"password": schema.StringAttribute{
 				Optional:            true,
 				Sensitive:           true,
-				MarkdownDescription: "Initial password. Proxmox does not report this, so it is not read back.",
+				MarkdownDescription: "Password, 8 to 64 characters. Applied on create and on change through `/access/password`; Proxmox does not report it, so it is not read back.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
+	}
+}
+
+func (r *UserResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config userResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() || !isConfiguredValue(config.Password) {
+		return
+	}
+	if length := len(config.Password.ValueString()); length < 8 || length > 64 {
+		resp.Diagnostics.AddAttributeError(path.Root("password"), "Invalid password length", "password must be 8 to 64 characters long.")
 	}
 }
 
@@ -159,6 +171,12 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if err := r.client.UpdateUser(ctx, plan.UserID.ValueString(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Update Proxmox User", err.Error())
 		return
+	}
+	if isConfiguredValue(plan.Password) {
+		if err := r.client.ChangeUserPassword(ctx, plan.UserID.ValueString(), plan.Password.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Unable to Change Proxmox User Password", err.Error())
+			return
+		}
 	}
 	refreshed, diags := r.readUserState(ctx, plan.UserID.ValueString(), &plan)
 	resp.Diagnostics.Append(diags...)

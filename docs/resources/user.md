@@ -41,9 +41,9 @@ resource "proxmox_user" "deploy" {
 - `expire` (Number) Account expiration date (seconds since epoch). 0 means no expiration.
 - `firstname` (String) First name.
 - `groups` (String) Comma-separated list of group IDs.
-- `keys` (String) Keys for two-factor auth (yubico).
+- `keys` (String) Legacy per-user Yubico keys. Proxmox replaces the value with `x` once the user has any TFA entry, so the attribute is computed.
 - `lastname` (String) Last name.
-- `password` (String, Sensitive) Initial password. Proxmox does not report this, so it is not read back.
+- `password` (String, Sensitive) Password, 8 to 64 characters. Applied on create and on change through `/access/password`; Proxmox does not report it, so it is not read back.
 
 ### Read-Only
 

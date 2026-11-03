@@ -105,6 +105,9 @@ func TestClientUserMethods(t *testing.T) {
 				"lastname": {"Bot-Updated"},
 			})
 			writeEnvelope(t, w, nil)
+		case r.URL.Path == "/api2/json/access/password" && r.Method == http.MethodPut:
+			assertFormValues(t, r, url.Values{"userid": {"deploy@pve"}, "password": {"secret456"}, "confirmation-password": {"secret456"}})
+			writeEnvelope(t, w, nil)
 		case r.URL.Path == "/api2/json/access/users/deploy@pve" && r.Method == http.MethodDelete:
 			writeEnvelope(t, w, nil)
 		default:
@@ -142,6 +145,10 @@ func TestClientUserMethods(t *testing.T) {
 	}
 	if user.Enable.Ptr() == nil || !*user.Enable.Ptr() {
 		t.Fatalf("expected enable=true, got %#v", user.Enable)
+	}
+
+	if err := client.ChangeUserPassword(ctx, "deploy@pve", "secret456"); err != nil {
+		t.Fatalf("ChangeUserPassword() unexpected error: %v", err)
 	}
 
 	if err := client.UpdateUser(ctx, "deploy@pve", UserRequest{

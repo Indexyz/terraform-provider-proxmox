@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -149,6 +150,15 @@ func TestRoleResourceLifecycle(t *testing.T) {
 			return
 		}
 		calls = append(calls, r.Method+" "+r.URL.EscapedPath()+" "+r.Form.Encode())
+		if r.URL.EscapedPath() == "/api2/json/access/password" && r.Method == http.MethodPut {
+			want := url.Values{"userid": {"unit@pve"}, "password": {"initial-secret"}, "confirmation-password": {"initial-secret"}}
+			if !reflect.DeepEqual(r.Form, want) {
+				handler.fail(w, "unexpected password form: got %v want %v", r.Form, want)
+				return
+			}
+			handler.envelope(w, nil)
+			return
+		}
 		switch r.Method {
 		case http.MethodPost:
 			if !reflect.DeepEqual(r.Form, url.Values{"roleid": {"UnitRole"}, "privs": {"Sys.Audit"}}) {
@@ -235,6 +245,8 @@ func TestUserResourceLifecyclePreservesPassword(t *testing.T) {
 		wantPath := "/api2/json/access/users/unit@pve"
 		if r.Method == http.MethodPost {
 			wantPath = "/api2/json/access/users"
+		} else if r.URL.EscapedPath() == "/api2/json/access/password" {
+			wantPath = "/api2/json/access/password"
 		}
 		if r.URL.EscapedPath() != wantPath {
 			handler.fail(w, "unexpected user path: got %s want %s", r.URL.EscapedPath(), wantPath)
@@ -245,6 +257,15 @@ func TestUserResourceLifecyclePreservesPassword(t *testing.T) {
 			return
 		}
 		calls = append(calls, r.Method+" "+r.URL.EscapedPath()+" "+r.Form.Encode())
+		if r.URL.EscapedPath() == "/api2/json/access/password" {
+			want := url.Values{"userid": {"unit@pve"}, "password": {"initial-secret"}, "confirmation-password": {"initial-secret"}}
+			if !reflect.DeepEqual(r.Form, want) {
+				handler.fail(w, "unexpected password form: got %v want %v", r.Form, want)
+				return
+			}
+			handler.envelope(w, nil)
+			return
+		}
 		switch r.Method {
 		case http.MethodPost:
 			want := url.Values{"userid": {"unit@pve"}, "comment": {"created"}, "email": {"unit@example.test"}, "enable": {"1"}, "expire": {"0"}, "groups": {"devs"}, "password": {"initial-secret"}}
@@ -321,6 +342,7 @@ func TestUserResourceLifecyclePreservesPassword(t *testing.T) {
 		"POST /api2/json/access/users comment=created&email=unit%40example.test&enable=1&expire=0&groups=devs&password=initial-secret&userid=unit%40pve",
 		"GET /api2/json/access/users/unit@pve ",
 		"PUT /api2/json/access/users/unit@pve comment=updated&email=unit%40example.test&enable=1&expire=0&groups=devs",
+		"PUT /api2/json/access/password confirmation-password=initial-secret&password=initial-secret&userid=unit%40pve",
 		"GET /api2/json/access/users/unit@pve ",
 		"GET /api2/json/access/users/unit@pve ",
 		"DELETE /api2/json/access/users/unit@pve ",
@@ -328,7 +350,7 @@ func TestUserResourceLifecyclePreservesPassword(t *testing.T) {
 		"GET /api2/json/access/users/unit@pve ",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
-		t.Fatalf("unexpected user calls: got %v want %v", calls, wantCalls)
+		t.Fatalf("unexpected user calls: got %#v want %#v", calls, wantCalls)
 	}
 	importResp := resource.ImportStateResponse{State: testResourceState(t, schema, userResourceModel{ID: types.StringNull(), UserID: types.StringNull()})}
 	res.ImportState(context.Background(), resource.ImportStateRequest{ID: "unit@pve"}, &importResp)
@@ -631,4 +653,19 @@ func writeAPIError(t *testing.T, w http.ResponseWriter, status int, message stri
 	t.Helper()
 	w.WriteHeader(status)
 	_, _ = fmt.Fprintf(w, `{"message":%q}`, message)
+}
+
+func TestUserPasswordLengthValidation(t *testing.T) {
+	res := &UserResource{}
+	for _, test := range []struct {
+		password string
+		valid    bool
+	}{{"1234567", false}, {"12345678", true}, {strings.Repeat("x", 64), true}, {strings.Repeat("x", 65), false}} {
+		config := userResourceModel{UserID: types.StringValue("unit@pve"), Password: types.StringValue(test.password)}
+		var resp resource.ValidateConfigResponse
+		res.ValidateConfig(context.Background(), resource.ValidateConfigRequest{Config: testResourceConfig(t, testResourceSchema(t, res), config)}, &resp)
+		if resp.Diagnostics.HasError() == test.valid {
+			t.Fatalf("password length %d: valid=%v diagnostics=%v", len(test.password), test.valid, resp.Diagnostics)
+		}
+	}
 }

@@ -102,6 +102,16 @@ func (c *Client) UpdateUser(ctx context.Context, userID string, req UserRequest)
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/access/users/%s", url.PathEscape(userID)), nil, form, nil)
 }
 
+// ChangeUserPassword sets a password for any user through `PUT /access/passwd`;
+// `PUT /access/users/{userid}` has no password parameter.
+func (c *Client) ChangeUserPassword(ctx context.Context, userID, password string) error {
+	form := url.Values{}
+	form.Set("userid", userID)
+	form.Set("password", password)
+	form.Set("confirmation-password", password)
+	return c.do(ctx, http.MethodPut, "/access/password", nil, form, nil)
+}
+
 func (c *Client) DeleteUser(ctx context.Context, userID string) error {
 	err := c.do(ctx, http.MethodDelete, fmt.Sprintf("/access/users/%s", url.PathEscape(userID)), nil, nil, nil)
 	if errors.Is(err, errNotFound) {
