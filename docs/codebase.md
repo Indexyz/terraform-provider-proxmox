@@ -136,6 +136,9 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_cluster_mapping_usb` | 管理 USB 硬件映射（`path` 或 `id` 二选一）。 |
 | `proxmox_cluster_mapping_dir` | 管理目录映射（绝对路径）。 |
 | `proxmox_cluster_metrics_server` | 管理 Graphite、InfluxDB 或 OpenTelemetry metrics server。 |
+| `proxmox_cluster_join` | 加入现有集群（`POST /cluster/config/join`，UPID 等待，triggers 驱动）。 |
+| `proxmox_cluster_node_remove` | 从集群配置移除节点（本节点自删为 no-op）。 |
+| `proxmox_cluster_options` | 管理集群级选项（键盘/console/fencing/迁移/worker 等，清空走 `delete`）。 |
 | `proxmox_firewall_rule` | 通过 content identity 管理 cluster、node、QEMU/LXC guest、security group 或 **SDN VNet** 防火墙规则。 |
 | `proxmox_group` | 管理 access group。 |
 | `proxmox_guest_firewall_alias` | 管理 guest 防火墙 alias（`/nodes/{node}/{guest}/{vmid}/firewall/aliases`，digest CAS）。 |
@@ -147,6 +150,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_ha_rule` | 管理 PVE 9 `node-affinity`/`resource-affinity` 放置规则（含 negative affinity 与 `disable`），以 computed `feasibility_errors` 暴露服务端不可行状态。 |
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
 | `proxmox_node_certificate` | 安装节点自定义证书链与私钥（sensitive、force/restart、销毁回退默认证书）。 |
+| `proxmox_node_disk_zfs` | 建 ZFS pool（devices/raid/ashift/compression/draid，销毁清 config+磁盘）。 |
+| `proxmox_node_disk_lvm` | 建 LVM VG。 |
+| `proxmox_node_disk_lvmthin` | 建 VG+thin pool（`device` 原盘）。 |
+| `proxmox_node_disk_directory` | 格式化并挂载目录存储（ext4/xfs）。 |
+| `proxmox_node_disk_wipe` | 擦除磁盘签名（命令式）。 |
+| `proxmox_node_gpt_init` | 初始化 GPT（命令式，可选 uuid）。 |
 | `proxmox_node_acme_certificate` | 写入节点 ACME 配置并下单/吊销（UPID 等待，triggers 驱动）。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
@@ -254,11 +263,15 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 3. `client_qemu.go` 的已知字段或分类逻辑（如果是新的顶层 Proxmox key 或 slot 类型）。
 4. `qemu_vm_mapping_test.go` 和相关 resource/data source schema 测试。
 5. 运行 `make generate` 更新 Terraform schema 文档。
+| `proxmox_cluster_config` | `data_source_cluster_config.go` | totem/apiversion/nodes 读取。 |
+| `proxmox_cluster_options` | `data_source_cluster_options.go` | `GET /cluster/options`。 |
 
 ## 数据源
 
 | 数据源 | 实现文件 | API/说明 |
 | --- | --- | --- |
+| `proxmox_node_disks` | `data_source_node_disks.go` | `GET /nodes/{node}/disks/list`，按 devpath 排序。 |
+| `proxmox_node_disk_smart` | `data_source_node_disks.go` | `GET /nodes/{node}/disks/smart`，attributes 为 JSON。 |
 | `proxmox_version` | `data_source_version.go` | `GET /version`。 |
 | `proxmox_nodes` | `data_source_nodes.go` | `GET /nodes`，列出节点概要。 |
 | `proxmox_node` | `data_source_node.go` | `GET /nodes/{node}/status`，读取单节点详细状态。 |
@@ -339,7 +352,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 61 个资源和 64 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 70 个资源和 68 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -380,6 +393,7 @@ make generate
 - `resource_acme_test.go`、`data_source_acme_challenge_schema_test.go`：自定义证书生命周期、ACME account/plugin/order 的 UPID 路径、插件 data 编解码、challenge schema 过滤排序与校验矩阵。
 - `data_source_inventory_test.go`：storage content、guest snapshot、user token/TFA、节点网络与三处防火墙选项数据源的投影/排序/校验。
 - `data_source_node_inventory_test.go`：PCI/USB 硬件、APT 版本、服务列表与 TFA unlock 的投影/排序/校验。
+- `resource_node_disk_test.go`、`resource_cluster_options_test.go`：磁盘与集群选项的 exact-form、校验矩阵、命令式资源生命周期与数据源投影。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

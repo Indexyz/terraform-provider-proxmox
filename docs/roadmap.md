@@ -130,6 +130,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_user_tfa_unlock` 与 `proxmox_node_hardware_pci`/`_usb`、`proxmox_node_apt_versions`、`proxmox_node_services` 数据源。
 
+- 新增节点磁盘管理（zfs/lvm/lvmthin/directory、gpt init、wipe、disks/smart 数据源）与集群选项/配置（options 资源与数据源、config 数据源、join、node remove）。
+
 ## 接下来
 
 ### 已完成（本轮）
