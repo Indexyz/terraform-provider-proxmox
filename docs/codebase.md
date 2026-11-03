@@ -140,6 +140,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
+| `proxmox_node_network_revert` | 丢弃节点全部 staged 网络配置（DELETE + UPID 等待，destroy 无动作，保留 `pending_changes` 观测）。 |
 | `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
@@ -289,7 +290,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 44 个资源和 32 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 45 个资源和 32 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 

@@ -101,6 +101,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 补齐 SDN 列表数据源广度：`proxmox_sdn_subnets`（按 vnet）、`proxmox_sdn_ipams`、`proxmox_sdn_dns_providers`、`proxmox_sdn_controllers`、`proxmox_sdn_fabrics`、`proxmox_sdn_prefix_lists`、`proxmox_sdn_route_map_entries`（按 route map），全部输出 `state`/`pending` 并支持类型/协议过滤。
 
+- 新增 `proxmox_node_network_revert`：`DELETE /nodes/{node}/network` + UPID 等待，triggers 驱动、destroy 无动作，`pending_changes` 暴露剩余 staged 变更；节点级语义（整节点回滚）已写入文档。
+
 ## 接下来
 
 ### 已完成（本轮）
@@ -120,7 +122,7 @@ user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步
 - `proxmox_lxc_containers` 列表数据源已完成（见上方已完成条目）；同类 guest 列表后续可考虑统一的跨类型查询体验。
 - Authentication realm 高级后续全部交付：列表数据源、LDAP/AD 目录同步与证书（路径与内容上传）、OpenID group claim、forced TFA、命令式 `proxmox_realm_sync` 与 `proxmox_user_tfa`；仅剩实机验收。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
-- Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；后续剩 `alias`/`eth` altname 重命名与 revert 资源化。
+- Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；`proxmox_node_network_revert` 已交付；后续剩 `alias` 与 `eth` altname 重命名。
 - SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply）；数据源已覆盖 zones/vnets/subnets/ipams/dns providers/controllers/fabrics/prefix lists/route map entries；仅剩实机验收。
 - QEMU compound devices 已交付 `hostpci`/`usb`/`rng`/`virtiofs` typed 槽位（含 raw 回退与 delete 移除）；长尾选项（`romfile`、`legacy-igd`、PCI id 覆盖）仍由 `raw.extra_config` 覆盖。
 

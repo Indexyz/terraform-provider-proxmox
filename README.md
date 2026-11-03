@@ -64,6 +64,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_firewall_options`
 - `proxmox_node_network_apply`
 - `proxmox_node_network_interface`
+- `proxmox_node_network_revert`
 - `proxmox_nocloud_iso`
 - `proxmox_pool`
 - `proxmox_qemu_snapshot`

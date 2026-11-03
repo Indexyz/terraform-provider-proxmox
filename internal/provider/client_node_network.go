@@ -140,6 +140,18 @@ func (c *Client) ApplyNodeNetwork(ctx context.Context, node string, regenerateFR
 	return upid, nil
 }
 
+// RevertNodeNetwork discards every staged interface change of a node.
+func (c *Client) RevertNodeNetwork(ctx context.Context, node string) (string, error) {
+	var upid string
+	if err := c.do(ctx, http.MethodDelete, nodeNetworkPath(node), nil, nil, &upid); err != nil {
+		return "", err
+	}
+	if err := validateQemuTaskAck(upid, "network revert"); err != nil {
+		return "", err
+	}
+	return upid, nil
+}
+
 func nodeNetworkPath(node string) string {
 	return fmt.Sprintf("/nodes/%s/network", url.PathEscape(node))
 }
