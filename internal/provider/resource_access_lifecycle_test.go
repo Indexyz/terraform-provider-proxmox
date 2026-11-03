@@ -669,3 +669,30 @@ func TestUserPasswordLengthValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestACLResourceReadKeepsUnusedBindingNull(t *testing.T) {
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		handler.envelope(w, []map[string]any{{"path": "/pool/unit", "roleid": "PVEAuditor", "type": "user", "ugid": "amy@pve", "propagate": 1}})
+	}))
+	defer server.Close()
+
+	res := &ACLResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := aclResourceModel{Path: types.StringValue("/pool/unit"), Propagate: types.BoolValue(true), Roles: testStringList(t, "PVEAuditor"), Users: testStringList(t, "amy@pve"), Groups: types.ListNull(types.StringType)}
+	readResp := resource.ReadResponse{State: testResourceState(t, schema, config)}
+	res.Read(context.Background(), resource.ReadRequest{State: readResp.State}, &readResp)
+	if readResp.Diagnostics.HasError() {
+		t.Fatalf("read diagnostics: %v", readResp.Diagnostics)
+	}
+	var state aclResourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if !state.Groups.IsNull() || state.Users.IsNull() {
+		t.Fatalf("unused binding must stay null: %#v", state)
+	}
+}

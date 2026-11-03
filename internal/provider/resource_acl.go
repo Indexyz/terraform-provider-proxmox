@@ -306,10 +306,17 @@ func (r *ACLResource) readACLState(ctx context.Context, aclPath string) (aclReso
 
 	roleList, roleDiags := types.ListValueFrom(ctx, types.StringType, roles)
 	diags.Append(roleDiags...)
-	userList, userDiags := types.ListValueFrom(ctx, types.StringType, users)
-	diags.Append(userDiags...)
-	groupList, groupDiags := types.ListValueFrom(ctx, types.StringType, groups)
-	diags.Append(groupDiags...)
+	userList, groupList := types.ListNull(types.StringType), types.ListNull(types.StringType)
+	if len(users) > 0 {
+		var userDiags diag.Diagnostics
+		userList, userDiags = types.ListValueFrom(ctx, types.StringType, users)
+		diags.Append(userDiags...)
+	}
+	if len(groups) > 0 {
+		var groupDiags diag.Diagnostics
+		groupList, groupDiags = types.ListValueFrom(ctx, types.StringType, groups)
+		diags.Append(groupDiags...)
+	}
 	if diags.HasError() {
 		return aclResourceModel{}, diags
 	}
