@@ -114,9 +114,40 @@ resource "proxmox_qemu_vm" "example" {
     serial0 = "socket"
   }
 
+  hostpci = {
+    hostpci0 = {
+      host      = "0000:01:00.0"
+      rom_file  = "vbios_gpu.bin"
+      vendor_id = "0x10de"
+      device_id = "0x1e02"
+    }
+  }
+
+  usb = {
+    usb0 = { host = "1-2" }
+  }
+
+  rng = {
+    rng0 = {
+      source    = "/dev/urandom"
+      max_bytes = 1024
+      period    = 1000
+    }
+  }
+
+  virtiofs = {
+    virtiofs0 = {
+      dirid        = "share1"
+      cache        = "always"
+      expose_xattr = true
+    }
+  }
+
   raw = {
     extra_config = {
-      rng0 = "/dev/urandom"
+      # Long-tail keys that are not typed stay here, e.g. a whole slot the
+      # parser does not understand.
+      hostpci9 = "0000:02:00.0,x-unknown=1"
     }
   }
 }
@@ -146,7 +177,7 @@ resource "proxmox_qemu_vm" "example" {
 - `disk` (Attributes Map) Typed disk devices keyed by Proxmox slot name such as `scsi0` or `virtio0`. CD-ROM media requires an `ide`/`sata`/`scsi` slot. When `nocloud_cdrom_slot` marks the NoCloud seed slot, attachment is strictly safety-checked: the seed storage must be visible, active, and support `iso` content on the VM's node, the exact seed volume must exist there, no second ISO/cloud-init drive may remain attached, and in-place updates preserve inherited disks without adopting media from refreshed state. A different ISO in the marked slot may be replaced on a stopped VM only with provider private attachment history (or an explicit exact-volume `nocloud_seed_update_from` migration grant), live digest compare-and-swap and attachment readback verification. Refresh/import never grants ownership; foreign media, hard disks and second seeds remain rejected. Resource state keeps the configured disk key set plus the observed values of those slots: disks a clone physically inherits from its template (for example the system disk) stay outside the managed map, and the full observed guest inventory remains available through the `proxmox_qemu_vm` data source. (see [below for nested schema](#nestedatt--disk))
 - `disk_resize` (Map of Number) Absolute target sizes in GiB for existing hard disks, keyed by slot (for example scsi0 = 64). Uses the asynchronous resize API, never replaces or allocates a disk. Reconciled on create after clone/config and on update before starting. Equal sizes are no-ops; shrinking, missing disks and CD-ROMs are rejected. Targets are Terraform-side policy echoed in state; refresh never resizes. Do not also configure the same slot through disk or raw.extra_config. Guest partition/filesystem expansion is separate.
 - `efi_disk` (Attributes) Typed `efidisk0` firmware storage. Unsupported grammar remains available through `raw.extra_config["efidisk0"]`. (see [below for nested schema](#nestedatt--efi_disk))
-- `hostpci` (Attributes Map) Typed host PCI passthrough keyed by `hostpci0` to `hostpci15`. Configure either `host` (`bus:dev.func`, optionally a semicolon list of virtual functions) or a cluster `mapping` id. Passthrough devices usually make the guest non-migratable. Slots removed from configuration are deleted. Unparsable slots stay in `raw.extra_config`. (see [below for nested schema](#nestedatt--hostpci))
+- `hostpci` (Attributes Map) Typed host PCI passthrough keyed by `hostpci0` to `hostpci15`. Configure either `host` (`bus:dev.func`, optionally a semicolon list of virtual functions) or a cluster `mapping` id. `rom_file` names an option ROM in `/usr/share/kvm/`, `legacy_igd` only works with `pc-i440fx` and VGA `none`, and the `*_id` overrides change the ids the guest sees. Passthrough devices usually make the guest non-migratable. Slots removed from configuration are deleted. Unparsable slots stay in `raw.extra_config`. (see [below for nested schema](#nestedatt--hostpci))
 - `hugepages` (String) Hugepages size in MiB (`2`, `1024`, or `any`) managed through `/config`.
 - `machine` (String) Configured machine type managed through `/config`.
 - `memory` (Number) Configured memory in MiB managed through `/config`.
@@ -288,12 +319,18 @@ Optional:
 
 Optional:
 
+- `device_id` (String)
 - `driver` (String)
 - `host` (String)
+- `legacy_igd` (Boolean)
 - `mapping` (String)
 - `mdev` (String)
 - `pcie` (Boolean)
+- `rom_file` (String)
 - `rombar` (Boolean)
+- `sub_device_id` (String)
+- `sub_vendor_id` (String)
+- `vendor_id` (String)
 - `x_vga` (Boolean)
 
 

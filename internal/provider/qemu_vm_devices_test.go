@@ -56,8 +56,15 @@ func TestQemuVMDeviceParsingRoundTrip(t *testing.T) {
 		t.Fatalf("virtiofs round trip = %q", encoded)
 	}
 
-	if _, ok := parseQemuVMHostPci("0000:00:1f.2,romfile=foo.bin"); ok {
+	if _, ok := parseQemuVMHostPci("0000:00:1f.2,unknown=1"); ok {
 		t.Fatal("unsupported hostpci key must fall back")
+	}
+	pci, ok := parseQemuVMHostPci("0000:00:1f.2,romfile=foo.bin,legacy-igd=1,vendor-id=0x10de,device-id=0x1e02")
+	if !ok || pci.ROMFile.ValueString() != "foo.bin" || !pci.LegacyIGD.ValueBool() || pci.VendorID.ValueString() != "0x10de" || pci.DeviceID.ValueString() != "0x1e02" {
+		t.Fatalf("unexpected extended hostpci parse: %#v (%v)", pci, ok)
+	}
+	if encoded := encodeQemuVMHostPci(pci); encoded != "0000:00:1f.2,romfile=foo.bin,legacy-igd=1,vendor-id=0x10de,device-id=0x1e02" {
+		t.Fatalf("extended hostpci round trip = %q", encoded)
 	}
 	if _, ok := parseQemuVMUSB("spice,unknown=1"); ok {
 		t.Fatal("unsupported usb key must fall back")
@@ -101,6 +108,21 @@ func TestQemuVMDeviceValidation(t *testing.T) {
 		"hostpci bad driver": func() (string, string, diagFn) {
 			item := hostPci()
 			item.Driver = types.StringValue("nvidia")
+			return "hostpci0", "hostpci", func() bool { return validateQemuVMHostPciItem("hostpci0", item).HasError() }
+		},
+		"hostpci bad rom file": func() (string, string, diagFn) {
+			item := hostPci()
+			item.ROMFile = types.StringValue("foo,bar.bin")
+			return "hostpci0", "hostpci", func() bool { return validateQemuVMHostPciItem("hostpci0", item).HasError() }
+		},
+		"hostpci bad vendor id": func() (string, string, diagFn) {
+			item := hostPci()
+			item.VendorID = types.StringValue("10de")
+			return "hostpci0", "hostpci", func() bool { return validateQemuVMHostPciItem("hostpci0", item).HasError() }
+		},
+		"hostpci bad sub device id": func() (string, string, diagFn) {
+			item := hostPci()
+			item.SubDeviceID = types.StringValue("0x12345")
 			return "hostpci0", "hostpci", func() bool { return validateQemuVMHostPciItem("hostpci0", item).HasError() }
 		},
 		"usb bad host": func() (string, string, diagFn) {
@@ -169,7 +191,7 @@ func TestQemuVMDeviceSlotRanges(t *testing.T) {
 func TestQemuVMDeviceStateKeepsUnparsableSlotsInRaw(t *testing.T) {
 	state, unsupported, diags := qemuVMHostPciStateValue(context.Background(), map[string]string{
 		"hostpci0": "0000:00:1f.2",
-		"hostpci1": "0000:00:1f.3,romfile=foo.bin",
+		"hostpci1": "0000:00:1f.3,unknown=1",
 	})
 	if diags.HasError() {
 		t.Fatalf("state diagnostics: %v", diags)
@@ -186,13 +208,19 @@ func TestQemuVMDeviceRawConflict(t *testing.T) {
 	model := minimalQemuVMModel("pve", 100)
 	model.HostPCI = types.MapValueMust(types.ObjectType{AttrTypes: qemuVMHostPciAttrTypes()}, map[string]attr.Value{
 		"hostpci0": types.ObjectValueMust(qemuVMHostPciAttrTypes(), map[string]attr.Value{
-			"host":    types.StringValue("0000:00:1f.2"),
-			"mapping": types.StringNull(),
-			"mdev":    types.StringNull(),
-			"pcie":    types.BoolNull(),
-			"x_vga":   types.BoolNull(),
-			"rombar":  types.BoolNull(),
-			"driver":  types.StringNull(),
+			"host":          types.StringValue("0000:00:1f.2"),
+			"mapping":       types.StringNull(),
+			"mdev":          types.StringNull(),
+			"pcie":          types.BoolNull(),
+			"x_vga":         types.BoolNull(),
+			"rombar":        types.BoolNull(),
+			"rom_file":      types.StringNull(),
+			"legacy_igd":    types.BoolNull(),
+			"vendor_id":     types.StringNull(),
+			"device_id":     types.StringNull(),
+			"sub_vendor_id": types.StringNull(),
+			"sub_device_id": types.StringNull(),
+			"driver":        types.StringNull(),
 		}),
 	})
 	model.Raw = types.ObjectValueMust(qemuVMRawAttrTypes(), map[string]attr.Value{

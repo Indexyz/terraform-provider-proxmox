@@ -144,7 +144,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
-| `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置（含 `hostpci`/`usb`/`rng`/`virtiofs` compound 设备）、生命周期钩子、显式 `power` 和 NoCloud seed 槽位标记。 |
+| `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置（含 `hostpci`/`usb`/`rng`/`virtiofs` compound 设备及 PCI ROM/id 覆盖）、生命周期钩子、显式 `power` 和 NoCloud seed 槽位标记。 |
 | `proxmox_nocloud_iso` | 生成并管理 cloud-init NoCloud seed ISO（`CIDATA` 卷标）的 storage content；全部创建输入 RequiresReplace，已存在目标文件拒绝而不采纳。 |
 | `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；LDAP/AD 目录同步、客户端证书路径或上传的证书内容、forced TFA 块；secret 使用 WriteOnly + version 轮换。 |
 | `proxmox_realm_sync` | 命令式 LDAP/AD 同步（`POST .../sync` + UPID 等待，`remove_vanished` 可破坏、destroy 无动作）。 |

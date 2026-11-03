@@ -46,14 +46,14 @@ Typed slots, whole-slot raw fallback for unknown syntax:
 
 | Family | Slots | Wire (default key first) |
 | --- | --- | --- |
-| `hostpci` | `hostpci0`–`hostpci15` (`MAX_HOSTPCI_DEVICES`) | `host=<bus:dev.func[;...]>` or `mapping=<id>`; `mdev`, `pcie`, `x-vga`, `rombar`, `driver=vfio|keep` |
+| `hostpci` | `hostpci0`–`hostpci15` (`MAX_HOSTPCI_DEVICES`) | `host=<bus:dev.func[;...]>` or `mapping=<id>`; `mdev`, `pcie`, `x-vga`, `rombar`, `romfile`, `legacy-igd`, `vendor-id`/`device-id`/`sub-vendor-id`/`sub-device-id` (`0xhhhh`), `driver=vfio|keep` |
 | `usb` | `usb0`–`usb13` (`MAX_USB_DEVICES`) | `host=<bus-port|vendor:product|spice>` or `mapping=<id>`; `usb3` |
 | `rng` | `rng0` only | `source=/dev/urandom|/dev/random|/dev/hwrng`, `max_bytes`, `period` |
 | `virtiofs` | `virtiofs0`–`virtiofs9` (`MAX_VIRTIOFS`) | `dirid=<configid>`, `cache=auto|always|metadata|never`, `direct-io`, `expose-xattr`, `expose-acl` |
 
-Exactly one of `host`/`mapping` is required for hostpci and usb. `romfile`, `legacy-igd` and
-the PCI id overrides are not typed yet and fall back to `raw.extra_config` with the rest of
-the slot. Passthrough devices usually make a guest non-migratable; virtiofs needs a running
+Exactly one of `host`/`mapping` is required for hostpci and usb. `legacy-igd` needs the `pc-i440fx` machine type with VGA `none`, and the `*_id` overrides
+only change what the guest sees. Unknown future keys keep the whole slot in
+`raw.extra_config`. Passthrough devices usually make a guest non-migratable; virtiofs needs a running
 `virtiofsd` in the guest.
 
 Removed slots: QEMU has no per-key delete for typed fields today, so removals are sent

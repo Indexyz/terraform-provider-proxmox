@@ -186,12 +186,18 @@ Read-Only:
 
 Read-Only:
 
+- `device_id` (String)
 - `driver` (String)
 - `host` (String)
+- `legacy_igd` (Boolean)
 - `mapping` (String)
 - `mdev` (String)
 - `pcie` (Boolean)
+- `rom_file` (String)
 - `rombar` (Boolean)
+- `sub_device_id` (String)
+- `sub_vendor_id` (String)
+- `vendor_id` (String)
 - `x_vga` (Boolean)
 
 

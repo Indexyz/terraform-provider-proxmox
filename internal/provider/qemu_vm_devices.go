@@ -32,6 +32,8 @@ var (
 	qemuVMHostPCIHost    = regexp.MustCompile(`^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F](;[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F])*$`)
 	qemuVMUSBHost        = regexp.MustCompile(`^(?:[0-9]+-[0-9]+(?:\.[0-9]+)*|[0-9a-fA-F]{4}:[0-9a-fA-F]{4}|[Ss][Pp][Ii][Cc][Ee])$`)
 	qemuVMHostPCIMdev    = regexp.MustCompile(`^[^/.:]+$`)
+	qemuVMHostPCIRomFile = regexp.MustCompile(`^[^,;]+$`)
+	qemuVMHostPCIID      = regexp.MustCompile(`^0x[0-9a-fA-F]{4}$`)
 	qemuVMVirtiofsDirID  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]+$`)
 	qemuVMHostPCIDriver  = []string{"vfio", "keep"}
 	qemuVMVirtiofsCaches = []string{"auto", "always", "metadata", "never"}
@@ -39,13 +41,19 @@ var (
 )
 
 type qemuVMHostPciModel struct {
-	Host    types.String `tfsdk:"host"`
-	Mapping types.String `tfsdk:"mapping"`
-	Mdev    types.String `tfsdk:"mdev"`
-	PCIE    types.Bool   `tfsdk:"pcie"`
-	XVGA    types.Bool   `tfsdk:"x_vga"`
-	ROMBar  types.Bool   `tfsdk:"rombar"`
-	Driver  types.String `tfsdk:"driver"`
+	Host        types.String `tfsdk:"host"`
+	Mapping     types.String `tfsdk:"mapping"`
+	Mdev        types.String `tfsdk:"mdev"`
+	PCIE        types.Bool   `tfsdk:"pcie"`
+	XVGA        types.Bool   `tfsdk:"x_vga"`
+	ROMBar      types.Bool   `tfsdk:"rombar"`
+	ROMFile     types.String `tfsdk:"rom_file"`
+	LegacyIGD   types.Bool   `tfsdk:"legacy_igd"`
+	VendorID    types.String `tfsdk:"vendor_id"`
+	DeviceID    types.String `tfsdk:"device_id"`
+	SubVendorID types.String `tfsdk:"sub_vendor_id"`
+	SubDeviceID types.String `tfsdk:"sub_device_id"`
+	Driver      types.String `tfsdk:"driver"`
 }
 
 type qemuVMUSBModel struct {
@@ -70,13 +78,19 @@ type qemuVMVirtiofsModel struct {
 
 func qemuVMHostPciAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"host":    types.StringType,
-		"mapping": types.StringType,
-		"mdev":    types.StringType,
-		"pcie":    types.BoolType,
-		"x_vga":   types.BoolType,
-		"rombar":  types.BoolType,
-		"driver":  types.StringType,
+		"host":          types.StringType,
+		"mapping":       types.StringType,
+		"mdev":          types.StringType,
+		"pcie":          types.BoolType,
+		"x_vga":         types.BoolType,
+		"rombar":        types.BoolType,
+		"rom_file":      types.StringType,
+		"legacy_igd":    types.BoolType,
+		"vendor_id":     types.StringType,
+		"device_id":     types.StringType,
+		"sub_vendor_id": types.StringType,
+		"sub_device_id": types.StringType,
+		"driver":        types.StringType,
 	}
 }
 
@@ -140,6 +154,18 @@ func parseQemuVMHostPci(raw string) (qemuVMHostPciModel, bool) {
 			item.XVGA = qemuVMOptionalBoolValue(value)
 		case "rombar":
 			item.ROMBar = qemuVMOptionalBoolValue(value)
+		case "romfile":
+			item.ROMFile = types.StringValue(value)
+		case "legacy-igd":
+			item.LegacyIGD = qemuVMOptionalBoolValue(value)
+		case "vendor-id":
+			item.VendorID = types.StringValue(value)
+		case "device-id":
+			item.DeviceID = types.StringValue(value)
+		case "sub-vendor-id":
+			item.SubVendorID = types.StringValue(value)
+		case "sub-device-id":
+			item.SubDeviceID = types.StringValue(value)
 		case "driver":
 			item.Driver = types.StringValue(value)
 		default:
@@ -261,6 +287,12 @@ func encodeQemuVMHostPci(item qemuVMHostPciModel) string {
 	appendBoolConfig(&segments, "pcie", item.PCIE)
 	appendBoolConfig(&segments, "x-vga", item.XVGA)
 	appendBoolConfig(&segments, "rombar", item.ROMBar)
+	appendStringConfig(&segments, "romfile", item.ROMFile)
+	appendBoolConfig(&segments, "legacy-igd", item.LegacyIGD)
+	appendStringConfig(&segments, "vendor-id", item.VendorID)
+	appendStringConfig(&segments, "device-id", item.DeviceID)
+	appendStringConfig(&segments, "sub-vendor-id", item.SubVendorID)
+	appendStringConfig(&segments, "sub-device-id", item.SubDeviceID)
 	appendStringConfig(&segments, "driver", item.Driver)
 	return strings.Join(segments, ",")
 }
@@ -315,6 +347,14 @@ func validateQemuVMHostPciItem(slot string, item qemuVMHostPciModel) diag.Diagno
 	}
 	if isConfiguredValue(item.Mdev) && !qemuVMHostPCIMdev.MatchString(item.Mdev.ValueString()) {
 		diags.AddAttributeError(at("mdev"), "Invalid mediated device type", "mdev must not contain `/`, `.` or `:`.")
+	}
+	if isConfiguredValue(item.ROMFile) && !qemuVMHostPCIRomFile.MatchString(item.ROMFile.ValueString()) {
+		diags.AddAttributeError(at("rom_file"), "Invalid PCI option ROM file", "rom_file must not contain `,` or `;`.")
+	}
+	for name, value := range map[string]types.String{"vendor_id": item.VendorID, "device_id": item.DeviceID, "sub_vendor_id": item.SubVendorID, "sub_device_id": item.SubDeviceID} {
+		if isConfiguredValue(value) && !qemuVMHostPCIID.MatchString(value.ValueString()) {
+			diags.AddAttributeError(at(name), "Invalid PCI id override", name+" must be a hexadecimal id such as 0x10de.")
+		}
 	}
 	if isConfiguredValue(item.Driver) && !slices.Contains(qemuVMHostPCIDriver, item.Driver.ValueString()) {
 		diags.AddAttributeError(at("driver"), "Invalid PCI driver", "driver must be vfio or keep.")
@@ -517,15 +557,21 @@ func qemuVMHostPciResourceAttribute() schema.MapNestedAttribute {
 		Optional:            true,
 		Computed:            true,
 		PlanModifiers:       []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
-		MarkdownDescription: "Typed host PCI passthrough keyed by `hostpci0` to `hostpci15`. Configure either `host` (`bus:dev.func`, optionally a semicolon list of virtual functions) or a cluster `mapping` id. Passthrough devices usually make the guest non-migratable. Slots removed from configuration are deleted. Unparsable slots stay in `raw.extra_config`.",
+		MarkdownDescription: "Typed host PCI passthrough keyed by `hostpci0` to `hostpci15`. Configure either `host` (`bus:dev.func`, optionally a semicolon list of virtual functions) or a cluster `mapping` id. `rom_file` names an option ROM in `/usr/share/kvm/`, `legacy_igd` only works with `pc-i440fx` and VGA `none`, and the `*_id` overrides change the ids the guest sees. Passthrough devices usually make the guest non-migratable. Slots removed from configuration are deleted. Unparsable slots stay in `raw.extra_config`.",
 		NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
-			"host":    schema.StringAttribute{Optional: true, Computed: true},
-			"mapping": schema.StringAttribute{Optional: true, Computed: true},
-			"mdev":    schema.StringAttribute{Optional: true, Computed: true},
-			"pcie":    schema.BoolAttribute{Optional: true, Computed: true},
-			"x_vga":   schema.BoolAttribute{Optional: true, Computed: true},
-			"rombar":  schema.BoolAttribute{Optional: true, Computed: true},
-			"driver":  schema.StringAttribute{Optional: true, Computed: true},
+			"host":          schema.StringAttribute{Optional: true, Computed: true},
+			"mapping":       schema.StringAttribute{Optional: true, Computed: true},
+			"mdev":          schema.StringAttribute{Optional: true, Computed: true},
+			"pcie":          schema.BoolAttribute{Optional: true, Computed: true},
+			"x_vga":         schema.BoolAttribute{Optional: true, Computed: true},
+			"rombar":        schema.BoolAttribute{Optional: true, Computed: true},
+			"rom_file":      schema.StringAttribute{Optional: true, Computed: true},
+			"legacy_igd":    schema.BoolAttribute{Optional: true, Computed: true},
+			"vendor_id":     schema.StringAttribute{Optional: true, Computed: true},
+			"device_id":     schema.StringAttribute{Optional: true, Computed: true},
+			"sub_vendor_id": schema.StringAttribute{Optional: true, Computed: true},
+			"sub_device_id": schema.StringAttribute{Optional: true, Computed: true},
+			"driver":        schema.StringAttribute{Optional: true, Computed: true},
 		}},
 	}
 }
@@ -595,13 +641,19 @@ func qemuVMHostPciResourceAttributeData() datasourceschema.MapNestedAttribute {
 		Computed:            true,
 		MarkdownDescription: "Typed host PCI passthrough keyed by slot.",
 		NestedObject: datasourceschema.NestedAttributeObject{Attributes: map[string]datasourceschema.Attribute{
-			"host":    datasourceschema.StringAttribute{Computed: true},
-			"mapping": datasourceschema.StringAttribute{Computed: true},
-			"mdev":    datasourceschema.StringAttribute{Computed: true},
-			"pcie":    datasourceschema.BoolAttribute{Computed: true},
-			"x_vga":   datasourceschema.BoolAttribute{Computed: true},
-			"rombar":  datasourceschema.BoolAttribute{Computed: true},
-			"driver":  datasourceschema.StringAttribute{Computed: true},
+			"host":          datasourceschema.StringAttribute{Computed: true},
+			"mapping":       datasourceschema.StringAttribute{Computed: true},
+			"mdev":          datasourceschema.StringAttribute{Computed: true},
+			"pcie":          datasourceschema.BoolAttribute{Computed: true},
+			"x_vga":         datasourceschema.BoolAttribute{Computed: true},
+			"rombar":        datasourceschema.BoolAttribute{Computed: true},
+			"rom_file":      datasourceschema.StringAttribute{Computed: true},
+			"legacy_igd":    datasourceschema.BoolAttribute{Computed: true},
+			"vendor_id":     datasourceschema.StringAttribute{Computed: true},
+			"device_id":     datasourceschema.StringAttribute{Computed: true},
+			"sub_vendor_id": datasourceschema.StringAttribute{Computed: true},
+			"sub_device_id": datasourceschema.StringAttribute{Computed: true},
+			"driver":        datasourceschema.StringAttribute{Computed: true},
 		}},
 	}
 }

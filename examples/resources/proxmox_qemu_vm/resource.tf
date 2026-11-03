@@ -99,9 +99,40 @@ resource "proxmox_qemu_vm" "example" {
     serial0 = "socket"
   }
 
+  hostpci = {
+    hostpci0 = {
+      host      = "0000:01:00.0"
+      rom_file  = "vbios_gpu.bin"
+      vendor_id = "0x10de"
+      device_id = "0x1e02"
+    }
+  }
+
+  usb = {
+    usb0 = { host = "1-2" }
+  }
+
+  rng = {
+    rng0 = {
+      source    = "/dev/urandom"
+      max_bytes = 1024
+      period    = 1000
+    }
+  }
+
+  virtiofs = {
+    virtiofs0 = {
+      dirid        = "share1"
+      cache        = "always"
+      expose_xattr = true
+    }
+  }
+
   raw = {
     extra_config = {
-      rng0 = "/dev/urandom"
+      # Long-tail keys that are not typed stay here, e.g. a whole slot the
+      # parser does not understand.
+      hostpci9 = "0000:02:00.0,x-unknown=1"
     }
   }
 }
