@@ -74,6 +74,8 @@ data "proxmox_users" "current" {}
 data "proxmox_realm" "pam" {
   realm = "pam"
 }
+
+data "proxmox_lxc_containers" "current" {}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.proxmox_version.current", "version"),
@@ -114,6 +116,8 @@ data "proxmox_realm" "pam" {
 					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "id", "pam"),
 					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "realm", "pam"),
 					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "type", "pam"),
+					resource.TestCheckResourceAttr("data.proxmox_lxc_containers.current", "id", "lxc_containers"),
+					resource.TestCheckResourceAttrSet("data.proxmox_lxc_containers.current", "containers.#"),
 				),
 			},
 		},

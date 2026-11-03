@@ -8,7 +8,7 @@ The current baseline is designed against the official [Proxmox VE documentation]
 - Cluster inventory data sources for `/version`, `/nodes`, `/nodes/{node}/status`, and `/cluster/resources`
 - Declarative QEMU VM and LXC container management, including clone workflows, typed device configuration, snapshots, raw configuration escape hatches, and opt-in declarative `power` reconciliation (graceful shutdown with a server-side forced-stop fallback)
 - Storage, pool, Proxmox VE 9 high-availability enrollment and placement rules, external authentication realm, RBAC, API token, ACL, cluster/node/guest firewall management, and staged node network interfaces with an explicit apply step
-- Inventory data sources for guests, storage, pools, access control objects, node settings, metrics servers, and cluster resources
+- Inventory data sources for guests, storage, pools, access control objects, node settings, metrics servers, and cluster resources; `proxmox_qemu_vms` and `proxmox_lxc_containers` list guests with client-side filters
 
 ## Requirements
 
@@ -59,6 +59,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_ha_resource`
 - `proxmox_ha_rule`
 - `proxmox_lxc_container`
+- `proxmox_lxc_containers`
 - `proxmox_lxc_snapshot`
 - `proxmox_node_firewall_options`
 - `proxmox_node_network_apply`

@@ -73,6 +73,14 @@ func TestDataSourceSuccessfulReads(t *testing.T) {
 			attribute: path.Root("vms").AtListIndex(0).AtName("name"), want: "unit-template",
 		},
 		{
+			name: "lxc containers", dataSource: NewLXCContainersDataSource(), config: map[string]any{"template": true},
+			responses: map[string]any{"/api2/json/cluster/resources?type=vm": []map[string]any{
+				{"id": "lxc/101", "vmid": 101, "name": "app-ct", "node": "pve", "type": "lxc", "template": 0, "status": "running"},
+				{"id": "lxc/100", "vmid": 100, "name": "unit-ct-template", "node": "pve", "type": "lxc", "template": 1, "status": "stopped"},
+			}},
+			attribute: path.Root("containers").AtListIndex(0).AtName("name"), want: "unit-ct-template",
+		},
+		{
 			name: "metrics", dataSource: NewClusterMetricsServersDataSource(), config: map[string]any{},
 			responses: map[string]any{"/api2/json/cluster/metrics/server": []map[string]any{{"id": "graphite", "type": "graphite", "server": "metrics.test", "port": 2003, "disable": 0}}},
 			attribute: path.Root("servers").AtListIndex(0).AtName("id"), want: "graphite",

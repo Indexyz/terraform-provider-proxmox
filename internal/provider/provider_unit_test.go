@@ -129,6 +129,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_group",
 		"proxmox_groups",
 		"proxmox_lxc_container",
+		"proxmox_lxc_containers",
 		"proxmox_node",
 		"proxmox_node_dns",
 		"proxmox_node_time",

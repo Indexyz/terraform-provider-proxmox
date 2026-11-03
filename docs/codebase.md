@@ -235,6 +235,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_group` | `data_source_group.go` | `GET /access/groups/{groupid}`。 |
 | `proxmox_groups` | `data_source_groups.go` | `GET /access/groups`。 |
 | `proxmox_lxc_container` | `data_source_lxc_container.go` | 读取 LXC `/config` 和 `/status/current`，共享 LXC typed/raw 映射。 |
+| `proxmox_lxc_containers` | `data_source_lxc_containers.go` | `/cluster/resources?type=vm` 客户端剔除 QEMU 后按 `template`/`name`/`node` 过滤并按 VMID 升序输出。 |
 | `proxmox_pool` | `data_source_pool.go` | `GET /pools?poolid=...`。 |
 | `proxmox_pools` | `data_source_pools.go` | `GET /pools`。 |
 | `proxmox_qemu_vm` | `data_source_qemu_vm.go` | 读取 QEMU `/config` 和 `/status/current`，共享 QEMU typed/raw 映射。 |
@@ -283,6 +284,7 @@ make generate
 - `provider_unit_test.go`：配置合并、认证校验、资源/数据源导出。
 - `framework_lifecycle_test.go`、`lifecycle_http_test.go`：schema-backed plan/state/config、provider wiring 与本地 Proxmox HTTP 合约测试工具；普通 Go 测试不依赖 Terraform CLI 或真实 PVE。
 - `data_source_lifecycle_test.go`：使用真实 provider client 与本地 HTTP server 覆盖全部注册数据源的 Schema、Configure、Read、typed state 和代表性 API error。
+- `data_source_qemu_vms_test.go`、`data_source_lxc_containers_test.go`：guest 列表的客户端类型拆分、过滤矩阵、数值/布尔 `template` 容忍、缺失 `template`/`name` 投影、数值 VMID 排序与 filter echo。
 - `resource_*_lifecycle_test.go`：按 access/pool/firewall/cluster service/storage/snapshot/guest 家族覆盖 Create、Read、Update、Delete、import、missing/error、task polling、private managed fields、secret preservation 和安全删除请求。
 - `client_test.go`、`client_qemu_test.go`：HTTP 方法、认证 header/cookie、API error、基础和 QEMU endpoints；QEMU create/clone/delete 测试同时验证 UPID completion polling。
 - `resource_data_mapping_test.go`、`helpers_behavior_test.go`：通用 flatten/diff/value helper。

@@ -169,6 +169,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewGroupDataSource,
 		NewGroupsDataSource,
 		NewLXCContainerDataSource,
+		NewLXCContainersDataSource,
 		NewPoolDataSource,
 		NewPoolsDataSource,
 		NewQemuVMDataSource,
