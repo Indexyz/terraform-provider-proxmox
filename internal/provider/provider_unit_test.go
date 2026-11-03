@@ -164,6 +164,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_sdn_subnet",
 		"proxmox_sdn_subnets",
 		"proxmox_sdn_vnet",
+		"proxmox_sdn_vnet_firewall_options",
 		"proxmox_sdn_vnets",
 		"proxmox_sdn_zone",
 		"proxmox_sdn_zones",

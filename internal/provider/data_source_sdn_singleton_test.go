@@ -249,3 +249,19 @@ func TestSDNRouteMapEntryDataSourceReadsStagedEntry(t *testing.T) {
 		t.Fatalf("unexpected set: %v", got)
 	}
 }
+
+func TestSDNVnetFirewallOptionsDataSourceReads(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/vnets/vn1/firewall/options": map[string]any{
+			"enable": 1, "policy_forward": "ACCEPT", "log_level_forward": "nolog", "digest": "d1",
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNVnetFirewallOptionsDataSource(), responses, map[string]any{"vnet": "vn1"})
+	var state sdnVnetFirewallOptionsDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if !state.Enable.ValueBool() || state.PolicyForward.ValueString() != "ACCEPT" || state.LogLevelForward.ValueString() != "nolog" || state.ID.ValueString() != "vn1" {
+		t.Fatalf("unexpected projection: %#v", state)
+	}
+}

@@ -115,7 +115,7 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_firewall_rules` 列表数据源：按 scope（cluster/node/guest/security_group/vnet）读取，输出 `pos`/`digest` 与全部规则字段。
 
-- 新增 `proxmox_sdn_zone`、`proxmox_sdn_vnet`、`proxmox_sdn_subnet`、`proxmox_sdn_ipam`、`proxmox_sdn_dns`、`proxmox_sdn_controller`、`proxmox_sdn_fabric`、`proxmox_sdn_fabric_node`、`proxmox_sdn_prefix_list`、`proxmox_sdn_route_map_entry` 单对象数据源（staged 覆盖 + `pending` 透出）。
+- 新增 `proxmox_sdn_zone`、`proxmox_sdn_vnet`、`proxmox_sdn_subnet`、`proxmox_sdn_ipam`、`proxmox_sdn_dns`、`proxmox_sdn_controller`、`proxmox_sdn_fabric`、`proxmox_sdn_fabric_node`、`proxmox_sdn_prefix_list`、`proxmox_sdn_route_map_entry`、`proxmox_sdn_vnet_firewall_options` 单对象数据源（staged 覆盖 + `pending` 透出）。
 
 ## 接下来
 

@@ -218,6 +218,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewSDNSubnetDataSource,
 		NewSDNSubnetsDataSource,
 		NewSDNVnetDataSource,
+		NewSDNVnetFirewallOptionsDataSource,
 		NewSDNVnetsDataSource,
 		NewSDNZoneDataSource,
 		NewSDNZonesDataSource,
