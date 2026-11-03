@@ -84,6 +84,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_disk_wipe`
 - `proxmox_node_disk_zfs`
 - `proxmox_node_dns`
+- `proxmox_node_execute`
 - `proxmox_node_firewall_options`
 - `proxmox_node_gpt_init`
 - `proxmox_node_network_apply`
@@ -152,6 +153,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_lxc_container`
 - `proxmox_lxc_containers`
 - `proxmox_lxc_snapshots`
+- `proxmox_metrics_export`
 - `proxmox_node`
 - `proxmox_node_apt_repositories`
 - `proxmox_node_apt_versions`

@@ -153,6 +153,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_certificate` | 安装节点自定义证书链与私钥（sensitive、force/restart、销毁回退默认证书）。 |
 | `proxmox_node_disk_zfs` | 建 ZFS pool（devices/raid/ashift/compression/draid，销毁清 config+磁盘）。 |
 | `proxmox_node_dns` | 设置节点 DNS 与 search domain（PUT，destroy 保留）。 |
+| `proxmox_node_execute` | 顺序执行节点 API 调用批次（commands JSON），记录结果。 |
 | `proxmox_node_disk_lvm` | 建 LVM VG。 |
 | `proxmox_node_disk_lvmthin` | 建 VG+thin pool（`device` 原盘）。 |
 | `proxmox_node_disk_directory` | 格式化并挂载目录存储（ext4/xfs）。 |
@@ -319,6 +320,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_ha_rules` | `data_source_ha_rules.go` | `GET /cluster/ha/rules`，按类型过滤、按 `rule` 排序并输出 `errors`。 |
 | `proxmox_lxc_container` | `data_source_lxc_container.go` | 读取 LXC `/config` 和 `/status/current`，共享 LXC typed/raw 映射。 |
 | `proxmox_lxc_containers` | `data_source_lxc_containers.go` | `/cluster/resources?type=vm` 客户端剔除 QEMU 后按 `template`/`name`/`node` 过滤并按 VMID 升序输出。 |
+| `proxmox_metrics_export` | `resource_node_execute.go` | `GET /cluster/metrics/export`。 |
 | `proxmox_lxc_snapshots` | `data_source_guest_snapshots.go` | `GET /nodes/{node}/lxc/{vmid}/snapshot`，按 name 排序。 |
 | `proxmox_pool` | `data_source_pool.go` | `GET /pools?poolid=...`。 |
 | `proxmox_qemu_rrddata` | `data_source_rrddata.go` | `GET /nodes/{node}/qemu/{vmid}/rrddata`，原样 JSON 输出。 |
@@ -374,7 +376,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 83 个资源和 77 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 84 个资源和 78 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -423,6 +425,7 @@ make generate
 - `resource_node_config_test.go`：time/DNS 表单与生命周期、import、syslog/journal 数据源。
 - `data_source_rrddata_test.go`：节点/QEMU RRD 数据源 JSON 透传。
 - `resource_node_status_test.go`：status 命令、stopall/suspendall 表单与生命周期。
+- `resource_node_execute_test.go`：execute 批次表单/失败路径、生命周期与 metrics export 数据源。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。
