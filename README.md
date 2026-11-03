@@ -69,6 +69,11 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_lxc_container`
 - `proxmox_lxc_containers`
 - `proxmox_lxc_snapshot`
+- `proxmox_notification_endpoint_gotify`
+- `proxmox_notification_endpoint_sendmail`
+- `proxmox_notification_endpoint_smtp`
+- `proxmox_notification_endpoint_webhook`
+- `proxmox_notification_matcher`
 - `proxmox_node_firewall_options`
 - `proxmox_node_network_apply`
 - `proxmox_node_network_interface`

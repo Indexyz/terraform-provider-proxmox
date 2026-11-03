@@ -122,6 +122,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_cluster_mapping_pci`/`_usb`/`_dir` 与 `proxmox_cluster_mapping` 数据源：property string map、digest CAS 更新、无 digest 删除、`node/vmid` 级校验与 import（研究见 [`research/proxmox-cluster-mapping.md`](../research/proxmox-cluster-mapping.md)）。
 
+- 新增通知端点（smtp/gotify/sendmail/webhook）与 matcher：sensitive secret 保留、webhook header/secret property string、内置目标 import、`delete` 清理（研究见 [`research/proxmox-notifications.md`](../research/proxmox-notifications.md)）。
+
 ## 接下来
 
 ### 已完成（本轮）

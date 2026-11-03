@@ -146,6 +146,11 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
+| `proxmox_notification_endpoint_smtp` | 管理 SMTP 通知端点（密码 sensitive 且不回传，TLS mode 校验）。 |
+| `proxmox_notification_endpoint_gotify` | 管理 Gotify 端点（token sensitive 且不回传）。 |
+| `proxmox_notification_endpoint_sendmail` | 管理本地 sendmail 目标（可 import 内置 `mail-to-root`）。 |
+| `proxmox_notification_endpoint_webhook` | 管理 webhook 端点（header 为 base64 property string，secret 名称脱敏回读）。 |
+| `proxmox_notification_matcher` | 管理通知 matcher（target/mode/severity/calendar/invert，空规则走 delete）。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
 | `proxmox_node_network_revert` | 丢弃节点全部 staged 网络配置（DELETE + UPID 等待，destroy 无动作，保留 `pending_changes` 观测）。 |
 | `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/alias/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
@@ -315,7 +320,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 51 个资源和 50 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 56 个资源和 50 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -352,6 +357,7 @@ make generate
 - `qemu_vm_devices_test.go`：compound 设备 parse/encode、槽位范围、默认键互斥、raw 回退与冲突、update delete 列表。
 - `resource_guest_firewall_test.go`：guest alias/ipset/entry 的 exact-form client、alias 生命周期（digest、managed comment）、scope 校验与 import 解析。
 - `resource_cluster_mapping_test.go`、`data_source_cluster_mapping_test.go`：mapping 的 property string 编解码、exact-form CRUD、kind 校验矩阵、import 与数据源投影。
+- `resource_notification_test.go`：端点 exact-form、secret 跨刷新保留、webhook secret 名称合并、matcher 表单/状态与校验矩阵。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。
