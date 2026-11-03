@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -257,5 +258,108 @@ func sdnVnetForm(req SDNVnetRequest) url.Values {
 	setOptionalInt64(form, "tag", req.Tag)
 	setOptionalBool(form, "vlanaware", req.VLANAware)
 	setOptionalBool(form, "isolate-ports", req.IsolatePorts)
+	return form
+}
+
+// SDNSubnet is one subnet entry of the staged SDN configuration. Subnet is the
+// internal Proxmox id (`<zone>-<network>-<mask>`); CIDR is what users write.
+type SDNSubnet struct {
+	Subnet        string                     `json:"subnet"`
+	CIDR          string                     `json:"cidr"`
+	Vnet          string                     `json:"vnet"`
+	Zone          string                     `json:"zone"`
+	Gateway       string                     `json:"gateway"`
+	SNAT          proxmoxOptionalBool        `json:"snat"`
+	DNSZonePrefix string                     `json:"dnszoneprefix"`
+	DHCPRanges    []SDNDHCPRange             `json:"dhcp-range"`
+	DHCPDNSServer string                     `json:"dhcp-dns-server"`
+	State         string                     `json:"state"`
+	Pending       map[string]json.RawMessage `json:"pending"`
+	Digest        string                     `json:"digest"`
+}
+
+type SDNDHCPRange struct {
+	StartAddress string `json:"start-address"`
+	EndAddress   string `json:"end-address"`
+}
+
+type SDNSubnetRequest struct {
+	Vnet          string
+	Gateway       *string
+	SNAT          *bool
+	DNSZonePrefix *string
+	DHCPRanges    []SDNDHCPRange
+	DHCPDNSServer *string
+	LockToken     string
+	Digest        *string
+	Delete        []string
+}
+
+func (c *Client) SDNSubnets(ctx context.Context, vnet string) ([]SDNSubnet, error) {
+	var subnets []SDNSubnet
+	query := url.Values{"pending": {"1"}}
+	if err := c.do(ctx, http.MethodGet, sdnSubnetsPath(vnet), query, nil, &subnets); err != nil {
+		return nil, err
+	}
+	return subnets, nil
+}
+
+func (c *Client) GetSDNSubnet(ctx context.Context, vnet, cidr string) (SDNSubnet, error) {
+	subnets, err := c.SDNSubnets(ctx, vnet)
+	if err != nil {
+		return SDNSubnet{}, err
+	}
+	for _, entry := range subnets {
+		if entry.CIDR == cidr {
+			return entry, nil
+		}
+	}
+	return SDNSubnet{}, errNotFound
+}
+
+// CreateSDNSubnet takes the CIDR because Proxmox derives the internal subnet id
+// from the parent zone and the CIDR on create.
+func (c *Client) CreateSDNSubnet(ctx context.Context, vnet, cidr string, req SDNSubnetRequest) error {
+	form := sdnSubnetForm(req)
+	form.Set("vnet", vnet)
+	form.Set("subnet", cidr)
+	form.Set("type", "subnet")
+	form.Set("lock-token", req.LockToken)
+	return c.do(ctx, http.MethodPost, sdnSubnetsPath(vnet), nil, form, nil)
+}
+
+// UpdateSDNSubnet and DeleteSDNSubnet need the internal subnet id, because the
+// handlers look the section up by it.
+func (c *Client) UpdateSDNSubnet(ctx context.Context, vnet, subnetID string, req SDNSubnetRequest) error {
+	form := sdnSubnetForm(req)
+	form.Set("vnet", vnet)
+	form.Set("subnet", subnetID)
+	form.Set("type", "subnet")
+	form.Set("lock-token", req.LockToken)
+	setOptionalString(form, "digest", req.Digest)
+	if len(req.Delete) > 0 {
+		form.Set("delete", strings.Join(sortedStrings(req.Delete), ","))
+	}
+	return c.do(ctx, http.MethodPut, sdnSubnetsPath(vnet)+"/"+url.PathEscape(subnetID), nil, form, nil)
+}
+
+func (c *Client) DeleteSDNSubnet(ctx context.Context, vnet, subnetID, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, sdnSubnetsPath(vnet)+"/"+url.PathEscape(subnetID), nil, form, nil)
+}
+
+func sdnSubnetsPath(vnet string) string {
+	return "/cluster/sdn/vnets/" + url.PathEscape(vnet) + "/subnets"
+}
+
+func sdnSubnetForm(req SDNSubnetRequest) url.Values {
+	form := url.Values{}
+	setOptionalString(form, "gateway", req.Gateway)
+	setOptionalBool(form, "snat", req.SNAT)
+	setOptionalString(form, "dnszoneprefix", req.DNSZonePrefix)
+	for _, dhcpRange := range req.DHCPRanges {
+		form.Add("dhcp-range", fmt.Sprintf("start-address=%s,end-address=%s", dhcpRange.StartAddress, dhcpRange.EndAddress))
+	}
+	setOptionalString(form, "dhcp-dns-server", req.DHCPDNSServer)
 	return form
 }
