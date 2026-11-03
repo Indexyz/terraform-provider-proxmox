@@ -126,6 +126,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_zone`
 - `proxmox_storage`
 - `proxmox_storage_file_download`
+- `proxmox_storage_volume`
+- `proxmox_storage_volume_transfer`
 - `proxmox_user`
 - `proxmox_user_tfa`
 - `proxmox_user_tfa_unlock`

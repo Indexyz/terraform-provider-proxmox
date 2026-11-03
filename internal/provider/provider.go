@@ -211,6 +211,8 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewSDNVnetResource,
 		NewSDNZoneResource,
 		NewStorageFileDownloadResource,
+		NewStorageVolumeResource,
+		NewStorageVolumeTransferResource,
 		NewStorageResource,
 		NewUserResource,
 		NewUserTFAResource,

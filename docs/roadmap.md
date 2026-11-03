@@ -150,6 +150,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_guest_migration`（单测覆盖，待多节点验收）。
 
+- 新增 `proxmox_storage_volume` 与 `proxmox_storage_volume_transfer`；notes 仅 backup 卷可用（API 限制）。
+
 ## 接下来
 
 ### 已完成（本轮）

@@ -205,6 +205,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_sdn_zone` | 管理 `simple`/`vlan`/`qinq`/`vxlan`/`evpn`/`faucet` 全部 zone 类型的 staged 配置（逐类型字段矩阵），锁令牌 + digest CAS，不自动提交。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
 | `proxmox_storage_file_download` | 下载并管理 storage 中的 ISO、LXC template 或 import image。 |
+| `proxmox_storage_volume` | 管理卷 notes（仅 backup）与 protected（PUT，destroy 删卷，import）。 |
+| `proxmox_storage_volume_transfer` | 复制/移动卷到 target（POST + UPID 等待）。 |
 | `proxmox_user` | 管理 Proxmox 用户。 |
 | `proxmox_user_tfa` | 管理用户第二因子（`totp`/`recovery`/`yubico`），需 ticket 认证，recovery 码敏感输出。 |
 | `proxmox_user_tfa_unlock` | 清除用户 TFA 锁定（`PUT .../unlock-tfa`，triggers 驱动、destroy 无动作）。 |
@@ -377,7 +379,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 85 个资源和 78 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 87 个资源和 78 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -428,6 +430,7 @@ make generate
 - `resource_node_status_test.go`：status 命令、stopall/suspendall 表单与生命周期。
 - `resource_node_execute_test.go`：execute 批次表单/失败路径、生命周期与 metrics export 数据源。
 - `resource_guest_migration_test.go`：qemu/lxc 迁移表单与生命周期（暂无第二节点）。
+- `resource_storage_volume_test.go`：卷元数据表单、生命周期、import 与 transfer。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。
