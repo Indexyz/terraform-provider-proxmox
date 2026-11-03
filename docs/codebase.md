@@ -170,6 +170,9 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_notification_endpoint_webhook` | 管理 webhook 端点（header 为 base64 property string，secret 名称脱敏回读）。 |
 | `proxmox_notification_matcher` | 管理通知 matcher（target/mode/severity/calendar/invert，空规则走 delete）。 |
 | `proxmox_node_service` | 管理服务运行状态（running/stopped），destroy 保持运行。 |
+| `proxmox_node_status_command` | 触发节点 reboot/shutdown，可选等待重新上线。 |
+| `proxmox_node_stopall` | 批量停止节点 guest（UPID 等待，vms 可筛选）。 |
+| `proxmox_node_suspendall` | 批量挂起节点 guest（UPID 等待，vms 可筛选）。 |
 | `proxmox_node_time` | 设置节点时区并回报 time/localtime（PUT，destroy 保留）。 |
 | `proxmox_notification_target_test` | 向通知 target 发送测试消息（triggers 驱动）。 |
 | `proxmox_node_vzdump` | 触发 vzdump 备份（UPID 等待，triggers 驱动）。 |
@@ -371,7 +374,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 80 个资源和 77 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 83 个资源和 77 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -419,6 +422,7 @@ make generate
 - `data_source_qemu_agent_test.go`：exec 表单/轮询、agent facts 数据源与 exec 生命周期。
 - `resource_node_config_test.go`：time/DNS 表单与生命周期、import、syslog/journal 数据源。
 - `data_source_rrddata_test.go`：节点/QEMU RRD 数据源 JSON 透传。
+- `resource_node_status_test.go`：status 命令、stopall/suspendall 表单与生命周期。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

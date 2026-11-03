@@ -144,6 +144,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增节点/QEMU rrddata 数据源。
 
+- 新增 `proxmox_node_status_command`、`proxmox_node_stopall`、`proxmox_node_suspendall`。
+
 ## 接下来
 
 ### 已完成（本轮）

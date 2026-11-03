@@ -90,6 +90,9 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_network_interface`
 - `proxmox_node_network_revert`
 - `proxmox_node_service`
+- `proxmox_node_status_command`
+- `proxmox_node_stopall`
+- `proxmox_node_suspendall`
 - `proxmox_node_time`
 - `proxmox_node_vzdump`
 - `proxmox_notification_endpoint_gotify`
