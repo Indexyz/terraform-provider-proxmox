@@ -245,14 +245,14 @@ func sdnZoneDeleteKeys(config sdnZoneModel, previouslyManaged []string) []string
 
 // withSDNLock runs one mutation under a fresh global SDN lock and releases the
 // lock again, so staged changes survive while nothing keeps the lock.
-func (r *SDNZoneResource) withSDNLock(ctx context.Context, diags *diag.Diagnostics, operation func(lockToken string) error) bool {
-	token, err := r.client.LockSDN(ctx)
+func withSDNLock(ctx context.Context, client *Client, diags *diag.Diagnostics, operation func(lockToken string) error) bool {
+	token, err := client.LockSDN(ctx)
 	if err != nil {
 		diags.AddError("Unable to Lock Proxmox SDN Configuration", err.Error())
 		return false
 	}
 	operationErr := operation(token)
-	if unlockErr := r.client.UnlockSDN(ctx, token); unlockErr != nil {
+	if unlockErr := client.UnlockSDN(ctx, token); unlockErr != nil {
 		diags.AddWarning("Unable to Release Proxmox SDN Lock", fmt.Sprintf("the SDN configuration lock may be stale, release it with `DELETE /cluster/sdn/lock?force=1`: %s", unlockErr))
 	}
 	if operationErr != nil {
@@ -276,7 +276,7 @@ func (r *SDNZoneResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 	zone := plan.Zone.ValueString()
-	if !r.withSDNLock(ctx, &resp.Diagnostics, func(token string) error {
+	if !withSDNLock(ctx, r.client, &resp.Diagnostics, func(token string) error {
 		createReq.LockToken = token
 		return r.client.CreateSDNZone(ctx, zone, createReq)
 	}) {
@@ -337,7 +337,7 @@ func (r *SDNZoneResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	updateReq.Delete = sdnZoneDeleteKeys(config, previouslyManaged)
 	zone := prior.Zone.ValueString()
-	if !r.withSDNLock(ctx, &resp.Diagnostics, func(token string) error {
+	if !withSDNLock(ctx, r.client, &resp.Diagnostics, func(token string) error {
 		updateReq.LockToken = token
 		if current.Digest != "" {
 			updateReq.Digest = &current.Digest
@@ -369,7 +369,7 @@ func (r *SDNZoneResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 	zone := state.Zone.ValueString()
-	r.withSDNLock(ctx, &resp.Diagnostics, func(token string) error {
+	withSDNLock(ctx, r.client, &resp.Diagnostics, func(token string) error {
 		return r.client.DeleteSDNZone(ctx, zone, token)
 	})
 }
@@ -404,7 +404,7 @@ func sdnZoneStateFromAPI(ctx context.Context, entry SDNZone) (sdnZoneModel, diag
 	// The pending view reports the running values with the staged difference
 	// nested, so the staged value always wins for state mapping.
 	staged := sdnPendingMap(entry.Pending)
-	nodesValue, nodeDiags := stringSetValue(ctx, sdnZoneStagedNodes(entry.Nodes, staged))
+	nodesValue, nodeDiags := stringSetValue(ctx, sdnStagedNodes(entry.Nodes, staged))
 	diags.Append(nodeDiags...)
 
 	state := sdnZoneModel{
@@ -412,14 +412,14 @@ func sdnZoneStateFromAPI(ctx context.Context, entry SDNZone) (sdnZoneModel, diag
 		Zone:                     types.StringValue(entry.Zone),
 		Type:                     types.StringValue(entry.Type),
 		Nodes:                    nodesValue,
-		MTU:                      sdnZoneStagedInt64(entry.MTU.Ptr(), staged["mtu"]),
-		DNS:                      sdnZoneStagedString(entry.DNS, staged["dns"]),
-		ReverseDNS:               sdnZoneStagedString(entry.ReverseDNS, staged["reversedns"]),
-		DNSZone:                  sdnZoneStagedString(entry.DNSZone, staged["dnszone"]),
-		IPAM:                     sdnZoneStagedString(entry.IPAM, staged["ipam"]),
-		DHCP:                     sdnZoneStagedString(entry.DHCP, staged["dhcp"]),
-		Bridge:                   sdnZoneStagedString(entry.Bridge, staged["bridge"]),
-		BridgeDisableMACLearning: sdnZoneStagedBool(entry.BridgeDisableMACLearned.Ptr(), staged["bridge-disable-mac-learning"]),
+		MTU:                      sdnStagedInt64(entry.MTU.Ptr(), staged["mtu"]),
+		DNS:                      sdnStagedString(entry.DNS, staged["dns"]),
+		ReverseDNS:               sdnStagedString(entry.ReverseDNS, staged["reversedns"]),
+		DNSZone:                  sdnStagedString(entry.DNSZone, staged["dnszone"]),
+		IPAM:                     sdnStagedString(entry.IPAM, staged["ipam"]),
+		DHCP:                     sdnStagedString(entry.DHCP, staged["dhcp"]),
+		Bridge:                   sdnStagedString(entry.Bridge, staged["bridge"]),
+		BridgeDisableMACLearning: sdnStagedBool(entry.BridgeDisableMACLearned.Ptr(), staged["bridge-disable-mac-learning"]),
 		State:                    stringOrNull(entry.State),
 		Pending:                  types.MapNull(types.StringType),
 	}
@@ -431,7 +431,7 @@ func sdnZoneStateFromAPI(ctx context.Context, entry SDNZone) (sdnZoneModel, diag
 	return state, diags
 }
 
-func sdnZoneStagedString(running, staged string) types.String {
+func sdnStagedString(running, staged string) types.String {
 	if staged == "deleted" {
 		return types.StringNull()
 	}
@@ -441,7 +441,7 @@ func sdnZoneStagedString(running, staged string) types.String {
 	return stringOrNull(running)
 }
 
-func sdnZoneStagedInt64(running *int64, staged string) types.Int64 {
+func sdnStagedInt64(running *int64, staged string) types.Int64 {
 	if staged == "deleted" {
 		return types.Int64Null()
 	}
@@ -453,7 +453,7 @@ func sdnZoneStagedInt64(running *int64, staged string) types.Int64 {
 	return int64OrNull(running)
 }
 
-func sdnZoneStagedBool(running *bool, staged string) types.Bool {
+func sdnStagedBool(running *bool, staged string) types.Bool {
 	if staged == "deleted" {
 		return types.BoolNull()
 	}
@@ -463,7 +463,7 @@ func sdnZoneStagedBool(running *bool, staged string) types.Bool {
 	return boolOrNull(running)
 }
 
-func sdnZoneStagedNodes(running string, staged map[string]string) []string {
+func sdnStagedNodes(running string, staged map[string]string) []string {
 	if value, ok := staged["nodes"]; ok {
 		if value == "deleted" {
 			return nil

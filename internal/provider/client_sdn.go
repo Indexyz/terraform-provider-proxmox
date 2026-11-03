@@ -176,3 +176,86 @@ func sdnZoneNodeList(value string) []string {
 	}
 	return nodes
 }
+
+// SDNVnet is one VNet entry of the staged SDN configuration.
+type SDNVnet struct {
+	Vnet         string                     `json:"vnet"`
+	Zone         string                     `json:"zone"`
+	Alias        string                     `json:"alias"`
+	Tag          proxmoxOptionalInt64       `json:"tag"`
+	VLANAware    proxmoxOptionalBool        `json:"vlanaware"`
+	IsolatePorts proxmoxOptionalBool        `json:"isolate-ports"`
+	State        string                     `json:"state"`
+	Pending      map[string]json.RawMessage `json:"pending"`
+	Digest       string                     `json:"digest"`
+}
+
+type SDNVnetRequest struct {
+	Zone         string
+	Alias        *string
+	Tag          *int64
+	VLANAware    *bool
+	IsolatePorts *bool
+	LockToken    string
+	Digest       *string
+	Delete       []string
+}
+
+func (c *Client) SDNVnets(ctx context.Context) ([]SDNVnet, error) {
+	var vnets []SDNVnet
+	query := url.Values{"pending": {"1"}}
+	if err := c.do(ctx, http.MethodGet, "/cluster/sdn/vnets", query, nil, &vnets); err != nil {
+		return nil, err
+	}
+	return vnets, nil
+}
+
+func (c *Client) GetSDNVnet(ctx context.Context, vnet string) (SDNVnet, error) {
+	vnets, err := c.SDNVnets(ctx)
+	if err != nil {
+		return SDNVnet{}, err
+	}
+	for _, entry := range vnets {
+		if entry.Vnet == vnet {
+			return entry, nil
+		}
+	}
+	return SDNVnet{}, errNotFound
+}
+
+func (c *Client) CreateSDNVnet(ctx context.Context, vnet string, req SDNVnetRequest) error {
+	form := sdnVnetForm(req)
+	form.Set("vnet", vnet)
+	form.Set("type", "vnet")
+	form.Set("lock-token", req.LockToken)
+	return c.do(ctx, http.MethodPost, "/cluster/sdn/vnets", nil, form, nil)
+}
+
+func (c *Client) UpdateSDNVnet(ctx context.Context, vnet string, req SDNVnetRequest) error {
+	form := sdnVnetForm(req)
+	form.Set("vnet", vnet)
+	form.Set("type", "vnet")
+	form.Set("lock-token", req.LockToken)
+	setOptionalString(form, "digest", req.Digest)
+	if len(req.Delete) > 0 {
+		form.Set("delete", strings.Join(sortedStrings(req.Delete), ","))
+	}
+	return c.do(ctx, http.MethodPut, "/cluster/sdn/vnets/"+url.PathEscape(vnet), nil, form, nil)
+}
+
+func (c *Client) DeleteSDNVnet(ctx context.Context, vnet, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, "/cluster/sdn/vnets/"+url.PathEscape(vnet), nil, form, nil)
+}
+
+func sdnVnetForm(req SDNVnetRequest) url.Values {
+	form := url.Values{}
+	if req.Zone != "" {
+		form.Set("zone", req.Zone)
+	}
+	setOptionalString(form, "alias", req.Alias)
+	setOptionalInt64(form, "tag", req.Tag)
+	setOptionalBool(form, "vlanaware", req.VLANAware)
+	setOptionalBool(form, "isolate-ports", req.IsolatePorts)
+	return form
+}

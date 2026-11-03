@@ -72,6 +72,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_replication_job`
 - `proxmox_role`
 - `proxmox_sdn_apply`
+- `proxmox_sdn_vnet`
 - `proxmox_sdn_zone`
 - `proxmox_storage`
 - `proxmox_storage_file_download`
