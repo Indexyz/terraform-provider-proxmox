@@ -81,15 +81,23 @@ VNet fields: `vnet` (id), `zone`, `alias`, `tag`, `vlanaware`, `isolate-ports`, 
 Subnet fields: `subnet` (CIDR id), `type`, `gateway`, `snat`, `dnszoneprefix`,
 `dhcp-range*`.
 
-## Delivery slices
+## Delivery slices (all delivered)
 
-1. **`proxmox_sdn_zone`** (types `simple` and `vlan` only) + **`proxmox_sdn_apply`**.
-   Common fields typed, `bridge` for `vlan`, variant validation, digest CAS, pending-state
-   read, `zone` import. This unblocks everything else because VNets need a zone.
+1. **`proxmox_sdn_zone`** (every zone type: `simple`, `vlan`, `qinq`, `vxlan`, `evpn`,
+   `faucet`) + **`proxmox_sdn_apply`**.
 2. `proxmox_sdn_vnet` (`zone` reference, `tag`, `vlanaware`, `isolate-ports`, `alias`).
 3. `proxmox_sdn_subnet` (CIDR identity, gateway/snat/dhcp ranges, `dnszoneprefix`).
-4. Remaining zone types (`qinq`, `vxlan`, `evpn`, `faucet`) and object families
-   (`ipam`, `dns`, `controller`, and eventually fabrics/route-maps/prefix-lists).
+4. `proxmox_sdn_ipam` (`pve`, `netbox`, `phpipam`), `proxmox_sdn_dns` (`powerdns`),
+   `proxmox_sdn_controller` (`bgp`, `evpn`, `faucet`, `isis`).
+5. `proxmox_sdn_fabric` (`openfabric`, `ospf`, `wireguard`, `bgp`),
+   `proxmox_sdn_fabric_node`, `proxmox_sdn_prefix_list`,
+   `proxmox_sdn_route_map_entry`.
+6. `proxmox_sdn_vnet_firewall_options` plus the `vnet` scope of
+   `proxmox_firewall_rule`, `proxmox_sdn_rollback`, and the `proxmox_sdn_zones` /
+   `proxmox_sdn_vnets` list data sources.
+
+Remaining optional surface: further list data sources, the `dry-run` endpoint, and the
+`lock` endpoint (already used internally).
 
 ## Lock policy for Terraform
 
@@ -123,8 +131,8 @@ holds the lock itself (`PUT` with `release-lock=1`).
   management path. Never apply implicitly, never rollback automatically.
 - The provider does not call `/cluster/sdn/dry-run`, `/lock` beyond mutations, or
   `commit_config` outside apply.
-- No fabric/controller/IPAM support in the first slices; unknown zone types are rejected
-  at plan time instead of being half-managed.
+- Property-string lists (fabric `redistribute`/`interfaces`/`peers`, prefix list `entries`, route map `set`/`match`) stay strings: they carry commas themselves, so staged values are decoded from JSON arrays and never split on commas.
+- Proxmox-reserved ids are rejected at plan time for prefix lists (`only_default`, `only_default_v6`, `loopbacks_ips`) and route maps (`pve_*`, `MAP_VTEP_IN`, `MAP_VTEP_OUT`, `correct_src`).
 - Zones with unreleased foreign locks are errors, not silent retries.
 
 ## Validation plan
