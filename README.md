@@ -58,6 +58,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_guest_firewall_options`
 - `proxmox_ha_resource`
 - `proxmox_ha_rule`
+- `proxmox_ha_resources`
+- `proxmox_ha_rules`
 - `proxmox_lxc_container`
 - `proxmox_lxc_containers`
 - `proxmox_lxc_snapshot`
@@ -98,6 +100,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_cluster_resources`
 - `proxmox_group`
 - `proxmox_groups`
+- `proxmox_ha_resources`
+- `proxmox_ha_rules`
 - `proxmox_lxc_container`
 - `proxmox_node`
 - `proxmox_node_dns`

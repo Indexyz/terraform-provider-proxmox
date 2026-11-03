@@ -128,6 +128,8 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_cluster_resources",
 		"proxmox_group",
 		"proxmox_groups",
+		"proxmox_ha_resources",
+		"proxmox_ha_rules",
 		"proxmox_lxc_container",
 		"proxmox_lxc_containers",
 		"proxmox_node",
