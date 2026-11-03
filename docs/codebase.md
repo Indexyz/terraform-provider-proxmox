@@ -328,7 +328,7 @@ make generate
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `client_ha_rule_test.go`、`resource_ha_rule_test.go`：PVE 9 HA rule collection lookup、exact-form create/update（PUT 必带 `rule`、绝不带 `type`）、`nodes` 线路编码、fresh digest、variant 校验矩阵、effective defaults、feasibility error 透传与 managed-field deletion。
-- `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表、OVS `ovs_*` 字段）、`changes` 捕获、reload UPID 校验与任务等待、类型矩阵（含 OVS 专用 bond mode、必填 `ovs_bridge`、`alias` 后缀/地址规则）与 apply 的 no-op destroy。
+- `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表、OVS `ovs_*` 字段）、`changes` 捕获、reload UPID 校验与任务等待、类型矩阵（含 OVS 专用 bond mode、必填 `ovs_bridge`、`alias` 后缀/地址规则、`altnames` 映射）与 apply 的 no-op destroy。
 - `client_sdn_test.go`、`resource_sdn_zone_test.go`、`resource_sdn_apply_test.go`：SDN 锁令牌获取/释放、staged zone CRUD exact-form 与 digest、`state`/`pending` 解码与 staged 覆盖、释放失败告警、commit UPID/任务失败、空触发与 no-op destroy。
 - `client_sdn_vnet_test.go`、`resource_sdn_vnet_test.go`：staged vnet CRUD exact-form、可变 `zone`、staged 覆盖与 deleted 缺席、variant/范围校验、import 与生命周期。
 - `client_sdn_subnet_test.go`、`resource_sdn_subnet_test.go`：CIDR→内部 id 转换、多值 `dhcp-range` 编码、staged range 覆盖与删除、CIDR/IP/前缀校验、import 与生命周期。

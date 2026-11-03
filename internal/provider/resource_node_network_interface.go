@@ -78,6 +78,7 @@ type nodeNetworkModel struct {
 	OVSOptions         types.String `tfsdk:"ovs_options"`
 	OVSBridge          types.String `tfsdk:"ovs_bridge"`
 	OVSBonds           types.Set    `tfsdk:"ovs_bonds"`
+	Altnames           types.List   `tfsdk:"altnames"`
 }
 
 func NewNodeNetworkInterfaceResource() resource.Resource {
@@ -124,6 +125,7 @@ func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.Sche
 			"ovs_options":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Raw Open vSwitch options, for example `trunks=100,200`."},
 			"ovs_bridge":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise. Configuring it also attaches the port to the bridge port list on create and detaches it on destroy or when the parent changes."},
 			"ovs_bonds":       schema.SetAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Slave interfaces of an `OVSBond`."},
+			"altnames":        schema.ListAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Alternate kernel names Proxmox reports for the interface, such as the `enp3s0`/`eno1` pair of a physical NIC. Informational; the resource is still addressed by `iface`."},
 		},
 	}
 }
@@ -575,6 +577,12 @@ func nodeNetworkStateFromAPI(ctx context.Context, node string, entry NodeNetwork
 	diags.Append(bridgeDiags...)
 	slaves, slaveDiags := stringSetValue(ctx, nodeNetworkPortFields(entry.Slaves))
 	diags.Append(slaveDiags...)
+	altnames := types.ListNull(types.StringType)
+	if len(entry.Altnames) > 0 {
+		var altnameDiags diag.Diagnostics
+		altnames, altnameDiags = types.ListValueFrom(ctx, types.StringType, entry.Altnames)
+		diags.Append(altnameDiags...)
+	}
 	return nodeNetworkModel{
 		ID:                 types.StringValue(node + "/" + entry.Iface),
 		Node:               types.StringValue(node),
@@ -604,6 +612,7 @@ func nodeNetworkStateFromAPI(ctx context.Context, node string, entry NodeNetwork
 		OVSOptions:         stringOrNull(entry.OVSOptions),
 		OVSBridge:          stringOrNull(entry.OVSBridge),
 		OVSBonds:           ovsBonds,
+		Altnames:           altnames,
 	}, diags
 }
 

@@ -43,6 +43,7 @@ type NodeNetworkInterface struct {
 	OVSOptions         string               `json:"ovs_options"`
 	OVSBridge          string               `json:"ovs_bridge"`
 	OVSBonds           string               `json:"ovs_bonds"`
+	Altnames           []string             `json:"altnames"`
 }
 
 // NodeNetworkInterfaceRequest carries explicitly configured, already validated

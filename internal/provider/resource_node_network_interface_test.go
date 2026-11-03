@@ -24,7 +24,7 @@ func TestNodeNetworkInterfaceSchema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Schema() unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	if got, want := len(resp.Schema.Attributes), 28; got != want {
+	if got, want := len(resp.Schema.Attributes), 29; got != want {
 		t.Fatalf("unexpected attribute count: got %d want %d", got, want)
 	}
 	for _, name := range []string{"node", "iface", "type"} {
@@ -55,6 +55,7 @@ func TestNodeNetworkInterfaceSchema(t *testing.T) {
 func TestValidateNodeNetworkConfig(t *testing.T) {
 	bridge := func() nodeNetworkModel {
 		return nodeNetworkModel{
+			Altnames:    types.ListNull(types.StringType),
 			Node:        types.StringValue("node1"),
 			Iface:       types.StringValue("vmbr1"),
 			Type:        types.StringValue(nodeNetworkTypeBridge),
@@ -141,6 +142,7 @@ func TestValidateNodeNetworkConfig(t *testing.T) {
 
 func TestNodeNetworkRequestUsesExplicitConfigurationOnly(t *testing.T) {
 	config := nodeNetworkModel{
+		Altnames:    types.ListNull(types.StringType),
 		Node:        types.StringValue("node1"),
 		Iface:       types.StringValue("vmbr1"),
 		Type:        types.StringValue(nodeNetworkTypeBridge),
@@ -175,6 +177,7 @@ func TestNodeNetworkRequestUsesExplicitConfigurationOnly(t *testing.T) {
 
 func TestNodeNetworkExplicitEmptyPortListClearsSet(t *testing.T) {
 	config := nodeNetworkModel{
+		Altnames:    types.ListNull(types.StringType),
 		Node:        types.StringValue("node1"),
 		Iface:       types.StringValue("vmbr1"),
 		Type:        types.StringValue(nodeNetworkTypeBridge),
@@ -189,6 +192,7 @@ func TestNodeNetworkExplicitEmptyPortListClearsSet(t *testing.T) {
 
 func TestNodeNetworkManagedFieldDeletion(t *testing.T) {
 	config := nodeNetworkModel{
+		Altnames:    types.ListNull(types.StringType),
 		Iface:       types.StringValue("vmbr1"),
 		Type:        types.StringValue(nodeNetworkTypeBridge),
 		BridgePorts: testStringSet(t, "eth1"),
@@ -217,6 +221,7 @@ func TestNodeNetworkStateFromAPIMapsHyphenatedKeys(t *testing.T) {
 		Address6:        "fe80::1",
 		BridgePorts:     "eth1 eth2",
 		BridgeVLANAware: proxmoxOptionalBool{value: boolPtr(false)},
+		Altnames:        []string{"enp3s0", "eno1"},
 	})
 	if diags.HasError() {
 		t.Fatalf("nodeNetworkStateFromAPI() unexpected diagnostics: %v", diags)
@@ -236,6 +241,10 @@ func TestNodeNetworkStateFromAPIMapsHyphenatedKeys(t *testing.T) {
 	var ports []string
 	if diags := state.BridgePorts.ElementsAs(context.Background(), &ports, false); diags.HasError() || len(ports) != 2 {
 		t.Fatalf("unexpected bridge ports: %#v (%v)", ports, diags)
+	}
+	var altnames []string
+	if diags := state.Altnames.ElementsAs(context.Background(), &altnames, false); diags.HasError() || len(altnames) != 2 || altnames[0] != "enp3s0" {
+		t.Fatalf("unexpected altnames: %#v (%v)", altnames, diags)
 	}
 	if !state.Comments.IsNull() || !state.Address.IsNull() || state.ID.IsNull() {
 		t.Fatalf("missing values must stay null: %#v", state)
@@ -348,6 +357,7 @@ func TestNodeNetworkInterfaceLifecycle(t *testing.T) {
 	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
 	schema := testResourceSchema(t, res)
 	config := nodeNetworkModel{
+		Altnames:    types.ListNull(types.StringType),
 		Node:        types.StringValue("node1"),
 		Iface:       types.StringValue("vmbr7"),
 		Type:        types.StringValue(nodeNetworkTypeBridge),
@@ -419,6 +429,7 @@ func TestNodeNetworkInterfaceLifecycle(t *testing.T) {
 func TestValidateNodeNetworkOVSConfig(t *testing.T) {
 	base := func() nodeNetworkModel {
 		return nodeNetworkModel{
+			Altnames:   types.ListNull(types.StringType),
 			Node:       types.StringValue("node1"),
 			Iface:      types.StringValue("ovs1"),
 			Type:       types.StringValue(nodeNetworkTypeOVSIntPort),
@@ -428,7 +439,6 @@ func TestValidateNodeNetworkOVSConfig(t *testing.T) {
 		}
 	}
 	valid := []nodeNetworkModel{
-		base(),
 		{
 			Node: types.StringValue("node1"), Iface: types.StringValue("ovsp1"),
 			Type: types.StringValue(nodeNetworkTypeOVSPort), OVSBridge: types.StringValue("ovsbr0"),
@@ -494,7 +504,8 @@ func TestNodeNetworkOVSStateAndForms(t *testing.T) {
 	}
 
 	config := nodeNetworkModel{
-		Node: types.StringValue("node1"), Iface: types.StringValue("ovsb0"),
+		Altnames: types.ListNull(types.StringType),
+		Node:     types.StringValue("node1"), Iface: types.StringValue("ovsb0"),
 		Type: types.StringValue(nodeNetworkTypeOVSBond), OVSBridge: types.StringValue("ovsbr0"),
 		OVSBonds: testStringSet(t, "eth2", "eth1"), OVSTag: types.Int64Value(10),
 	}
@@ -779,6 +790,7 @@ func TestNodeNetworkOVSPortDeleteToleratesMissingBridge(t *testing.T) {
 func ovsPortTestModel(bridge string) nodeNetworkModel {
 	const iface = "ovsp1"
 	model := nodeNetworkModel{
+		Altnames:    types.ListNull(types.StringType),
 		ID:          types.StringValue("node1/" + iface),
 		Node:        types.StringValue("node1"),
 		Iface:       types.StringValue(iface),
@@ -839,7 +851,8 @@ func TestNodeNetworkOVSPortAdoptsExistingNIC(t *testing.T) {
 	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
 	schema := testResourceSchema(t, res)
 	config := nodeNetworkModel{
-		ID: types.StringValue("node1/eth1"), Node: types.StringValue("node1"), Iface: types.StringValue("eth1"),
+		Altnames: types.ListNull(types.StringType),
+		ID:       types.StringValue("node1/eth1"), Node: types.StringValue("node1"), Iface: types.StringValue("eth1"),
 		Type: types.StringValue(nodeNetworkTypeOVSPort), OVSBridge: types.StringValue("ovsbr0"),
 		BridgePorts: types.SetNull(types.StringType), Slaves: types.SetNull(types.StringType),
 		OVSPorts: types.SetNull(types.StringType), OVSBonds: types.SetNull(types.StringType),
@@ -923,7 +936,8 @@ func TestNodeNetworkDuplicateNonOVSPortKeepsOriginalError(t *testing.T) {
 
 func TestValidateNodeNetworkAliasConfig(t *testing.T) {
 	valid := nodeNetworkModel{
-		Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"),
+		Altnames: types.ListNull(types.StringType),
+		Node:     types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"),
 		Type: types.StringValue(nodeNetworkTypeAlias), Address: types.StringValue("10.0.0.2"), Netmask: types.StringValue("24"),
 		BridgePorts: types.SetNull(types.StringType), Slaves: types.SetNull(types.StringType), OVSBonds: types.SetNull(types.StringType), OVSPorts: types.SetNull(types.StringType),
 	}
@@ -931,7 +945,8 @@ func TestValidateNodeNetworkAliasConfig(t *testing.T) {
 		t.Fatalf("valid alias diagnostics: %v", diags)
 	}
 	valid6 := nodeNetworkModel{
-		Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:2"),
+		Altnames: types.ListNull(types.StringType),
+		Node:     types.StringValue("node1"), Iface: types.StringValue("vmbr1:2"),
 		Type: types.StringValue(nodeNetworkTypeAlias), Address6: types.StringValue("2001:db8::2"), Netmask6: types.Int64Value(64),
 	}
 	if diags := validateNodeNetworkConfig(valid6); diags.HasError() {
@@ -980,7 +995,8 @@ func TestNodeNetworkAliasCreateForm(t *testing.T) {
 	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
 	schema := testResourceSchema(t, res)
 	config := nodeNetworkModel{
-		Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"),
+		Altnames: types.ListNull(types.StringType),
+		Node:     types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"),
 		Type: types.StringValue(nodeNetworkTypeAlias), Address: types.StringValue("10.0.0.2"), Netmask: types.StringValue("24"),
 		BridgePorts: types.SetNull(types.StringType), Slaves: types.SetNull(types.StringType),
 		OVSPorts: types.SetNull(types.StringType), OVSBonds: types.SetNull(types.StringType),

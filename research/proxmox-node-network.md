@@ -178,7 +178,8 @@ resource; nothing else can decide when it is due.
   `address`/`address6`; PVE derives `exists` from the parent.
 - No digest; concurrent writers are last-write-wins under the file lock. Two interfaces
   of the same node in one apply are fine, two operators are not.
-- Physical NICs are only managed after import; `eth` renaming/altnames stay out of scope.
+- Physical NICs are only managed after import. Proxmox has no rename endpoint, so the
+  read-only `altnames` list is informational and `eth` entries keep their kernel name.
 
 ## Validation plan
 

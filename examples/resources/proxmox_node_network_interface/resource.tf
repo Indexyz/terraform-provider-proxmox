@@ -61,3 +61,7 @@ resource "proxmox_node_network_interface" "vmbr1_alias" {
   address = "10.0.0.2"
   netmask = "24"
 }
+
+# An imported physical NIC additionally reports its kernel alternate names;
+# they are informational only, the resource still uses `iface`.
+#   altnames = ["enp3s0", "eno1"]
