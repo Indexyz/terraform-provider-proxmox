@@ -29,6 +29,7 @@ func TestFirewallRuleResourceScopedLifecycles(t *testing.T) {
 		{name: "node", model: firewallRuleModel{Scope: types.StringValue("node"), Node: types.StringValue("pve one")}, path: "/api2/json/nodes/pve%20one/firewall/rules", update: true},
 		{name: "qemu guest", model: firewallRuleModel{Scope: types.StringValue("guest"), Node: types.StringValue("pve one"), GuestType: types.StringValue("qemu"), VMID: types.Int64Value(101)}, path: "/api2/json/nodes/pve%20one/qemu/101/firewall/rules", update: true},
 		{name: "security group", model: firewallRuleModel{Scope: types.StringValue("security_group"), SecurityGroup: types.StringValue("web-group")}, path: "/api2/json/cluster/firewall/groups/web-group", update: true},
+		{name: "vnet", model: firewallRuleModel{Scope: types.StringValue("vnet"), Vnet: types.StringValue("vn1")}, path: "/api2/json/cluster/sdn/vnets/vn1/firewall/rules", update: true},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

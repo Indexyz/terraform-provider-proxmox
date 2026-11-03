@@ -77,6 +77,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_ipam`
 - `proxmox_sdn_subnet`
 - `proxmox_sdn_vnet`
+- `proxmox_sdn_vnet_firewall_options`
 - `proxmox_sdn_zone`
 - `proxmox_storage`
 - `proxmox_storage_file_download`

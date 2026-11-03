@@ -14,6 +14,7 @@ import (
 
 type FirewallRuleScope struct {
 	Kind          string
+	Vnet          string
 	Node          string
 	GuestType     string
 	VMID          int64
@@ -189,6 +190,8 @@ func firewallRulesPath(scope FirewallRuleScope) (string, error) {
 		return fmt.Sprintf("/nodes/%s/%s/%d/firewall/rules", url.PathEscape(scope.Node), scope.GuestType, scope.VMID), nil
 	case "security_group":
 		return "/cluster/firewall/groups/" + url.PathEscape(scope.SecurityGroup), nil
+	case "vnet":
+		return "/cluster/sdn/vnets/" + url.PathEscape(scope.Vnet) + "/firewall/rules", nil
 	default:
 		return "", fmt.Errorf("unsupported firewall rule scope %q", scope.Kind)
 	}

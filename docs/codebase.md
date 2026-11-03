@@ -115,11 +115,11 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | HA rule methods | `/cluster/ha/rules[/{rule}]` | PVE 9 `node-affinity`/`resource-affinity` 放置规则 CRUD；collection read、fresh digest update、managed-field `delete`、直接幂等 DELETE，不调用 migrate/relocate/CRM。 |
 | Node network methods | `/nodes/{node}/network[/{iface}]` | 节点接口 staged CRUD（读写均走 collection 的 pending 视图），`PUT`/`DELETE` 集合端点分别用于显式 reload（UPID）与手动 revert。 |
 | SDN methods | `/cluster/sdn[/lock,/zones[/{zone}],/vnets[/{vnet}],/vnets/{vnet}/subnets[/{subnet}],/ipams[/{ipam}],/dns[/{dns}],/controllers[/{controller}]]` | 全局锁令牌 + staged 全部 SDN 对象 CRUD（digest CAS、`state`/`pending` 读取），`PUT /cluster/sdn` 才提交并 reload 全集群；subnet 创建发 CIDR、后续操作发内部 id。 |
-| Firewall methods | `/cluster/firewall/{options,rules,aliases,ipset,groups}`、node/guest `/firewall/{options,rules}` | 集群命名对象、cluster/node/guest/group rules 及防火墙选项管理。 |
+| Firewall methods | `/cluster/firewall/{options,rules,aliases,ipset,groups}`、node/guest `/firewall/{options,rules}`、`/cluster/sdn/vnets/{vnet}/firewall/{options,rules}` | 集群命名对象、cluster/node/guest/group/vnet rules 及防火墙选项管理。 |
 
 ## 资源
 
-当前注册 **36 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **37 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -131,7 +131,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_cluster_firewall_options` | 管理集群级防火墙启用、默认策略和日志限速。 |
 | `proxmox_cluster_firewall_security_group` | 管理集群级防火墙 security group。 |
 | `proxmox_cluster_metrics_server` | 管理 Graphite、InfluxDB 或 OpenTelemetry metrics server。 |
-| `proxmox_firewall_rule` | 通过 content identity 管理 cluster、node、QEMU/LXC guest 或 security group 防火墙规则。 |
+| `proxmox_firewall_rule` | 通过 content identity 管理 cluster、node、QEMU/LXC guest、security group 或 **SDN VNet** 防火墙规则。 |
 | `proxmox_group` | 管理 access group。 |
 | `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
 | `proxmox_ha_resource` | 管理现有 QEMU/LXC guest 的 PVE 9 HA enrollment、显式 requested state 和恢复策略；destroy 固定 `purge=0`，只退出 HA 管理。 |
@@ -154,6 +154,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_sdn_ipam` | 管理 `pve`/`netbox`/`phpipam` IPAM 的 staged 配置。 |
 | `proxmox_sdn_subnet` | 管理 staged SDN subnet（CIDR 身份、`gateway`/`snat`/`dhcp_range`/`dnszoneprefix`）；请求身份由 vnet + CIDR 映射到 Proxmox 内部 subnet id。 |
 | `proxmox_sdn_vnet` | 管理 staged SDN VNet（`zone` 引用、`tag`、`vlanaware`、`isolate_ports`、`alias`）；有 subnet 时 PVE 拒绝删除与 `vlanaware`。 |
+| `proxmox_sdn_vnet_firewall_options` | 管理 VNet 防火墙选项（`enable`/`policy_forward`/`log_level_forward`），**非 staged**、立即生效，删除时 reset 全部 key。 |
 | `proxmox_sdn_zone` | 管理 `simple`/`vlan`/`qinq`/`vxlan`/`evpn`/`faucet` 全部 zone 类型的 staged 配置（逐类型字段矩阵），锁令牌 + digest CAS，不自动提交。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
 | `proxmox_storage_file_download` | 下载并管理 storage 中的 ISO、LXC template 或 import image。 |
@@ -272,7 +273,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 36 个资源和 23 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 37 个资源和 23 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 

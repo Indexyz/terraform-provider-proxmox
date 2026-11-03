@@ -68,6 +68,7 @@ func TestFirewallRulesPath(t *testing.T) {
 		{FirewallRuleScope{Kind: "guest", Node: "pve-1", GuestType: "qemu", VMID: 101}, "/nodes/pve-1/qemu/101/firewall/rules"},
 		{FirewallRuleScope{Kind: "guest", Node: "pve-1", GuestType: "lxc", VMID: 102}, "/nodes/pve-1/lxc/102/firewall/rules"},
 		{FirewallRuleScope{Kind: "security_group", SecurityGroup: "web-servers"}, "/cluster/firewall/groups/web-servers"},
+		{FirewallRuleScope{Kind: "vnet", Vnet: "vn1"}, "/cluster/sdn/vnets/vn1/firewall/rules"},
 	}
 	for _, test := range tests {
 		got, err := firewallRulesPath(test.scope)

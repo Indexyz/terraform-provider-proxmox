@@ -36,6 +36,7 @@ type firewallRuleModel struct {
 	Scope         types.String `tfsdk:"scope"`
 	Node          types.String `tfsdk:"node"`
 	GuestType     types.String `tfsdk:"guest_type"`
+	Vnet          types.String `tfsdk:"vnet"`
 	VMID          types.Int64  `tfsdk:"vm_id"`
 	SecurityGroup types.String `tfsdk:"security_group"`
 	Type          types.String `tfsdk:"type"`
@@ -71,9 +72,10 @@ func (r *FirewallRuleResource) Schema(_ context.Context, _ resource.SchemaReques
 		MarkdownDescription: "Manages a Proxmox VE cluster, node, QEMU/LXC guest, or security-group firewall rule. Rules are matched by content; `pos` is computed and re-resolved immediately before every mutation. Import is not supported.",
 		Attributes: map[string]schema.Attribute{
 			"id":             schema.StringAttribute{Computed: true, MarkdownDescription: "Content-based rule identifier."},
-			"scope":          schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("cluster"), MarkdownDescription: "Ruleset scope: `cluster`, `node`, `guest`, or `security_group`. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"scope":          schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("cluster"), MarkdownDescription: "Ruleset scope: `cluster`, `node`, `guest`, `security_group`, or `vnet`. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"node":           schema.StringAttribute{Optional: true, MarkdownDescription: "Node name for node and guest scopes. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"guest_type":     schema.StringAttribute{Optional: true, MarkdownDescription: "Guest type `qemu` or `lxc` for guest scope. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"vnet":           schema.StringAttribute{Optional: true, MarkdownDescription: "SDN VNet name for vnet scope. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"vm_id":          schema.Int64Attribute{Optional: true, MarkdownDescription: "Guest VM/container ID for guest scope. Changes require replacement.", PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 			"security_group": schema.StringAttribute{Optional: true, MarkdownDescription: "Security group name for security_group scope. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"type":           schema.StringAttribute{Required: true, MarkdownDescription: "Rule direction: `in`, `out`, `forward`, or `group`.", PlanModifiers: []planmodifier.String{replaceIf()}},
@@ -141,6 +143,9 @@ func validateFirewallRuleConfig(config firewallRuleModel) diag.Diagnostics {
 		if configured(config.SecurityGroup) {
 			fields = append(fields, "security_group")
 		}
+		if configured(config.Vnet) {
+			fields = append(fields, "vnet")
+		}
 		if len(fields) > 0 {
 			unexpected(fields...)
 		}
@@ -157,6 +162,9 @@ func validateFirewallRuleConfig(config firewallRuleModel) diag.Diagnostics {
 		}
 		if configured(config.SecurityGroup) {
 			fields = append(fields, "security_group")
+		}
+		if configured(config.Vnet) {
+			fields = append(fields, "vnet")
 		}
 		if len(fields) > 0 {
 			unexpected(fields...)
@@ -178,6 +186,9 @@ func validateFirewallRuleConfig(config firewallRuleModel) diag.Diagnostics {
 		if configured(config.SecurityGroup) {
 			unexpected("security_group")
 		}
+		if configured(config.Vnet) {
+			unexpected("vnet")
+		}
 	case "security_group":
 		if !configured(config.SecurityGroup) {
 			diags.AddAttributeError(path.Root("security_group"), "Missing firewall security group", "security_group is required when scope is security_group")
@@ -195,8 +206,34 @@ func validateFirewallRuleConfig(config firewallRuleModel) diag.Diagnostics {
 		if len(fields) > 0 {
 			unexpected(fields...)
 		}
+		if configured(config.Vnet) {
+			fields = append(fields, "vnet")
+		}
+		if len(fields) > 0 {
+			unexpected(fields...)
+		}
+	case "vnet":
+		if !configured(config.Vnet) {
+			diags.AddAttributeError(path.Root("vnet"), "Missing firewall VNet", "vnet is required when scope is vnet")
+		}
+		var vnetFields []string
+		if configured(config.Node) {
+			vnetFields = append(vnetFields, "node")
+		}
+		if configured(config.GuestType) {
+			vnetFields = append(vnetFields, "guest_type")
+		}
+		if configuredVMID {
+			vnetFields = append(vnetFields, "vm_id")
+		}
+		if configured(config.SecurityGroup) {
+			vnetFields = append(vnetFields, "security_group")
+		}
+		if len(vnetFields) > 0 {
+			unexpected(vnetFields...)
+		}
 	default:
-		diags.AddAttributeError(path.Root("scope"), "Invalid firewall rule scope", "scope must be cluster, node, guest, or security_group")
+		diags.AddAttributeError(path.Root("scope"), "Invalid firewall rule scope", "scope must be cluster, node, guest, security_group, or vnet")
 	}
 	if !config.Type.IsNull() && !config.Type.IsUnknown() && !slices.Contains([]string{"in", "out", "forward", "group"}, config.Type.ValueString()) {
 		diags.AddAttributeError(path.Root("type"), "Invalid firewall rule type", "type must be in, out, forward, or group")
@@ -216,6 +253,7 @@ func firewallScopeFromModel(model firewallRuleModel) FirewallRuleScope {
 		Kind:          kind,
 		Node:          model.Node.ValueString(),
 		GuestType:     model.GuestType.ValueString(),
+		Vnet:          model.Vnet.ValueString(),
 		VMID:          model.VMID.ValueInt64(),
 		SecurityGroup: model.SecurityGroup.ValueString(),
 	}
@@ -258,6 +296,7 @@ func firewallRuleStateFromAPI(model firewallRuleModel, rule FirewallRule) firewa
 		GuestType:     model.GuestType,
 		VMID:          model.VMID,
 		SecurityGroup: model.SecurityGroup,
+		Vnet:          model.Vnet,
 		Type:          types.StringValue(rule.Type),
 		Action:        types.StringValue(rule.Action),
 		Enable:        enable,
@@ -286,6 +325,8 @@ func firewallRuleID(scope FirewallRuleScope, model firewallRuleModel) string {
 		location += fmt.Sprintf("/%s/%s/%d", scope.Node, scope.GuestType, scope.VMID)
 	case "security_group":
 		location += "/" + scope.SecurityGroup
+	case "vnet":
+		location += "/" + scope.Vnet
 	}
 	identity, _ := json.Marshal([]string{
 		location,

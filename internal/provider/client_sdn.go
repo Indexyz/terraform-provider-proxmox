@@ -716,3 +716,43 @@ func sdnControllerForm(req SDNControllerRequest) url.Values {
 	setOptionalString(form, "route-map-out", req.RouteMapOut)
 	return form
 }
+
+// SDNVnetFirewallOptions are the firewall options of one SDN VNet.
+type SDNVnetFirewallOptions struct {
+	Enable          proxmoxOptionalBool `json:"enable"`
+	PolicyForward   string              `json:"policy_forward"`
+	LogLevelForward string              `json:"log_level_forward"`
+	Digest          string              `json:"digest"`
+}
+
+type SDNVnetFirewallOptionsRequest struct {
+	Enable          *bool
+	PolicyForward   *string
+	LogLevelForward *string
+	Digest          *string
+	Delete          []string
+}
+
+func sdnVnetFirewallOptionsPath(vnet string) string {
+	return "/cluster/sdn/vnets/" + url.PathEscape(vnet) + "/firewall/options"
+}
+
+func (c *Client) GetSDNVnetFirewallOptions(ctx context.Context, vnet string) (SDNVnetFirewallOptions, error) {
+	var options SDNVnetFirewallOptions
+	if err := c.do(ctx, http.MethodGet, sdnVnetFirewallOptionsPath(vnet), nil, nil, &options); err != nil {
+		return SDNVnetFirewallOptions{}, err
+	}
+	return options, nil
+}
+
+func (c *Client) SetSDNVnetFirewallOptions(ctx context.Context, vnet string, req SDNVnetFirewallOptionsRequest) error {
+	form := url.Values{}
+	setOptionalBool(form, "enable", req.Enable)
+	setOptionalString(form, "policy_forward", req.PolicyForward)
+	setOptionalString(form, "log_level_forward", req.LogLevelForward)
+	setOptionalString(form, "digest", req.Digest)
+	if len(req.Delete) > 0 {
+		form.Set("delete", strings.Join(sortedStrings(req.Delete), ","))
+	}
+	return c.do(ctx, http.MethodPut, sdnVnetFirewallOptionsPath(vnet), nil, form, nil)
+}

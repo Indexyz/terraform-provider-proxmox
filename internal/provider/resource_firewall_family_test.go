@@ -20,7 +20,7 @@ func TestClusterFirewallObjectResourceSchemas(t *testing.T) {
 		{NewClusterFirewallIPSetResource(), 3},
 		{NewClusterFirewallIPSetEntryResource(), 5},
 		{NewClusterFirewallSecurityGroupResource(), 3},
-		{NewFirewallRuleResource(), 20},
+		{NewFirewallRuleResource(), 21},
 	}
 	for _, test := range tests {
 		var resp resource.SchemaResponse
@@ -40,6 +40,7 @@ func TestValidateFirewallRuleConfig(t *testing.T) {
 		{Scope: types.StringValue("node"), Node: types.StringValue("pve-1"), Type: types.StringValue("out")},
 		{Scope: types.StringValue("guest"), Node: types.StringValue("pve-1"), GuestType: types.StringValue("qemu"), VMID: types.Int64Value(101), Type: types.StringValue("in")},
 		{Scope: types.StringValue("security_group"), SecurityGroup: types.StringValue("web-servers"), Type: types.StringValue("forward")},
+		{Scope: types.StringValue("vnet"), Vnet: types.StringValue("vn1"), Type: types.StringValue("forward")},
 	}
 	for _, config := range valid {
 		if diags := validateFirewallRuleConfig(config); diags.HasError() {
@@ -53,6 +54,9 @@ func TestValidateFirewallRuleConfig(t *testing.T) {
 		{Scope: types.StringValue("security_group"), Node: types.StringValue("pve-1"), SecurityGroup: types.StringValue("web"), Type: types.StringValue("in")},
 		{Scope: types.StringValue("cluster"), SecurityGroup: types.StringValue("web"), Type: types.StringValue("in")},
 		{Scope: types.StringValue("sdn"), Type: types.StringValue("in")},
+		{Scope: types.StringValue("vnet"), Type: types.StringValue("in")},
+		{Scope: types.StringValue("vnet"), Vnet: types.StringValue("vn1"), Node: types.StringValue("pve-1"), Type: types.StringValue("in")},
+		{Scope: types.StringValue("node"), Vnet: types.StringValue("vn1"), Node: types.StringValue("pve-1"), Type: types.StringValue("in")},
 		{Type: types.StringValue("invalid")},
 		{Type: types.StringValue("in"), Enable: types.Int64Value(2)},
 	}
