@@ -501,3 +501,286 @@ func TestNodeNetworkOVSStateAndForms(t *testing.T) {
 		t.Fatalf("ovs fields were not encoded: %#v", form)
 	}
 }
+
+// ovsBridgeMock serves a node with one OVS bridge and records bridge updates so
+// the port membership cross-write can be asserted.
+func ovsBridgeMock(t *testing.T, handler *lifecycleHandler, calls *[]string, bridgeUpdates *[]url.Values) *httptest.Server {
+	t.Helper()
+	interfaces := map[string]map[string]any{
+		"ovsbr0": {"iface": "ovsbr0", "type": "OVSBridge", "ovs_ports": "eth9"},
+	}
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		*calls = append(*calls, r.Method+" "+r.URL.EscapedPath())
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/node1/network":
+			list := make([]map[string]any, 0, len(interfaces))
+			for _, entry := range interfaces {
+				list = append(list, entry)
+			}
+			handler.envelope(w, list)
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/node1/network":
+			if err := r.ParseForm(); err != nil {
+				handler.fail(w, "parse create form: %v", err)
+				return
+			}
+			iface := r.Form.Get("iface")
+			interfaces[iface] = map[string]any{"iface": iface, "type": r.Form.Get("type"), "ovs_bridge": r.Form.Get("ovs_bridge")}
+			handler.envelope(w, nil)
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.EscapedPath(), "/api2/json/nodes/node1/network/"):
+			if err := r.ParseForm(); err != nil {
+				handler.fail(w, "parse bridge form: %v", err)
+				return
+			}
+			*bridgeUpdates = append(*bridgeUpdates, r.Form)
+			bridge := strings.TrimPrefix(r.URL.EscapedPath(), "/api2/json/nodes/node1/network/")
+			interfaces[bridge]["ovs_ports"] = r.Form.Get("ovs_ports")
+			handler.envelope(w, nil)
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/api2/json/nodes/node1/network/"):
+			delete(interfaces, strings.TrimPrefix(r.URL.EscapedPath(), "/api2/json/nodes/node1/network/"))
+			handler.envelope(w, nil)
+		default:
+			handler.fail(w, "unexpected OVS request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+}
+
+func TestNodeNetworkOVSPortMaintainsBridgeMembership(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
+	var bridgeUpdates []url.Values
+	server := ovsBridgeMock(t, handler, &calls, &bridgeUpdates)
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := ovsPortTestModel("ovsbr0")
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if createResp.Diagnostics.HasError() {
+		t.Fatalf("create diagnostics: %v", createResp.Diagnostics)
+	}
+	if len(bridgeUpdates) != 1 || bridgeUpdates[0].Get("ovs_ports") != "eth9 ovsp1" || bridgeUpdates[0].Get("type") != "nodeNetworkTypeOVSBridge" && bridgeUpdates[0].Get("type") != "OVSBridge" {
+		t.Fatalf("port was not appended to the bridge ports: %#v", bridgeUpdates)
+	}
+
+	deleteResp := resource.DeleteResponse{State: createResp.State}
+	res.Delete(ctx, resource.DeleteRequest{State: createResp.State}, &deleteResp)
+	if deleteResp.Diagnostics.HasError() {
+		t.Fatalf("delete diagnostics: %v", deleteResp.Diagnostics)
+	}
+	if len(bridgeUpdates) != 2 || bridgeUpdates[1].Get("ovs_ports") != "eth9" {
+		t.Fatalf("port was not removed from the bridge ports: %#v", bridgeUpdates)
+	}
+	// The detach must happen before the interface deletion so no dangling
+	// bridge reference is left behind.
+	putIndex, deleteIndex := -1, -1
+	for index, call := range calls {
+		if call == "PUT /api2/json/nodes/node1/network/ovsbr0" && putIndex < 0 && index > 0 {
+			putIndex = index
+		}
+		if call == "DELETE /api2/json/nodes/node1/network/ovsp1" {
+			deleteIndex = index
+		}
+	}
+	if putIndex < 0 || deleteIndex < putIndex {
+		t.Fatalf("unexpected call order: %v", calls)
+	}
+	for _, failure := range handler.failures {
+		t.Fatal(failure)
+	}
+}
+
+func TestNodeNetworkOVSPortWithoutBridgeSkipsMembership(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
+	var bridgeUpdates []url.Values
+	server := ovsBridgeMock(t, handler, &calls, &bridgeUpdates)
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := ovsPortTestModel("")
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if createResp.Diagnostics.HasError() {
+		t.Fatalf("create diagnostics: %v", createResp.Diagnostics)
+	}
+	if len(bridgeUpdates) != 0 {
+		t.Fatalf("unattached port must not touch the bridge: %#v", bridgeUpdates)
+	}
+}
+
+func TestNodeNetworkOVSPortRelocateMovesMembership(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var calls []string
+	var bridgeUpdates []url.Values
+	server := ovsBridgeMock(t, handler, &calls, &bridgeUpdates)
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	prior := ovsPortTestModel("ovsbr0")
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, prior), Plan: testResourcePlan(t, schema, prior)}, &createResp)
+	if createResp.Diagnostics.HasError() {
+		t.Fatalf("create diagnostics: %v", createResp.Diagnostics)
+	}
+	bridgeUpdates = nil
+
+	// Re-point the port to a second bridge.
+	handler2 := &lifecycleHandler{}
+	interfaces := map[string]map[string]any{
+		"ovsbr0": {"iface": "ovsbr0", "type": "OVSBridge", "ovs_ports": "ovsp1"},
+		"ovsp1":  {"iface": "ovsp1", "type": "OVSPort", "ovs_bridge": "ovsbr0"},
+		"ovsbr1": {"iface": "ovsbr1", "type": "OVSBridge", "ovs_ports": ""},
+	}
+	var calls2 []string
+	var updates2 []url.Values
+	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler2.auth(w, r) {
+			return
+		}
+		calls2 = append(calls2, r.Method+" "+r.URL.EscapedPath())
+		switch r.Method {
+		case http.MethodGet:
+			list := make([]map[string]any, 0, len(interfaces))
+			for _, entry := range interfaces {
+				list = append(list, entry)
+			}
+			handler2.envelope(w, list)
+		case http.MethodPut:
+			if err := r.ParseForm(); err != nil {
+				handler2.fail(w, "parse bridge form: %v", err)
+				return
+			}
+			updates2 = append(updates2, r.Form)
+			bridge := strings.TrimPrefix(r.URL.EscapedPath(), "/api2/json/nodes/node1/network/")
+			if _, ok := interfaces[bridge]; !ok {
+				// The port itself is updated too; keep its record.
+				interfaces["ovsp1"]["ovs_bridge"] = r.Form.Get("ovs_bridge")
+				handler2.envelope(w, nil)
+				return
+			}
+			interfaces[bridge]["ovs_ports"] = r.Form.Get("ovs_ports")
+			handler2.envelope(w, nil)
+		default:
+			handler2.fail(w, "unexpected relocate request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server2.Close()
+
+	res2 := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server2)}
+	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schema.Schema}, Private: createResp.Private}
+	res2.Update(ctx, resource.UpdateRequest{
+		Config:  testResourceConfig(t, schema, func() nodeNetworkModel { next := prior; next.OVSBridge = types.StringValue("ovsbr1"); return next }()),
+		Plan:    testResourcePlan(t, schema, func() nodeNetworkModel { next := prior; next.OVSBridge = types.StringValue("ovsbr1"); return next }()),
+		State:   createResp.State,
+		Private: createResp.Private,
+	}, &updateResp)
+	if updateResp.Diagnostics.HasError() {
+		t.Fatalf("relocate diagnostics: %v", updateResp.Diagnostics)
+	}
+	if got := interfaces["ovsbr0"]["ovs_ports"]; got != "" {
+		t.Fatalf("old bridge still lists the port: %v", got)
+	}
+	if got := interfaces["ovsbr1"]["ovs_ports"]; got != "ovsp1" {
+		t.Fatalf("new bridge does not list the port: %v", got)
+	}
+	for _, failure := range handler2.failures {
+		t.Fatal(failure)
+	}
+}
+
+func TestNodeNetworkOVSPortAttachFailureSurfaces(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			handler.envelope(w, []map[string]any{{"iface": "ovsbr0", "type": "OVSBridge"}})
+		case http.MethodPost:
+			handler.envelope(w, nil)
+		case http.MethodPut:
+			writeAPIError(t, w, http.StatusInternalServerError, "bridge locked")
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := ovsPortTestModel("ovsbr0")
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if !createResp.Diagnostics.HasError() || !strings.Contains(createResp.Diagnostics[0].Detail(), "bridge locked") {
+		t.Fatalf("attach failure was not surfaced: %v", createResp.Diagnostics)
+	}
+}
+
+func TestNodeNetworkOVSPortDeleteToleratesMissingBridge(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	var deleted bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			// The bridge is gone, the port record still points at it.
+			handler.envelope(w, []map[string]any{{"iface": "ovsp1", "type": "OVSPort", "ovs_bridge": "ovsbr-gone"}})
+		case http.MethodDelete:
+			deleted = true
+			handler.envelope(w, nil)
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	state := ovsPortTestModel("ovsbr-gone")
+	deleteResp := resource.DeleteResponse{State: testResourceState(t, schema, state)}
+	res.Delete(ctx, resource.DeleteRequest{State: deleteResp.State}, &deleteResp)
+	if deleteResp.Diagnostics.HasError() {
+		t.Fatalf("delete diagnostics: %v", deleteResp.Diagnostics)
+	}
+	if !deleted {
+		t.Fatal("port was not deleted after the detach failed with not-found")
+	}
+}
+
+// ovsPortModel builds an OVS port model with every set attribute typed null so
+// tfsdk values convert cleanly.
+func ovsPortTestModel(bridge string) nodeNetworkModel {
+	const iface = "ovsp1"
+	model := nodeNetworkModel{
+		ID:          types.StringValue("node1/" + iface),
+		Node:        types.StringValue("node1"),
+		Iface:       types.StringValue(iface),
+		Type:        types.StringValue(nodeNetworkTypeOVSPort),
+		BridgePorts: types.SetNull(types.StringType),
+		Slaves:      types.SetNull(types.StringType),
+		OVSPorts:    types.SetNull(types.StringType),
+		OVSBonds:    types.SetNull(types.StringType),
+	}
+	if bridge != "" {
+		model.OVSBridge = types.StringValue(bridge)
+	}
+	return model
+}

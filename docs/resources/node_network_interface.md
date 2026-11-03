@@ -93,7 +93,7 @@ resource "proxmox_node_network_interface" "tenant100" {
 - `netmask` (String) IPv4 netmask. Must be paired with `address`.
 - `netmask6` (Number) IPv6 prefix length between 0 and 128. Must be paired with `address6`.
 - `ovs_bonds` (Set of String) Slave interfaces of an `OVSBond`.
-- `ovs_bridge` (String) Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise.
+- `ovs_bridge` (String) Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise. Configuring it also attaches the port to the bridge port list on create and detaches it on destroy or when the parent changes.
 - `ovs_options` (String) Raw Open vSwitch options, for example `trunks=100,200`.
 - `ovs_tag` (Number) VLAN tag of an OVS port, 1 to 4094.
 - `slaves` (Set of String) Bond member interfaces.
@@ -103,4 +103,4 @@ resource "proxmox_node_network_interface" "tenant100" {
 ### Read-Only
 
 - `id` (String) Interface identifier in `<node>/<iface>` form.
-- `ovs_ports` (Set of String) Ports Proxmox currently records on an `OVSBridge`. Proxmox maintains the list from the port interfaces themselves, so it is computed-only.
+- `ovs_ports` (Set of String) Ports on this `OVSBridge`. Proxmox only appends OVSIntPort/OVSBond itself, so the provider maintains the list from the OVS port resources (attach on create, detach on destroy or relocation). Computed-only.

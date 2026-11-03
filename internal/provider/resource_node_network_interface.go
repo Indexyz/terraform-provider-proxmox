@@ -118,10 +118,10 @@ func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.Sche
 			"bond_primary":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Primary interface for an `active-backup` bond."},
 			"vlan_id":         schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "VLAN tag between 1 and 4094."},
 			"vlan_raw_device": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Raw interface the VLAN sits on."},
-			"ovs_ports":       schema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Ports Proxmox currently records on an `OVSBridge`. Proxmox maintains the list from the port interfaces themselves, so it is computed-only."},
+			"ovs_ports":       schema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Ports on this `OVSBridge`. Proxmox only appends OVSIntPort/OVSBond itself, so the provider maintains the list from the OVS port resources (attach on create, detach on destroy or relocation). Computed-only."},
 			"ovs_tag":         schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "VLAN tag of an OVS port, 1 to 4094."},
 			"ovs_options":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Raw Open vSwitch options, for example `trunks=100,200`."},
-			"ovs_bridge":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise."},
+			"ovs_bridge":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise. Configuring it also attaches the port to the bridge port list on create and detaches it on destroy or when the parent changes."},
 			"ovs_bonds":       schema.SetAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Slave interfaces of an `OVSBond`."},
 		},
 	}
@@ -415,6 +415,12 @@ func (r *NodeNetworkInterfaceResource) Create(ctx context.Context, req resource.
 		resp.Diagnostics.AddError("Unable to Create Proxmox Node Network Interface", err.Error())
 		return
 	}
+	if isConfiguredValue(plan.OVSBridge) {
+		if err := r.client.AddNodeNetworkOVSPort(ctx, plan.Node.ValueString(), plan.OVSBridge.ValueString(), plan.Iface.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Unable to Attach Proxmox OVS Port to its Bridge", err.Error())
+			return
+		}
+	}
 	state, stateDiags := r.readState(ctx, plan.Node.ValueString(), plan.Iface.ValueString())
 	resp.Diagnostics.Append(stateDiags...)
 	if resp.Diagnostics.HasError() {
@@ -472,6 +478,20 @@ func (r *NodeNetworkInterfaceResource) Update(ctx context.Context, req resource.
 		resp.Diagnostics.AddError("Unable to Update Proxmox Node Network Interface", err.Error())
 		return
 	}
+	if prior.OVSBridge.ValueString() != plan.OVSBridge.ValueString() {
+		if isConfiguredValue(prior.OVSBridge) {
+			if err := r.client.RemoveNodeNetworkOVSPort(ctx, prior.Node.ValueString(), prior.OVSBridge.ValueString(), prior.Iface.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Unable to Detach Proxmox OVS Port from its old Bridge", err.Error())
+				return
+			}
+		}
+		if isConfiguredValue(plan.OVSBridge) {
+			if err := r.client.AddNodeNetworkOVSPort(ctx, plan.Node.ValueString(), plan.OVSBridge.ValueString(), plan.Iface.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Unable to Attach Proxmox OVS Port to its Bridge", err.Error())
+				return
+			}
+		}
+	}
 	state, stateDiags := r.readState(ctx, prior.Node.ValueString(), prior.Iface.ValueString())
 	resp.Diagnostics.Append(stateDiags...)
 	if resp.Diagnostics.HasError() {
@@ -486,6 +506,12 @@ func (r *NodeNetworkInterfaceResource) Delete(ctx context.Context, req resource.
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	if isConfiguredValue(state.OVSBridge) && slices.Contains([]string{nodeNetworkTypeOVSPort, nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}, state.Type.ValueString()) {
+		if err := r.client.RemoveNodeNetworkOVSPort(ctx, state.Node.ValueString(), state.OVSBridge.ValueString(), state.Iface.ValueString()); err != nil && !errors.Is(err, errNotFound) {
+			resp.Diagnostics.AddError("Unable to Detach Proxmox OVS Port from its Bridge", err.Error())
+			return
+		}
 	}
 	if err := r.client.DeleteNodeNetworkInterface(ctx, state.Node.ValueString(), state.Iface.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Unable to Delete Proxmox Node Network Interface", err.Error())

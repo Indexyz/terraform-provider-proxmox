@@ -140,7 +140,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
-| `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口自动维护父桥 `ovs_ports`。 |
+| `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子、显式 `power` 电源协调和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -175,4 +176,59 @@ func nodeNetworkInterfaceForm(req NodeNetworkInterfaceRequest) url.Values {
 		form.Set("ovs_bonds", strings.Join(sortedStrings(req.OVSBonds), " "))
 	}
 	return form
+}
+
+// NodeNetworkOVSPorts returns the ports currently recorded on an OVS bridge.
+// Proxmox keeps the bridge port list authoritative for OVS activation, but only
+// appends/removes it for OVSIntPort and OVSBond, so OVSPort membership has to be
+// maintained here.
+func (c *Client) NodeNetworkOVSPorts(ctx context.Context, node, bridge string) ([]string, error) {
+	entry, err := c.GetNodeNetworkInterface(ctx, node, bridge)
+	if err != nil {
+		return nil, err
+	}
+	if entry.Type != nodeNetworkTypeOVSBridge {
+		return nil, fmt.Errorf("interface %q on node %q is %q, not an OVS bridge", bridge, node, entry.Type)
+	}
+	return strings.Fields(entry.OVSPorts), nil
+}
+
+// AddNodeNetworkOVSPort records port on the bridge port list if it is missing.
+func (c *Client) AddNodeNetworkOVSPort(ctx context.Context, node, bridge, port string) error {
+	return c.mutateNodeNetworkOVSPorts(ctx, node, bridge, func(ports []string) ([]string, bool) {
+		if slices.Contains(ports, port) {
+			return ports, false
+		}
+		return append(ports, port), true
+	})
+}
+
+// RemoveNodeNetworkOVSPort drops port from the bridge port list if present.
+func (c *Client) RemoveNodeNetworkOVSPort(ctx context.Context, node, bridge, port string) error {
+	return c.mutateNodeNetworkOVSPorts(ctx, node, bridge, func(ports []string) ([]string, bool) {
+		if !slices.Contains(ports, port) {
+			return ports, false
+		}
+		return slices.DeleteFunc(ports, func(entry string) bool { return entry == port }), true
+	})
+}
+
+func (c *Client) mutateNodeNetworkOVSPorts(ctx context.Context, node, bridge string, mutate func([]string) ([]string, bool)) error {
+	entry, err := c.GetNodeNetworkInterface(ctx, node, bridge)
+	if err != nil {
+		return err
+	}
+	if entry.Type != nodeNetworkTypeOVSBridge {
+		return fmt.Errorf("interface %q on node %q is %q, not an OVS bridge", bridge, node, entry.Type)
+	}
+	ports, changed := mutate(strings.Fields(entry.OVSPorts))
+	if !changed {
+		return nil
+	}
+	slices.Sort(ports)
+	form := url.Values{
+		"type":      {entry.Type},
+		"ovs_ports": {strings.Join(ports, " ")},
+	}
+	return c.do(ctx, http.MethodPut, nodeNetworkPath(node)+"/"+url.PathEscape(bridge), nil, form, nil)
 }

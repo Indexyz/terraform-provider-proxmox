@@ -94,7 +94,7 @@ derived keys also appear in reads; the resource does not expose them.
 
 Duplicate default gateways and duplicate ports across interfaces are rejected. OVS
 interface creation also rewrites the parent bridge's `ovs_ports`, and `OVSIntPort` /
-`OVSBond` deletion rewrites it again.
+`OVSBond` deletion rewrites it again and `OVSPort` creation/deletion leaves the list untouched, so the provider maintains `ovs_ports` itself for every OVS port (append on create, remove on destroy or when the parent changes).
 
 The interface writer emits an empty port list as `bridge-ports none` /
 `bond-slaves none`, so reads normalize that sentinel back to an empty set; without
