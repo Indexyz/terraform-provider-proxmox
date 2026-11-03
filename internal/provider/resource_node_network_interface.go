@@ -30,6 +30,7 @@ const (
 	nodeNetworkTypeBridge     = "bridge"
 	nodeNetworkTypeBond       = "bond"
 	nodeNetworkTypeVLAN       = "vlan"
+	nodeNetworkTypeAlias      = "alias"
 	nodeNetworkTypeEth        = "eth"
 	nodeNetworkTypeOVSBridge  = "OVSBridge"
 	nodeNetworkTypeOVSPort    = "OVSPort"
@@ -37,7 +38,7 @@ const (
 	nodeNetworkTypeOVSBond    = "OVSBond"
 )
 
-var nodeNetworkTypes = []string{nodeNetworkTypeBridge, nodeNetworkTypeBond, nodeNetworkTypeVLAN, nodeNetworkTypeEth, nodeNetworkTypeOVSBridge, nodeNetworkTypeOVSPort, nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}
+var nodeNetworkTypes = []string{nodeNetworkTypeBridge, nodeNetworkTypeBond, nodeNetworkTypeVLAN, nodeNetworkTypeAlias, nodeNetworkTypeEth, nodeNetworkTypeOVSBridge, nodeNetworkTypeOVSPort, nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}
 
 type NodeNetworkInterfaceResource struct {
 	client *Client
@@ -93,8 +94,8 @@ func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.Sche
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, MarkdownDescription: "Interface identifier in `<node>/<iface>` form.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"node":         schema.StringAttribute{Required: true, MarkdownDescription: "Cluster node that owns the interface. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"iface":        schema.StringAttribute{Required: true, MarkdownDescription: "Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`. Must not already exist, except that an existing `eth` interface can be converted into an `OVSPort`; changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"type":         schema.StringAttribute{Required: true, MarkdownDescription: "Interface type: `bridge`, `bond`, `vlan`, `eth`, or an OVS type (`OVSBridge`, `OVSPort`, `OVSIntPort`, `OVSBond`). Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"iface":        schema.StringAttribute{Required: true, MarkdownDescription: "Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`; an `alias` interface is named `<parent>:<n>`, for example `vmbr1:1`. Must not already exist, except that an existing `eth` interface can be converted into an `OVSPort`; changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"type":         schema.StringAttribute{Required: true, MarkdownDescription: "Interface type: `bridge`, `bond`, `vlan`, `alias`, `eth`, or an OVS type (`OVSBridge`, `OVSPort`, `OVSIntPort`, `OVSBond`). `alias` interfaces add an extra address to a parent interface, see `iface`. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"autostart":    schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Bring the interface up on boot."},
 			"mtu":          schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Interface MTU between 1280 and 65520."},
 			"comments":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv4 comment stored as `comments`."},
@@ -208,7 +209,7 @@ func validateNodeNetworkConfig(config nodeNetworkModel) diag.Diagnostics {
 		return diags
 	}
 	if !slices.Contains(nodeNetworkTypes, config.Type.ValueString()) {
-		diags.AddAttributeError(path.Root("type"), "Invalid interface type", "type must be bridge, bond, vlan, eth, OVSBridge, OVSPort, OVSIntPort, or OVSBond.")
+		diags.AddAttributeError(path.Root("type"), "Invalid interface type", "type must be bridge, bond, vlan, alias, eth, OVSBridge, OVSPort, OVSIntPort, or OVSBond.")
 	}
 	interfaceType := config.Type.ValueString()
 	if isConfiguredValue(config.BondMode) {
@@ -222,6 +223,19 @@ func validateNodeNetworkConfig(config nodeNetworkModel) diag.Diagnostics {
 	}
 	if slices.Contains([]string{nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}, interfaceType) && !isConfiguredValue(config.OVSBridge) {
 		diags.AddAttributeError(path.Root("ovs_bridge"), "Missing OVS bridge", fmt.Sprintf("ovs_bridge is required for %s interfaces.", interfaceType))
+	}
+	if isConfiguredValue(config.Iface) {
+		iface := config.Iface.ValueString()
+		hasAliasSuffix := nodeNetworkAliasName.MatchString(iface)
+		switch {
+		case interfaceType == nodeNetworkTypeAlias && !hasAliasSuffix:
+			diags.AddAttributeError(path.Root("iface"), "Invalid alias name", "alias interfaces are named `<parent>:<n>`, for example `vmbr1:1`.")
+		case interfaceType != nodeNetworkTypeAlias && hasAliasSuffix:
+			diags.AddAttributeError(path.Root("iface"), "Alias name without alias type", "an interface name with a `:<n>` suffix requires type alias.")
+		}
+	}
+	if interfaceType == nodeNetworkTypeAlias && !configuredV4 && !configuredV6 {
+		diags.AddAttributeError(path.Root("address"), "Missing alias address", "an alias interface needs address/netmask or address6/netmask6.")
 	}
 	return diags
 }

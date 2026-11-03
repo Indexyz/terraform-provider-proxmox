@@ -920,3 +920,84 @@ func TestNodeNetworkDuplicateNonOVSPortKeepsOriginalError(t *testing.T) {
 		t.Fatalf("duplicate OVSBridge was not reported: %v", createResp.Diagnostics)
 	}
 }
+
+func TestValidateNodeNetworkAliasConfig(t *testing.T) {
+	valid := nodeNetworkModel{
+		Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"),
+		Type: types.StringValue(nodeNetworkTypeAlias), Address: types.StringValue("10.0.0.2"), Netmask: types.StringValue("24"),
+		BridgePorts: types.SetNull(types.StringType), Slaves: types.SetNull(types.StringType), OVSBonds: types.SetNull(types.StringType), OVSPorts: types.SetNull(types.StringType),
+	}
+	if diags := validateNodeNetworkConfig(valid); diags.HasError() {
+		t.Fatalf("valid alias diagnostics: %v", diags)
+	}
+	valid6 := nodeNetworkModel{
+		Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:2"),
+		Type: types.StringValue(nodeNetworkTypeAlias), Address6: types.StringValue("2001:db8::2"), Netmask6: types.Int64Value(64),
+	}
+	if diags := validateNodeNetworkConfig(valid6); diags.HasError() {
+		t.Fatalf("valid IPv6 alias diagnostics: %v", diags)
+	}
+
+	invalid := map[string]nodeNetworkModel{
+		"alias without suffix": {
+			Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1"),
+			Type: types.StringValue(nodeNetworkTypeAlias), Address: types.StringValue("10.0.0.2"), Netmask: types.StringValue("24"),
+		},
+		"alias without address": {
+			Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"), Type: types.StringValue(nodeNetworkTypeAlias),
+		},
+		"alias suffix on bridge": {
+			Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"), Type: types.StringValue(nodeNetworkTypeBridge),
+		},
+	}
+	for name, config := range invalid {
+		if diags := validateNodeNetworkConfig(config); !diags.HasError() {
+			t.Fatalf("%s: expected invalid diagnostics: %#v", name, config)
+		}
+	}
+}
+
+func TestNodeNetworkAliasCreateForm(t *testing.T) {
+	handler := &lifecycleHandler{}
+	var gotForm url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch {
+		case r.Method == http.MethodGet:
+			handler.envelope(w, []any{map[string]any{"iface": "vmbr1:1", "type": nodeNetworkTypeAlias, "address": "10.0.0.2", "netmask": "24"}})
+		case r.Method == http.MethodPost && r.URL.Path == "/api2/json/nodes/node1/network":
+			_ = r.ParseForm()
+			gotForm = r.PostForm
+			handler.envelope(w, nil)
+		default:
+			handler.fail(w, "unexpected alias request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := nodeNetworkModel{
+		Node: types.StringValue("node1"), Iface: types.StringValue("vmbr1:1"),
+		Type: types.StringValue(nodeNetworkTypeAlias), Address: types.StringValue("10.0.0.2"), Netmask: types.StringValue("24"),
+		BridgePorts: types.SetNull(types.StringType), Slaves: types.SetNull(types.StringType),
+		OVSPorts: types.SetNull(types.StringType), OVSBonds: types.SetNull(types.StringType),
+	}
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(context.Background(), resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if createResp.Diagnostics.HasError() {
+		t.Fatalf("alias create diagnostics: %v", createResp.Diagnostics)
+	}
+	if got := gotForm.Get("type"); got != nodeNetworkTypeAlias {
+		t.Fatalf("unexpected alias type form: %q", got)
+	}
+	if got := gotForm.Get("iface"); got != "vmbr1:1" || gotForm.Get("address") != "10.0.0.2" || gotForm.Get("netmask") != "24" {
+		t.Fatalf("unexpected alias form: %#v", gotForm)
+	}
+	for _, failure := range handler.failures {
+		t.Fatal(failure)
+	}
+}

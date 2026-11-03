@@ -18,6 +18,8 @@ var (
 	proxmoxNodeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
 	// proxmoxIfacePattern is PVE's `pve-iface` format.
 	proxmoxIfacePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{1,20}([.:][0-9]+)?$`)
+	// nodeNetworkAliasName is the `<parent>:<n>` form PVE parses as type alias.
+	nodeNetworkAliasName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{1,20}:[0-9]+$`)
 )
 
 func clientFromProviderData(data any) (*Client, error) {

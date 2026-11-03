@@ -172,11 +172,13 @@ resource; nothing else can decide when it is due.
   still drop the management connection, and `ifreload -a` is not transactional — the
   node may need console access. Documented, not defended against.
 - No quorum or node-online pre-check: the API itself proxies and fails.
-- No automatic revert resource in the first slice; `DELETE /nodes/{node}/network` is the
-  manual escape hatch.
+- `proxmox_node_network_revert` wraps `DELETE /nodes/{node}/network`; Proxmox always
+  reverts the whole node, never one interface.
+- `alias` interfaces are supported as typed `alias` slots named `<parent>:<n>` with
+  `address`/`address6`; PVE derives `exists` from the parent.
 - No digest; concurrent writers are last-write-wins under the file lock. Two interfaces
   of the same node in one apply are fine, two operators are not.
-- Physical NICs are only managed after import; renaming/altnames stay out of scope.
+- Physical NICs are only managed after import; `eth` renaming/altnames stay out of scope.
 
 ## Validation plan
 

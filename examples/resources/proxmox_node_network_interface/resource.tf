@@ -51,3 +51,13 @@ resource "proxmox_node_network_interface" "tenant100" {
   ovs_tag     = 100
   ovs_options = "trunks=100,200"
 }
+
+# An alias interface adds an extra address to a parent bridge. The name needs
+# the `:<n>` suffix; Proxmox only keeps the alias while the parent exists.
+resource "proxmox_node_network_interface" "vmbr1_alias" {
+  node    = "node1"
+  iface   = "vmbr1:1"
+  type    = "alias"
+  address = "10.0.0.2"
+  netmask = "24"
+}
