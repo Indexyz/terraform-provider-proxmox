@@ -184,6 +184,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewACLDataSource,
 		NewBackupJobsDataSource,
 		NewClusterMetricsServersDataSource,
+		NewFirewallRulesDataSource,
 		NewGroupDataSource,
 		NewGroupsDataSource,
 		NewHAResourcesDataSource,

@@ -113,6 +113,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_acl`、`proxmox_backup_jobs`、`proxmox_replication_jobs` 列表数据源（path/type、node、guest 过滤，排序输出）。
 
+- 新增 `proxmox_firewall_rules` 列表数据源：按 scope（cluster/node/guest/security_group/vnet）读取，输出 `pos`/`digest` 与全部规则字段。
+
 ## 接下来
 
 ### 已完成（本轮）

@@ -128,6 +128,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_backup_jobs",
 		"proxmox_cluster_metrics_servers",
 		"proxmox_cluster_resources",
+		"proxmox_firewall_rules",
 		"proxmox_group",
 		"proxmox_groups",
 		"proxmox_ha_resources",

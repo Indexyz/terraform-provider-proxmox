@@ -249,6 +249,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_node_dns` | `data_source_node_dns.go` | `GET /nodes/{node}/dns`。 |
 | `proxmox_node_time` | `data_source_node_time.go` | `GET /nodes/{node}/time`。 |
 | `proxmox_cluster_resources` | `data_source_cluster_resources.go` | `GET /cluster/resources`，支持 `type` 过滤。 |
+| `proxmox_firewall_rules` | `data_source_firewall_rules.go` | 按 scope（cluster/node/guest/security_group/vnet）读取对应 ruleset，输出 `pos`/`digest` 与全部规则字段。 |
 | `proxmox_acl` | `data_source_acl.go` | `GET /access/acl`，按 path/type 过滤、按 path+type+ugid 排序。 |
 | `proxmox_backup_jobs` | `data_source_backup_jobs.go` | `GET /cluster/backup`，按 `node` 过滤、按 id 排序。 |
 | `proxmox_cluster_metrics_servers` | `data_source_cluster_metrics_servers.go` | `GET /cluster/metrics/server`。 |
@@ -296,7 +297,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 45 个资源和 37 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 45 个资源和 38 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -334,6 +335,7 @@ make generate
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。
+- `data_source_firewall_rules_test.go`：五个 scope 的路径、排序、字段投影、作用域校验矩阵与空结果。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `client_ha_rule_test.go`、`resource_ha_rule_test.go`：PVE 9 HA rule collection lookup、exact-form create/update（PUT 必带 `rule`、绝不带 `type`）、`nodes` 线路编码、fresh digest、variant 校验矩阵、effective defaults、feasibility error 透传与 managed-field deletion。
 - `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表、OVS `ovs_*` 字段）、`changes` 捕获、reload UPID 校验与任务等待、类型矩阵（含 OVS 专用 bond mode、必填 `ovs_bridge`、`alias` 后缀/地址规则、`altnames` 映射）与 apply 的 no-op destroy。
