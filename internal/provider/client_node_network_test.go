@@ -165,3 +165,50 @@ func TestClientNodeNetworkApplyRequiresAValidUPID(t *testing.T) {
 }
 
 const nodeNetworkBridgeJSON = `{"iface":"vmbr1","type":"bridge","autostart":1,"bridge_ports":"eth1 eth2","vlan-id":100,"vlan-raw-device":"eth0","bond-primary":"eth1"}`
+
+func TestClientNodeNetworkOVSForms(t *testing.T) {
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertTokenAuth(t, r)
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write([]byte(`{"data":[{"iface":"ovsbr0","type":"OVSBridge","ovs_ports":"ovsp1"}]}`))
+		case http.MethodPost:
+			assertFormValues(t, r, url.Values{
+				"iface":       {"ovsp1"},
+				"ovs_bridge":  {"ovsbr0"},
+				"ovs_options": {"trunks=100,200"},
+				"ovs_tag":     {"100"},
+				"type":        {"OVSPort"},
+			})
+			writeEnvelope(t, w, nil)
+		case http.MethodPut:
+			assertFormValues(t, r, url.Values{
+				"delete":  {"ovs_options"},
+				"ovs_tag": {"200"},
+				"type":    {"OVSPort"},
+			})
+			writeEnvelope(t, w, nil)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := newHAResourceTestClient(t, server.URL)
+	bridge, err := client.GetNodeNetworkInterface(ctx, "node1", "ovsbr0")
+	if err != nil || bridge.OVSPorts != "ovsp1" {
+		t.Fatalf("GetNodeNetworkInterface() = %#v, %v", bridge, err)
+	}
+	if err := client.CreateNodeNetworkInterface(ctx, "node1", "ovsp1", NodeNetworkInterfaceRequest{
+		Type: nodeNetworkTypeOVSPort, OVSBridge: stringPtr("ovsbr0"), OVSTag: intPtr64(100),
+		OVSOptions: stringPtr("trunks=100,200"),
+	}); err != nil {
+		t.Fatalf("CreateNodeNetworkInterface(OVSPort) unexpected error: %v", err)
+	}
+	if err := client.UpdateNodeNetworkInterface(ctx, "node1", "ovsp1", NodeNetworkInterfaceRequest{
+		Type: nodeNetworkTypeOVSPort, OVSTag: intPtr64(200), Delete: []string{"ovs_options"},
+	}); err != nil {
+		t.Fatalf("UpdateNodeNetworkInterface(OVSPort) unexpected error: %v", err)
+	}
+}

@@ -27,13 +27,17 @@ var _ resource.ResourceWithValidateConfig = &NodeNetworkInterfaceResource{}
 const nodeNetworkManagedFieldsKey = "node-network-managed-fields"
 
 const (
-	nodeNetworkTypeBridge = "bridge"
-	nodeNetworkTypeBond   = "bond"
-	nodeNetworkTypeVLAN   = "vlan"
-	nodeNetworkTypeEth    = "eth"
+	nodeNetworkTypeBridge     = "bridge"
+	nodeNetworkTypeBond       = "bond"
+	nodeNetworkTypeVLAN       = "vlan"
+	nodeNetworkTypeEth        = "eth"
+	nodeNetworkTypeOVSBridge  = "OVSBridge"
+	nodeNetworkTypeOVSPort    = "OVSPort"
+	nodeNetworkTypeOVSIntPort = "OVSIntPort"
+	nodeNetworkTypeOVSBond    = "OVSBond"
 )
 
-var nodeNetworkTypes = []string{nodeNetworkTypeBridge, nodeNetworkTypeBond, nodeNetworkTypeVLAN, nodeNetworkTypeEth}
+var nodeNetworkTypes = []string{nodeNetworkTypeBridge, nodeNetworkTypeBond, nodeNetworkTypeVLAN, nodeNetworkTypeEth, nodeNetworkTypeOVSBridge, nodeNetworkTypeOVSPort, nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}
 
 type NodeNetworkInterfaceResource struct {
 	client *Client
@@ -68,6 +72,11 @@ type nodeNetworkModel struct {
 	BondPrimary        types.String `tfsdk:"bond_primary"`
 	VLANID             types.Int64  `tfsdk:"vlan_id"`
 	VLANRawDevice      types.String `tfsdk:"vlan_raw_device"`
+	OVSPorts           types.Set    `tfsdk:"ovs_ports"`
+	OVSTag             types.Int64  `tfsdk:"ovs_tag"`
+	OVSOptions         types.String `tfsdk:"ovs_options"`
+	OVSBridge          types.String `tfsdk:"ovs_bridge"`
+	OVSBonds           types.Set    `tfsdk:"ovs_bonds"`
 }
 
 func NewNodeNetworkInterfaceResource() resource.Resource {
@@ -80,12 +89,12 @@ func (r *NodeNetworkInterfaceResource) Metadata(_ context.Context, req resource.
 
 func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages one Linux interface of a Proxmox VE node through `/nodes/{node}/network`. Writes only stage the change in `/etc/network/interfaces.new`; nothing takes effect until `proxmox_node_network_apply` for the node runs. OVS and SDN-owned interfaces are not supported. Destroy only removes the staged configuration, so a later apply is required to deactivate it.",
+		MarkdownDescription: "Manages one interface of a Proxmox VE node (Linux and Open vSwitch) through `/nodes/{node}/network`. Writes only stage the change in `/etc/network/interfaces.new`; nothing takes effect until `proxmox_node_network_apply` for the node runs. OVS and SDN-owned interfaces are not supported. Destroy only removes the staged configuration, so a later apply is required to deactivate it.",
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, MarkdownDescription: "Interface identifier in `<node>/<iface>` form.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"node":         schema.StringAttribute{Required: true, MarkdownDescription: "Cluster node that owns the interface. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"iface":        schema.StringAttribute{Required: true, MarkdownDescription: "Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`. Must not already exist; changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"type":         schema.StringAttribute{Required: true, MarkdownDescription: "Interface type: `bridge`, `bond`, `vlan`, or `eth`. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"type":         schema.StringAttribute{Required: true, MarkdownDescription: "Interface type: `bridge`, `bond`, `vlan`, `eth`, or an OVS type (`OVSBridge`, `OVSPort`, `OVSIntPort`, `OVSBond`). Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"autostart":    schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Bring the interface up on boot."},
 			"mtu":          schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Interface MTU between 1280 and 65520."},
 			"comments":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IPv4 comment stored as `comments`."},
@@ -109,6 +118,11 @@ func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.Sche
 			"bond_primary":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Primary interface for an `active-backup` bond."},
 			"vlan_id":         schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "VLAN tag between 1 and 4094."},
 			"vlan_raw_device": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Raw interface the VLAN sits on."},
+			"ovs_ports":       schema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Ports Proxmox currently records on an `OVSBridge`. Proxmox maintains the list from the port interfaces themselves, so it is computed-only."},
+			"ovs_tag":         schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "VLAN tag of an OVS port, 1 to 4094."},
+			"ovs_options":     schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Raw Open vSwitch options, for example `trunks=100,200`."},
+			"ovs_bridge":      schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Parent `OVSBridge` of an OVS port. Required for `OVSIntPort` and `OVSBond`, which Proxmox cannot place otherwise."},
+			"ovs_bonds":       schema.SetAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Slave interfaces of an `OVSBond`."},
 		},
 	}
 }
@@ -169,6 +183,14 @@ func validateNodeNetworkConfig(config nodeNetworkModel) diag.Diagnostics {
 			diags.AddAttributeError(path.Root("slaves"), "Invalid bond slave", fmt.Sprintf("%q is not a valid interface name.", element))
 		}
 	}
+	for _, element := range nodeNetworkPortValues(config.OVSBonds) {
+		if !proxmoxIfacePattern.MatchString(element) {
+			diags.AddAttributeError(path.Root("ovs_bonds"), "Invalid OVS bond slave", fmt.Sprintf("%q is not a valid interface name.", element))
+		}
+	}
+	if isConfiguredValue(config.OVSTag) && (config.OVSTag.ValueInt64() < 1 || config.OVSTag.ValueInt64() > 4094) {
+		diags.AddAttributeError(path.Root("ovs_tag"), "Invalid OVS VLAN tag", "ovs_tag must be between 1 and 4094.")
+	}
 
 	for _, field := range nodeNetworkVariantFields {
 		if !field.configured(config) {
@@ -186,7 +208,20 @@ func validateNodeNetworkConfig(config nodeNetworkModel) diag.Diagnostics {
 		return diags
 	}
 	if !slices.Contains(nodeNetworkTypes, config.Type.ValueString()) {
-		diags.AddAttributeError(path.Root("type"), "Invalid interface type", "type must be bridge, bond, vlan, or eth.")
+		diags.AddAttributeError(path.Root("type"), "Invalid interface type", "type must be bridge, bond, vlan, eth, OVSBridge, OVSPort, OVSIntPort, or OVSBond.")
+	}
+	interfaceType := config.Type.ValueString()
+	if isConfiguredValue(config.BondMode) {
+		modes := nodeNetworkLinuxBondModes
+		if interfaceType == nodeNetworkTypeOVSBond {
+			modes = nodeNetworkOVSBondModes
+		}
+		if slices.Contains([]string{nodeNetworkTypeBond, nodeNetworkTypeOVSBond}, interfaceType) && !slices.Contains(modes, config.BondMode.ValueString()) {
+			diags.AddAttributeError(path.Root("bond_mode"), "Invalid bond mode", fmt.Sprintf("bond_mode must be one of %s for %s interfaces.", strings.Join(modes, ", "), interfaceType))
+		}
+	}
+	if slices.Contains([]string{nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}, interfaceType) && !isConfiguredValue(config.OVSBridge) {
+		diags.AddAttributeError(path.Root("ovs_bridge"), "Missing OVS bridge", fmt.Sprintf("ovs_bridge is required for %s interfaces.", interfaceType))
 	}
 	return diags
 }
@@ -211,11 +246,16 @@ var nodeNetworkVariantFields = []nodeNetworkVariantField{
 	{name: "bridge_vlan_aware", types: []string{nodeNetworkTypeBridge}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.BridgeVLANAware) }},
 	{name: "bridge_vids", types: []string{nodeNetworkTypeBridge}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.BridgeVIDs) }},
 	{name: "slaves", types: []string{nodeNetworkTypeBond}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.Slaves) }},
-	{name: "bond_mode", types: []string{nodeNetworkTypeBond}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.BondMode) }},
+	{name: "bond_mode", types: []string{nodeNetworkTypeBond, nodeNetworkTypeOVSBond}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.BondMode) }},
 	{name: "bond_xmit_hash_policy", types: []string{nodeNetworkTypeBond}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.BondXmitHashPolicy) }},
 	{name: "bond_primary", types: []string{nodeNetworkTypeBond}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.BondPrimary) }},
 	{name: "vlan_id", types: []string{nodeNetworkTypeVLAN}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.VLANID) }},
 	{name: "vlan_raw_device", types: []string{nodeNetworkTypeVLAN}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.VLANRawDevice) }},
+	{name: "autostart", types: []string{nodeNetworkTypeBridge, nodeNetworkTypeBond, nodeNetworkTypeVLAN, nodeNetworkTypeEth, nodeNetworkTypeOVSBridge}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.Autostart) }},
+	{name: "ovs_tag", types: nodeNetworkOVSPortTypes, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.OVSTag) }},
+	{name: "ovs_options", types: nodeNetworkOVSPortTypes, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.OVSOptions) }},
+	{name: "ovs_bridge", types: nodeNetworkOVSPortTypes, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.OVSBridge) }},
+	{name: "ovs_bonds", types: []string{nodeNetworkTypeOVSBond}, configured: func(m nodeNetworkModel) bool { return isConfiguredValue(m.OVSBonds) }},
 }
 
 func nodeNetworkPortValues(value types.Set) []string {
@@ -281,6 +321,16 @@ func nodeNetworkRequestFromModels(ctx context.Context, config, plan nodeNetworkM
 	setString(config.BondPrimary, &request.BondPrimary, plan.BondPrimary)
 	setInt64(config.VLANID, &request.VLANID, plan.VLANID)
 	setString(config.VLANRawDevice, &request.VLANRawDevice, plan.VLANRawDevice)
+	setString(config.OVSOptions, &request.OVSOptions, plan.OVSOptions)
+	setString(config.OVSBridge, &request.OVSBridge, plan.OVSBridge)
+	if isConfiguredValue(config.OVSTag) {
+		request.OVSTag = int64PointerValue(plan.OVSTag)
+	}
+	if isConfiguredValue(config.OVSBonds) {
+		bonds, bondDiags := expandStringSet(ctx, plan.OVSBonds)
+		diags.Append(bondDiags...)
+		request.OVSBonds = append([]string{}, bonds...)
+	}
 	return request, diags
 }
 
@@ -324,6 +374,14 @@ func nodeNetworkManagedFields(config nodeNetworkModel) []string {
 	addString("bond-primary", config.BondPrimary)
 	addInt64("vlan-id", config.VLANID)
 	addString("vlan-raw-device", config.VLANRawDevice)
+	if isConfiguredValue(config.OVSTag) {
+		fields = append(fields, "ovs_tag")
+	}
+	addString("ovs_options", config.OVSOptions)
+	addString("ovs_bridge", config.OVSBridge)
+	if isConfiguredValue(config.OVSBonds) {
+		fields = append(fields, "ovs_bonds")
+	}
 	slices.Sort(fields)
 	return fields
 }
@@ -461,6 +519,10 @@ func (r *NodeNetworkInterfaceResource) readState(ctx context.Context, node, ifac
 
 func nodeNetworkStateFromAPI(ctx context.Context, node string, entry NodeNetworkInterface) (nodeNetworkModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	ovsPorts, ovsPortDiags := stringSetValue(ctx, strings.Fields(entry.OVSPorts))
+	diags.Append(ovsPortDiags...)
+	ovsBonds, ovsBondDiags := stringSetValue(ctx, strings.Fields(entry.OVSBonds))
+	diags.Append(ovsBondDiags...)
 	// Proxmox writes an empty port list as `none`, which is not an interface name.
 	bridgePorts, bridgeDiags := stringSetValue(ctx, nodeNetworkPortFields(entry.BridgePorts))
 	diags.Append(bridgeDiags...)
@@ -490,6 +552,11 @@ func nodeNetworkStateFromAPI(ctx context.Context, node string, entry NodeNetwork
 		BondPrimary:        stringOrNull(entry.BondPrimary),
 		VLANID:             int64OrNull(entry.VLANID.Ptr()),
 		VLANRawDevice:      stringOrNull(entry.VLANRawDevice),
+		OVSPorts:           ovsPorts,
+		OVSTag:             int64OrNull(entry.OVSTag.Ptr()),
+		OVSOptions:         stringOrNull(entry.OVSOptions),
+		OVSBridge:          stringOrNull(entry.OVSBridge),
+		OVSBonds:           ovsBonds,
 	}, diags
 }
 
@@ -527,3 +594,12 @@ func readNodeNetworkManagedFields(ctx context.Context, private nodeNetworkPrivat
 	}
 	return fields, diags
 }
+
+var (
+	nodeNetworkOVSPortTypes   = []string{nodeNetworkTypeOVSPort, nodeNetworkTypeOVSIntPort, nodeNetworkTypeOVSBond}
+	nodeNetworkLinuxBondModes = []string{
+		"balance-rr", "active-backup", "balance-xor", "broadcast",
+		"802.3ad", "balance-tlb", "balance-alb",
+	}
+	nodeNetworkOVSBondModes = []string{"active-backup", "balance-slb", "lacp-balance-slb", "lacp-balance-tcp"}
+)

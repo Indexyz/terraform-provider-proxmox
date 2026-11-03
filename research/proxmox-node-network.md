@@ -100,11 +100,16 @@ The interface writer emits an empty port list as `bridge-ports none` /
 `bond-slaves none`, so reads normalize that sentinel back to an empty set; without
 that, clearing the last port would look like a permanent diff.
 
-## Proposed slice
+## Delivered slice
 
-Linux interfaces only: `bridge`, `bond`, `vlan`, `eth`. OVS stays out because it needs
-the extra parent-bridge bookkeeping and the `openvswitch-switch` package; SDN `vnet` /
-`fabric` entries are owned by the SDN epic and merely show up in reads.
+Linux interfaces (`bridge`, `bond`, `vlan`, `eth`) plus the OVS types delivered on top:
+`OVSBridge`, `OVSPort`, `OVSIntPort`, `OVSBond`. OVS specifics: `ovs_ports` is
+computed-only on bridges because Proxmox maintains it from the port members;
+`ovs_bridge` is required for `OVSIntPort`/`OVSBond`; OVS ports reject `autostart` (the
+writer forces `0`); and `bond_mode` is validated against the OVS-only mode set
+(`balance-slb`, `lacp-balance-slb`, `lacp-balance-tcp`, `active-backup`) instead of the
+Linux modes. SDN `vnet` / `fabric` entries are owned by the SDN epic and merely show up
+in reads.
 
 ### `proxmox_node_network_interface`
 
@@ -113,7 +118,10 @@ the extra parent-bridge bookkeeping and the `openvswitch-switch` package; SDN `v
 | `id` | Computed, `"<node>/<iface>"`. |
 | `node` | Required, `RequiresReplace`. |
 | `iface` | Required, `RequiresReplace`. |
-| `type` | Required, `RequiresReplace`, enum `bridge`/`bond`/`vlan`/`eth`. |
+| `type` | Required, `RequiresReplace`, enum `bridge`/`bond`/`vlan`/`eth`/`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`. |
+| `ovs_tag`, `ovs_options`, `ovs_bridge` | Optional + Computed, OVS port types only; `ovs_bridge` required for `OVSIntPort`/`OVSBond`. |
+| `ovs_ports` | Computed, `OVSBridge` only. |
+| `ovs_bonds` (set) | Optional + Computed, `OVSBond` only. |
 | `autostart`, `mtu`, `comments`, `comments6` | Optional + Computed. |
 | `address`, `netmask`, `gateway`, `address6`, `netmask6`, `gateway6` | Optional + Computed. |
 | `bridge_ports` (set), `bridge_vlan_aware`, `bridge_vids` | Optional + Computed, bridge only. |

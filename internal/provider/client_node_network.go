@@ -37,6 +37,11 @@ type NodeNetworkInterface struct {
 	BondPrimary        string               `json:"bond-primary"`
 	VLANID             proxmoxOptionalInt64 `json:"vlan-id"`
 	VLANRawDevice      string               `json:"vlan-raw-device"`
+	OVSPorts           string               `json:"ovs_ports"`
+	OVSTag             proxmoxOptionalInt64 `json:"ovs_tag"`
+	OVSOptions         string               `json:"ovs_options"`
+	OVSBridge          string               `json:"ovs_bridge"`
+	OVSBonds           string               `json:"ovs_bonds"`
 }
 
 // NodeNetworkInterfaceRequest carries explicitly configured, already validated
@@ -62,6 +67,10 @@ type NodeNetworkInterfaceRequest struct {
 	BondPrimary        *string
 	VLANID             *int64
 	VLANRawDevice      *string
+	OVSTag             *int64
+	OVSOptions         *string
+	OVSBridge          *string
+	OVSBonds           []string
 	Delete             []string
 }
 
@@ -159,5 +168,11 @@ func nodeNetworkInterfaceForm(req NodeNetworkInterfaceRequest) url.Values {
 	setOptionalString(form, "bond-primary", req.BondPrimary)
 	setOptionalInt64(form, "vlan-id", req.VLANID)
 	setOptionalString(form, "vlan-raw-device", req.VLANRawDevice)
+	setOptionalInt64(form, "ovs_tag", req.OVSTag)
+	setOptionalString(form, "ovs_options", req.OVSOptions)
+	setOptionalString(form, "ovs_bridge", req.OVSBridge)
+	if req.OVSBonds != nil {
+		form.Set("ovs_bonds", strings.Join(sortedStrings(req.OVSBonds), " "))
+	}
 	return form
 }

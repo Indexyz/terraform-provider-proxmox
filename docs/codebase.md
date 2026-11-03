@@ -140,7 +140,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
-| `proxmox_node_network_interface` | 管理单个 Linux 节点接口（bridge/bond/vlan/eth）的 staged 配置，不自动 reload。 |
+| `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口自动维护父桥 `ovs_ports`。 |
 | `proxmox_pool` | 管理 pool 及其 guest/storage 成员。 |
 | `proxmox_qemu_snapshot` | 管理 QEMU VM 快照。 |
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子、显式 `power` 电源协调和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
@@ -313,7 +313,7 @@ make generate
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `client_ha_rule_test.go`、`resource_ha_rule_test.go`：PVE 9 HA rule collection lookup、exact-form create/update（PUT 必带 `rule`、绝不带 `type`）、`nodes` 线路编码、fresh digest、variant 校验矩阵、effective defaults、feasibility error 透传与 managed-field deletion。
-- `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表）、`changes` 捕获、reload UPID 校验与任务等待、接口 variant 校验矩阵与 apply 的 no-op destroy。
+- `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表、OVS `ovs_*` 字段）、`changes` 捕获、reload UPID 校验与任务等待、类型矩阵（含 OVS 专用 bond mode 与必填 `ovs_bridge`）与 apply 的 no-op destroy。
 - `client_sdn_test.go`、`resource_sdn_zone_test.go`、`resource_sdn_apply_test.go`：SDN 锁令牌获取/释放、staged zone CRUD exact-form 与 digest、`state`/`pending` 解码与 staged 覆盖、释放失败告警、commit UPID/任务失败、空触发与 no-op destroy。
 - `client_sdn_vnet_test.go`、`resource_sdn_vnet_test.go`：staged vnet CRUD exact-form、可变 `zone`、staged 覆盖与 deleted 缺席、variant/范围校验、import 与生命周期。
 - `client_sdn_subnet_test.go`、`resource_sdn_subnet_test.go`：CIDR→内部 id 转换、多值 `dhcp-range` 编码、staged range 覆盖与删除、CIDR/IP/前缀校验、import 与生命周期。

@@ -93,6 +93,7 @@ SDN 切片 4a 已交付：`proxmox_sdn_zone` 扩展到全部 zone 类型——�
 SDN 切片 4b 已交付：`proxmox_sdn_ipam`（`pve`/`netbox`/`phpipam`）、`proxmox_sdn_dns`（`powerdns`）、`proxmox_sdn_controller`（`bgp`/`evpn`/`faucet`/`isis`），均沿用锁令牌 + digest + `state`/`pending` 契约与 `deleted` 缺席；逐类型字段矩阵与必填项（netbox url+token、phpipam url+token+section、powerdns url+key、bgp node/asn/peers、evpn asn、isis domain/net/ifaces/node），ASN/跳数/IS-IS NET/MAC/peer IP 均校验。注册 36 资源。
 SDN VNet firewall 已接入：`proxmox_firewall_rule` 新增 `vnet` scope（`/cluster/sdn/vnets/{vnet}/firewall/rules`，vnet 必填、与其他 scope 字段互斥）；新增 `proxmox_sdn_vnet_firewall_options`（`enable`/`policy_forward`/`log_level_forward`，**非 staged**、立即生效，digest CAS，destroy 以 `delete` reset 全部 key）。注册 37 资源。
 SDN 切片 5 已完成：`proxmox_sdn_fabric`（`openfabric`/`ospf`/`wireguard`/`bgp` 逐协议字段矩阵、`redistribute` 为 property string）、`proxmox_sdn_fabric_node`（fabric_id/node_id 身份、wireguard 专属字段与 role、「其他协议拒绝 wireguard 字段」）与 `proxmox_sdn_prefix_list`（entries 为 property string、拒绝 Proxmox 保留 id）、`proxmox_sdn_route_map_entry`（`route_map_id`+`order` 身份、set/match/exit_action、保留 id 拒绝）。四者的 `delete` 均为重复 key 数组。另新增 `proxmox_sdn_rollback`（`POST /cluster/sdn/rollback` / 锁令牌、`triggers` RequiresReplace、`remaining_pending`/`remaining_pending_zones` 计算输出、destroy 无动作）与 `proxmox_sdn_zones`/`proxmox_sdn_vnets` 列表数据源（`?pending=1`、排序、过滤、`state`/`pending` 原样输出）。注册 42 资源 / 25 数据源；property-string 列表改用 `sdnStagedRawList`（按 JSON 数组解码，不按逗号拆）。
+Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond` 接入资源类型矩阵，`ovs_ports` 为 OVSBridge 的 computed 字段（由服务端从端口接口维护）、`ovs_bridge` 对 OVSIntPort/OVSBond 必填、`ovs_tag`/`ovs_options`/`ovs_bonds` typed、OVS 端口禁 `autostart`（服务端强制 0）、bond_mode 按 Linux/OVS 两套枚举分别校验。
 
 ## 接下来
 
@@ -107,7 +108,7 @@ SDN epic 功能面已完成（含 apply 与 rollback 两个显式执行面）：
 - `proxmox_lxc_containers` 列表数据源已完成（见上方已完成条目）；同类 guest 列表后续可考虑统一的跨类型查询体验。
 - Authentication realm 高级后续已完成（列表数据源、LDAP/AD 目录同步与证书、OpenID group claim、forced TFA）；仍待：`/sync` 命令式触发设计（可参考 `proxmox_node_network_apply` 的显式执行形式）、client certificate 内容上传与 user TFA 管理。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
-- Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；后续剩 OVS 系列（需父桥 `ovs_ports` 交叉写）、`alias`/`eth` altname 重命名与 revert 资源化。
+- Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；后续剩 `alias`/`eth` altname 重命名与 revert 资源化。
 - SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply、zones/vnets 数据源）；仅剩可选的数据源广度扩充与实机验收。
 - QEMU `hostpci`、`usb`、`rng`、`virtiofs` 等 compound device：按现有 slot parser/encoder 和 whole-slot raw fallback 模式实现；现有 `raw.extra_config` 可覆盖长尾，因此低于集群级能力。
 

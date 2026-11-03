@@ -28,3 +28,23 @@ resource "proxmox_node_network_interface" "vlan100" {
   vlan_raw_device = "eth1"
   mtu             = 9000
 }
+
+# Open vSwitch bridge. `ovs_ports` is maintained by Proxmox from the port
+# interfaces, so it is computed-only.
+resource "proxmox_node_network_interface" "ovsbr0" {
+  node  = "node1"
+  iface = "ovsbr0"
+  type  = "OVSBridge"
+  mtu   = 9000
+}
+
+# Internal OVS port with a VLAN tag; ovs_bridge is required for OVSIntPort and
+# OVSBond because Proxmox cannot place them otherwise.
+resource "proxmox_node_network_interface" "tenant100" {
+  node        = "node1"
+  iface       = "ovs100"
+  type        = "OVSIntPort"
+  ovs_bridge  = proxmox_node_network_interface.ovsbr0.iface
+  ovs_tag     = 100
+  ovs_options = "trunks=100,200"
+}

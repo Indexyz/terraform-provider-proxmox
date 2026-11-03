@@ -24,7 +24,7 @@ func TestNodeNetworkInterfaceSchema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Schema() unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	if got, want := len(resp.Schema.Attributes), 23; got != want {
+	if got, want := len(resp.Schema.Attributes), 28; got != want {
 		t.Fatalf("unexpected attribute count: got %d want %d", got, want)
 	}
 	for _, name := range []string{"node", "iface", "type"} {
@@ -36,7 +36,7 @@ func TestNodeNetworkInterfaceSchema(t *testing.T) {
 	if !resp.Schema.Attributes["id"].IsComputed() {
 		t.Fatal("id must be computed")
 	}
-	for _, excluded := range []string{"digest", "cidr", "cidr6", "ovs_ports", "families", "method", "active", "exists"} {
+	for _, excluded := range []string{"digest", "cidr", "cidr6", "families", "method", "active", "exists"} {
 		if _, ok := resp.Schema.Attributes[excluded]; ok {
 			t.Fatalf("node network interface schema must not expose %s", excluded)
 		}
@@ -137,6 +137,8 @@ func TestNodeNetworkRequestUsesExplicitConfigurationOnly(t *testing.T) {
 		Type:        types.StringValue(nodeNetworkTypeBridge),
 		BridgePorts: testStringSet(t, "eth2", "eth1"),
 		Slaves:      types.SetNull(types.StringType),
+		OVSBonds:    types.SetNull(types.StringType),
+		OVSPorts:    types.SetNull(types.StringType),
 		Comments:    types.StringValue("lab bridge"),
 	}
 	plan := config
@@ -342,6 +344,8 @@ func TestNodeNetworkInterfaceLifecycle(t *testing.T) {
 		Type:        types.StringValue(nodeNetworkTypeBridge),
 		BridgePorts: testStringSet(t, "eth2", "eth1"),
 		Slaves:      types.SetNull(types.StringType),
+		OVSBonds:    types.SetNull(types.StringType),
+		OVSPorts:    types.SetNull(types.StringType),
 		Address:     types.StringValue("10.0.0.2"),
 		Netmask:     types.StringValue("255.255.255.0"),
 	}
@@ -400,5 +404,100 @@ func TestNodeNetworkInterfaceLifecycle(t *testing.T) {
 
 	for _, failure := range handler.failures {
 		t.Fatal(failure)
+	}
+}
+
+func TestValidateNodeNetworkOVSConfig(t *testing.T) {
+	base := func() nodeNetworkModel {
+		return nodeNetworkModel{
+			Node:       types.StringValue("node1"),
+			Iface:      types.StringValue("ovs1"),
+			Type:       types.StringValue(nodeNetworkTypeOVSIntPort),
+			OVSBridge:  types.StringValue("ovsbr0"),
+			OVSTag:     types.Int64Value(100),
+			OVSOptions: types.StringValue("trunks=100,200"),
+		}
+	}
+	valid := []nodeNetworkModel{
+		base(),
+		{
+			Node: types.StringValue("node1"), Iface: types.StringValue("ovsp1"),
+			Type: types.StringValue(nodeNetworkTypeOVSPort), OVSBridge: types.StringValue("ovsbr0"),
+		},
+		{
+			Node: types.StringValue("node1"), Iface: types.StringValue("ovsb0"),
+			Type: types.StringValue(nodeNetworkTypeOVSBond), OVSBridge: types.StringValue("ovsbr0"),
+			OVSBonds: testStringSet(t, "eth1", "eth2"), BondMode: types.StringValue("lacp-balance-slb"),
+		},
+		{
+			Node: types.StringValue("node1"), Iface: types.StringValue("ovsbr0"),
+			Type: types.StringValue(nodeNetworkTypeOVSBridge), MTU: types.Int64Value(9000), Autostart: types.BoolValue(true),
+		},
+	}
+	for _, config := range valid {
+		if diags := validateNodeNetworkConfig(config); diags.HasError() {
+			t.Fatalf("valid OVS config diagnostics: %v (%#v)", diags, config)
+		}
+	}
+
+	invalid := map[string]func(*nodeNetworkModel){
+		"ovs_tag out of range": func(m *nodeNetworkModel) { m.OVSTag = types.Int64Value(4095) },
+		"ovs_bridge missing":   func(m *nodeNetworkModel) { m.OVSBridge = types.StringNull() },
+		"bad ovs bond slave":   func(m *nodeNetworkModel) { m.OVSBonds = testStringSet(t, "eth 1") },
+		"ovs field on bridge": func(m *nodeNetworkModel) {
+			m.Type = types.StringValue(nodeNetworkTypeOVSBridge)
+			m.OVSTag = types.Int64Value(5)
+		},
+		"autostart on ovs port": func(m *nodeNetworkModel) { m.Autostart = types.BoolValue(true) },
+		"linux mode on ovs bond": func(m *nodeNetworkModel) {
+			m.Type = types.StringValue(nodeNetworkTypeOVSBond)
+			m.BondMode = types.StringValue("802.3ad")
+			m.OVSBonds = testStringSet(t, "eth1")
+		},
+		"ovs mode on linux bond": func(m *nodeNetworkModel) {
+			m.Type = types.StringValue(nodeNetworkTypeBond)
+			m.BondMode = types.StringValue("lacp-balance-tcp")
+			m.OVSBridge = types.StringNull()
+		},
+	}
+	for name, mutate := range invalid {
+		config := base()
+		mutate(&config)
+		if diags := validateNodeNetworkConfig(config); !diags.HasError() {
+			t.Fatalf("%s: expected invalid diagnostics: %#v", name, config)
+		}
+	}
+}
+
+func TestNodeNetworkOVSStateAndForms(t *testing.T) {
+	state, diags := nodeNetworkStateFromAPI(context.Background(), "node1", NodeNetworkInterface{
+		Iface: "ovsbr0", Type: nodeNetworkTypeOVSBridge, OVSPorts: "ovsp1 ovsb0",
+	})
+	if diags.HasError() {
+		t.Fatalf("state mapping diagnostics: %v", diags)
+	}
+	var ports []string
+	if diags := state.OVSPorts.ElementsAs(context.Background(), &ports, false); diags.HasError() || len(ports) != 2 {
+		t.Fatalf("ovs_ports were not mapped: %#v (%v)", ports, diags)
+	}
+	if !state.OVSTag.IsNull() || !state.OVSBridge.IsNull() || !state.OVSOptions.IsNull() {
+		t.Fatalf("unset OVS fields must stay null: %#v", state)
+	}
+
+	config := nodeNetworkModel{
+		Node: types.StringValue("node1"), Iface: types.StringValue("ovsb0"),
+		Type: types.StringValue(nodeNetworkTypeOVSBond), OVSBridge: types.StringValue("ovsbr0"),
+		OVSBonds: testStringSet(t, "eth2", "eth1"), OVSTag: types.Int64Value(10),
+	}
+	request, requestDiags := nodeNetworkRequestFromModels(context.Background(), config, config)
+	if requestDiags.HasError() {
+		t.Fatalf("request diagnostics: %v", requestDiags)
+	}
+	form := nodeNetworkInterfaceForm(request)
+	if got, want := form.Get("ovs_bonds"), "eth1 eth2"; got != want {
+		t.Fatalf("ovs bonds were not encoded: got %q want %q", got, want)
+	}
+	if form.Get("ovs_bridge") != "ovsbr0" || form.Get("ovs_tag") != "10" {
+		t.Fatalf("ovs fields were not encoded: %#v", form)
 	}
 }

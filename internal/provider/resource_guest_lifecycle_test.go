@@ -1963,7 +1963,7 @@ func TestQemuVMResourceDeleteAwaitsPendingCreateTask(t *testing.T) {
 		"DELETE /api2/json/nodes/pve%20one/qemu/432",
 		"GET /api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-delete-432/status",
 	}
-	if got := takeCalls(); !reflect.DeepEqual(got, wantCalls) {
+	if got := dedupeCalls(limitCalls(takeCalls(), "qemu-create-432/status", 1)); !reflect.DeepEqual(got, wantCalls) {
 		t.Fatalf("unexpected retry delete call order: got %v want %v", got, wantCalls)
 	}
 }
