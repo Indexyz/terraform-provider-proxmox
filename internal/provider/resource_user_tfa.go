@@ -233,7 +233,7 @@ func (r *UserTFAResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeleteUserTFA(ctx, state.UserID.ValueString(), state.EntryID.ValueString()); err != nil {
+	if err := r.client.DeleteUserTFA(ctx, state.UserID.ValueString(), state.EntryID.ValueString(), stringPointerValue(state.Password)); err != nil {
 		resp.Diagnostics.AddError("Unable to Delete Proxmox User TFA Entry", err.Error())
 	}
 }

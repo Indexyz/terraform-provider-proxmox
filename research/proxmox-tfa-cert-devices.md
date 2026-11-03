@@ -10,7 +10,7 @@ Pinned sources: `pve-access-control` (TFA.pm, RPCEnvironment reauth), `pve-stora
 - `GET /access/tfa/{userid}` and `GET .../{userid}/{id}` require `self` or group
   `User.Modify`/`Sys.Audit`; the item read answers a real 404.
 - `POST`/`PUT`/`DELETE` require `self` or group `User.Modify`, and are declared
-  `allowtoken => 0`: **API tokens cannot change TFA**. The provider must use ticket auth;
+  `allowtoken => 0`: **API tokens cannot change TFA**. The password applies to every mutation including delete. The provider must use ticket auth;
   a non-`root@pam` identity additionally has to send `password` because
   `reauth_user_for_user_modification` re-authenticates it against its realm.
 - `POST` body: `type` (`totp|u2f|webauthn|recovery|yubico`), optional `description`, `totp`

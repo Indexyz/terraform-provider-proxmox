@@ -36,6 +36,7 @@ func TestClientUserTFACRUD(t *testing.T) {
 			assertFormValues(t, r, url.Values{"description": {"renamed"}, "enable": {"0"}})
 			writeEnvelope(t, w, nil)
 		case r.Method == http.MethodDelete && r.URL.Path == "/api2/json/access/tfa/root@pam/abc123":
+			assertFormValues(t, r, url.Values{"password": {"s3cret"}})
 			writeEnvelope(t, w, nil)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
@@ -55,7 +56,7 @@ func TestClientUserTFACRUD(t *testing.T) {
 	if err := client.UpdateUserTFA(ctx, "root@pam", "abc123", UserTFAUpdateRequest{Description: stringPtr("renamed"), Enable: boolPtr(false)}); err != nil {
 		t.Fatalf("UpdateUserTFA() unexpected error: %v", err)
 	}
-	if err := client.DeleteUserTFA(ctx, "root@pam", "abc123"); err != nil {
+	if err := client.DeleteUserTFA(ctx, "root@pam", "abc123", stringPtr("s3cret")); err != nil {
 		t.Fatalf("DeleteUserTFA() unexpected error: %v", err)
 	}
 }
@@ -86,7 +87,7 @@ func TestClientUserTFARejectsMissingIDAndToleratesMissingDelete(t *testing.T) {
 	if _, err := client.CreateUserTFA(context.Background(), "root@pam", UserTFACreateRequest{Type: "recovery"}); err == nil || !strings.Contains(err.Error(), "entry id") {
 		t.Fatalf("CreateUserTFA() with no id error = %v", err)
 	}
-	if err := client.DeleteUserTFA(context.Background(), "root@pam", "gone"); err != nil {
+	if err := client.DeleteUserTFA(context.Background(), "root@pam", "gone", nil); err != nil {
 		t.Fatalf("DeleteUserTFA() must be idempotent: %v", err)
 	}
 }

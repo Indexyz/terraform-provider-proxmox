@@ -79,8 +79,10 @@ func (c *Client) UpdateUserTFA(ctx context.Context, userID, entryID string, req 
 	return c.do(ctx, http.MethodPut, userTFAPath(userID)+"/"+url.PathEscape(entryID), nil, form, nil)
 }
 
-func (c *Client) DeleteUserTFA(ctx context.Context, userID, entryID string) error {
-	err := c.do(ctx, http.MethodDelete, userTFAPath(userID)+"/"+url.PathEscape(entryID), nil, nil, nil)
+func (c *Client) DeleteUserTFA(ctx context.Context, userID, entryID string, password *string) error {
+	form := url.Values{}
+	setOptionalString(form, "password", password)
+	err := c.do(ctx, http.MethodDelete, userTFAPath(userID)+"/"+url.PathEscape(entryID), nil, form, nil)
 	if errors.Is(err, errNotFound) {
 		return nil
 	}
