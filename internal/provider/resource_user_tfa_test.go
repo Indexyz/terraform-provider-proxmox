@@ -139,7 +139,7 @@ func TestUserTFALifecyclePreservesSecretInputs(t *testing.T) {
 				handler.fail(w, "unexpected create form: %v", r.Form)
 				return
 			}
-			entries["rec1"] = map[string]any{"id": "rec1", "type": "recovery", "enable": 1}
+			entries["rec1"] = map[string]any{"id": "rec1", "type": "recovery", "enable": 1, "description": r.Form.Get("description")}
 			handler.envelope(w, map[string]any{"id": "rec1", "recovery": []string{"c1", "c2"}})
 		case http.MethodGet:
 			entry, ok := entries["rec1"]

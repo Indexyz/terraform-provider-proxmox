@@ -123,13 +123,13 @@ func validateUserTFAConfig(config userTFAModel) diag.Diagnostics {
 	}
 	switch config.Type.ValueString() {
 	case "totp":
-		if !isConfiguredValue(config.TOTP) {
+		if config.TOTP.IsNull() && !config.TOTP.IsUnknown() {
 			diags.AddAttributeError(path.Root("totp"), "Missing TOTP URI", "totp is required for totp factors.")
-		} else if !strings.HasPrefix(config.TOTP.ValueString(), userTFATOTPKind) {
+		} else if isConfiguredValue(config.TOTP) && !strings.HasPrefix(config.TOTP.ValueString(), userTFATOTPKind) {
 			diags.AddAttributeError(path.Root("totp"), "Invalid TOTP URI", "totp must be an otpauth:// URI.")
 		}
 	case "yubico":
-		if !isConfiguredValue(config.Value) {
+		if config.Value.IsNull() && !config.Value.IsUnknown() {
 			diags.AddAttributeError(path.Root("value"), "Missing Yubico OTP", "value is required for yubico factors.")
 		}
 		if isConfiguredValue(config.TOTP) {
@@ -171,6 +171,9 @@ func (r *UserTFAResource) Create(ctx context.Context, req resource.CreateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if state.RecoveryCodes.IsUnknown() {
+		state.RecoveryCodes = types.ListNull(types.StringType)
+	}
 	if len(result.Recovery) > 0 {
 		codes, codeDiags := types.ListValueFrom(ctx, types.StringType, result.Recovery)
 		resp.Diagnostics.Append(codeDiags...)
@@ -207,6 +210,37 @@ func (r *UserTFAResource) Update(ctx context.Context, req resource.UpdateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	userID := prior.UserID.ValueString()
+	// PVE cannot update recovery entries by id, they are recreated instead
+	// (which also rotates the codes).
+	if prior.Type.ValueString() == "recovery" {
+		if err := r.client.DeleteUserTFA(ctx, userID, prior.EntryID.ValueString(), stringPointerValue(config.Password)); err != nil {
+			resp.Diagnostics.AddError("Unable to Recreate Proxmox User TFA Entry", err.Error())
+			return
+		}
+		result, err := r.client.CreateUserTFA(ctx, userID, UserTFACreateRequest{
+			Type:        "recovery",
+			Description: stringPointerValue(plan.Description),
+			Password:    stringPointerValue(config.Password),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Recreate Proxmox User TFA Entry", err.Error())
+			return
+		}
+		state, stateDiags := r.readState(ctx, userID, result.ID, &plan)
+		resp.Diagnostics.Append(stateDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		state.Password = plan.Password
+		if len(result.Recovery) > 0 {
+			codes, codeDiags := types.ListValueFrom(ctx, types.StringType, result.Recovery)
+			resp.Diagnostics.Append(codeDiags...)
+			state.RecoveryCodes = codes
+		}
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+		return
+	}
 	updateReq := UserTFAUpdateRequest{Password: stringPointerValue(config.Password)}
 	if isConfiguredValue(config.Description) {
 		updateReq.Description = stringPointer(plan.Description)
@@ -214,11 +248,11 @@ func (r *UserTFAResource) Update(ctx context.Context, req resource.UpdateRequest
 	if isConfiguredValue(config.Enable) {
 		updateReq.Enable = boolPointerValue(plan.Enable)
 	}
-	if err := r.client.UpdateUserTFA(ctx, prior.UserID.ValueString(), prior.EntryID.ValueString(), updateReq); err != nil {
+	if err := r.client.UpdateUserTFA(ctx, userID, prior.EntryID.ValueString(), updateReq); err != nil {
 		resp.Diagnostics.AddError("Unable to Update Proxmox User TFA Entry", err.Error())
 		return
 	}
-	state, stateDiags := r.readState(ctx, prior.UserID.ValueString(), prior.EntryID.ValueString(), &prior)
+	state, stateDiags := r.readState(ctx, userID, prior.EntryID.ValueString(), &prior)
 	resp.Diagnostics.Append(stateDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -273,6 +307,11 @@ func (r *UserTFAResource) readState(ctx context.Context, userID, entryID string,
 	}
 	if state.Enable.IsNull() {
 		state.Enable = types.BoolValue(true)
+	}
+	// Proxmox does not return a description for recovery entries; keep the
+	// configured one so a recreated entry does not drift to null.
+	if state.Description.IsNull() && prior.Type.ValueString() == "recovery" {
+		state.Description = prior.Description
 	}
 	// Secrets are never returned by Proxmox; keep the configured inputs.
 	state.TOTP = prior.TOTP
