@@ -156,6 +156,8 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewRealmResource,
 		NewReplicationJobResource,
 		NewRoleResource,
+		NewSDNApplyResource,
+		NewSDNZoneResource,
 		NewStorageFileDownloadResource,
 		NewStorageResource,
 		NewUserResource,

@@ -86,6 +86,7 @@
 - 新增 `proxmox_lxc_containers` 列表数据源（[`research/proxmox-lxc-containers.md`](../research/proxmox-lxc-containers.md)）：复用 `proxmox_qemu_vms` 的 `GET /cluster/resources?type=vm` 查询与客户端过滤（该 endpoint 无 qemu/lxc 服务端拆分，按 `type` 剔除 QEMU），保留 `template`（缺失字段按 API 默认 `0` 视为非模板）/`name`（精确、大小写敏感）/`node` 过滤与按 VMID 数值升序输出，空列表合法；记录字段与 QEMU 列表对齐。补齐混合 fixture 的过滤矩阵、数值/布尔 template、缺失字段投影、`99`/`100` 排序与 filter echo 测试、示例、生成文档与只读 smoke，注册 22 数据源。
 - 完成 realm 高级后续（[`research/proxmox-realm-advanced.md`](../research/proxmox-realm-advanced.md)）：新增世界可读 `proxmox_realms` 列表数据源（只输出 `realm`/`type`/`comment`/`default`/TFA 类型并排序，不暴露 secret/certkey/digest）；`proxmox_realm` 补齐 LDAP/AD 目录同步与客户端证书路径（`cert`/`cert_key`/`filter`/`sync_attributes`/`user_classes`/`group_dn`/`group_name_attr`/`group_filter`/`group_classes`/`sync_defaults_options`/`case_sensitive`）、OpenID group claim（`groups_claim`/`groups_autocreate`/`groups_overwrite`）与 typed `tfa` 单嵌套块（`type` 枚举 + yubico `id`/`key`/`url` 或 oath `digits` 6–8/`step` ≥10；property string 编解码，未知 key 报错）。全部走既有 Optional+Computed + private managed-field `delete`，变体矩阵和 `sync_attributes`/class 列表格式、长度上限均在计划期校验；注册 23 数据源，补齐 exact-form、变体/范围、状态编解码与 managed deletion 测试、示例与生成文档。`/sync` 仍为独立命令式关注点。
 - 完成 SDN epic 交付研究（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)，钉在 pve-network `4529016`）：确认 SDN 用**全局配置锁**而非 shadow 文件——每次 mutation 需要 `POST /cluster/sdn/lock` 的 `lock-token`（有 token 文件时无 token 或不同 token 直接 `invalid lock token provided!`，无锁文件时可无 token），GET 返回 `state`（new/changed/deleted）与嵌套 `pending` 差异并支持 `running`/`pending` 过滤，`PUT /cluster/sdn` 才 `commit_config()` 并对所有节点 reload（返回 `reloadnetworkall` UPID，`release-lock` 默认 1），`POST /cluster/sdn/rollback` 回滚到 running 快照。待提交配置是真实 diff 而非影子文件。记录 zone/vnet/subnet 的 digest CAS、quorum 检查与 zone 被 vnet 引用时拒绝删除（无级联）。设计：分四个切片（①`simple`/`vlan` zone + 全局 apply，②vnet，③subnet，④其余 zone 类型与 ipam/controller/dns/fabrics），每次 mutation 用 `allow-pending=1` 短锁后立即释放，pending 保留；外部锁（GUI 会话）报错不重试，锁泄漏靠手动 `force=1`；apply 永不隐式执行、不自动 rollback，`state`/`pending` 作为 computed 输出让未应用编辑可见。
+SDN 切片 1 已交付（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)）：`proxmox_sdn_zone`（`simple`/`vlan`，每次 mutation 短锁 `allow-pending=1` + 即时释放，释放失败降为告警；digest CAS；`state`/`pending` computed 并把 staged 值覆盖到 state，`deleted` 视为缺席；锁/CRUD 失败保留完整错误链）与 `proxmox_sdn_apply`（`PUT /cluster/sdn` + `reloadnetworkall` owner 节点 UPID 等待，commit 失败 best-effort 释放锁；`triggers` RequiresReplace、destroy 无动作、`pending`/`pending_objects` computed）。注册 31 资源，补齐 exact-form、锁令牌、digest、staged 覆盖、释放告警、空触发与任务失败测试。下一项为切片 2（vnet）。
 
 ## 接下来
 
@@ -93,7 +94,7 @@
 
 input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B NoCloud ISO 资源、Stage C CD-ROM 安全集成与指南）、Review round 1 九项必修（1–9）、Review round 2 三处缺陷修复与 Review round 4（无 delay 异步 DELETE 空/畸形 UPID 应答拒绝，覆盖 VM 与 NoCloud ISO 两路删除）已全部完成；真实模板根盘的 Terraform Core 盘映射一致性缺陷已在切片 B 修复（盘状态投影边界 + 真实 CLI 根盘 fixture 全链验证），refresh 所有权缺陷已按终审要求以拒绝路径修复（标记化 update 不再认可 prior-state 自有 seed 的就地更换，seed 更替走 VM 替换）。残留边界：未标记（无 `nocloud_cdrom_slot`）工作流（typed 与 raw 透传均）不做 CD-ROM 附着安全检查（严格检查按 owner 决策限定 marker 工作流；标记工作流的计划期 raw 盘槽自 round 2 修复起并入安全检查，不再是接受的绕过）。真实环境 DHCP/cloud-init/Runner 行为按指南验收清单人工确认，仍未验证。
 
-realm 高级后续已交付。下一项实现 SDN 切片 1（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)）：`proxmox_sdn_zone`（仅 `simple`/`vlan`）与全局 `proxmox_sdn_apply`，锁令牌、digest CAS、pending 可见性与 `state`/`pending` 映射按契约执行；随后依次 vnet、subnet。实机验收仍欠：HA 多节点、节点网络 stage → apply、realm 高级字段对真实 LDAP/AD、SDN 切片。
+下一项实现 SDN 切片 2（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)）：`proxmox_sdn_vnet`（`zone` 引用、`tag`、`vlanaware`、`isolate-ports`、`alias`、`mtu`），沿用切片 1 的锁令牌/digest/`state` 映射；之后是 subnet。实机验收仍欠：HA 多节点、节点网络 stage → apply、realm 高级字段对真实 LDAP/AD、SDN 真实提交对集群网络的影向。
 
 ### 后续中大型功能
 
@@ -101,7 +102,7 @@ realm 高级后续已交付。下一项实现 SDN 切片 1（[`research/proxmox-
 - Authentication realm 高级后续已完成（列表数据源、LDAP/AD 目录同步与证书、OpenID group claim、forced TFA）；仍待：`/sync` 命令式触发设计（可参考 `proxmox_node_network_apply` 的显式执行形式）、client certificate 内容上传与 user TFA 管理。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
 - Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；后续剩 OVS 系列（需父桥 `ovs_ports` 交叉写）、`alias`/`eth` altname 重命名与 revert 资源化。
-- SDN zones/VNets/subnets：epic 研究已交付（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)），实现从切片 1（`simple`/`vlan` zone + 全局 apply）开始，再依 vnet、subnet 推进；剩余 zone 类型与 ipam/controller/dns/fabrics/route-maps/prefix-lists 后续。
+- SDN zones/VNets/subnets：epic 研究已交付（[`research/proxmox-sdn.md`](../research/proxmox-sdn.md)），切片 1（`simple`/`vlan` zone + 全局 apply）已完成；按契约继续 vnet、subnet，再谈其余 zone 类型与 ipam/controller/dns/fabrics/route-maps/prefix-lists。
 - QEMU `hostpci`、`usb`、`rng`、`virtiofs` 等 compound device：按现有 slot parser/encoder 和 whole-slot raw fallback 模式实现；现有 `raw.extra_config` 可覆盖长尾，因此低于集群级能力。
 
 ### 持续约束
