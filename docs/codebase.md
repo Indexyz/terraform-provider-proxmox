@@ -114,12 +114,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | HA resource methods | `/cluster/ha/resources[/{sid}]` | PVE 9 HA enrollment/policy CRUD；collection read、digest update、`purge=0` destroy，不调用 guest 或 HA runtime 命令。 |
 | HA rule methods | `/cluster/ha/rules[/{rule}]` | PVE 9 `node-affinity`/`resource-affinity` 放置规则 CRUD；collection read、fresh digest update、managed-field `delete`、直接幂等 DELETE，不调用 migrate/relocate/CRM。 |
 | Node network methods | `/nodes/{node}/network[/{iface}]` | 节点接口 staged CRUD（读写均走 collection 的 pending 视图），`PUT`/`DELETE` 集合端点分别用于显式 reload（UPID）与手动 revert。 |
-| SDN methods | `/cluster/sdn[/lock,/zones[/{zone}],/vnets[/{vnet}],/vnets/{vnet}/subnets[/{subnet}],/ipams[/{ipam}],/dns[/{dns}],/controllers[/{controller}]]` | 全局锁令牌 + staged 全部 SDN 对象 CRUD（digest CAS、`state`/`pending` 读取），`PUT /cluster/sdn` 才提交并 reload 全集群；subnet 创建发 CIDR、后续操作发内部 id。 |
+| SDN methods | `/cluster/sdn[...]`（lock、zones、vnets + subnets、ipams、dns、controllers、fabrics + nodes、prefix-lists、route-map entries） | 全局锁令牌 + staged 全部 SDN 对象 CRUD（digest CAS、`state`/`pending` 读取），`PUT /cluster/sdn` 才提交并 reload 全集群；subnet 创建发 CIDR、后续操作发内部 id。 |
 | Firewall methods | `/cluster/firewall/{options,rules,aliases,ipset,groups}`、node/guest `/firewall/{options,rules}`、`/cluster/sdn/vnets/{vnet}/firewall/{options,rules}` | 集群命名对象、cluster/node/guest/group/vnet rules 及防火墙选项管理。 |
 
 ## 资源
 
-当前注册 **37 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **42 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -151,7 +151,12 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_sdn_apply` | 全局提交 staged SDN 配置（`PUT /cluster/sdn` + `reloadnetworkall` UPID 等待，destroy 无动作）。 |
 | `proxmox_sdn_controller` | 管理 `bgp`/`evpn`/`faucet`/`isis` controller 的 staged 配置（逐类型字段矩阵）。 |
 | `proxmox_sdn_dns` | 管理 `powerdns` DNS provider 的 staged 配置。 |
+| `proxmox_sdn_fabric` | 管理 `openfabric`/`ospf`/`wireguard`/`bgp` fabric 的 staged 配置。 |
+| `proxmox_sdn_fabric_node` | 管理 fabric node（含 WireGuard 公钥/角色/peer 等）的 staged 配置。 |
 | `proxmox_sdn_ipam` | 管理 `pve`/`netbox`/`phpipam` IPAM 的 staged 配置。 |
+| `proxmox_sdn_prefix_list` | 管理 staged prefix list（entries 为 property string），拒绝 Proxmox 保留 id。 |
+| `proxmox_sdn_rollback` | 丢弃全部 staged SDN 变更（`POST /cluster/sdn/rollback` + 锁令牌），destroy 无动作。 |
+| `proxmox_sdn_route_map_entry` | 管理 staged route map entry（`route_map_id` + `order` 身份，set/match/exit_action 为 property string）。 |
 | `proxmox_sdn_subnet` | 管理 staged SDN subnet（CIDR 身份、`gateway`/`snat`/`dhcp_range`/`dnszoneprefix`）；请求身份由 vnet + CIDR 映射到 Proxmox 内部 subnet id。 |
 | `proxmox_sdn_vnet` | 管理 staged SDN VNet（`zone` 引用、`tag`、`vlanaware`、`isolate_ports`、`alias`）；有 subnet 时 PVE 拒绝删除与 `vlanaware`。 |
 | `proxmox_sdn_vnet_firewall_options` | 管理 VNet 防火墙选项（`enable`/`policy_forward`/`log_level_forward`），**非 staged**、立即生效，删除时 reset 全部 key。 |
@@ -252,6 +257,8 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_realms` | `data_source_realms.go` | 世界可读登录索引 `/access/domains`，只输出 `realm`/`type`/`comment`/`default`/TFA 类型并按 realm 排序。 |
 | `proxmox_role` | `data_source_role.go` | `GET /access/roles/{roleid}`。 |
 | `proxmox_roles` | `data_source_roles.go` | `GET /access/roles`。 |
+| `proxmox_sdn_vnets` | `data_source_sdn_vnets.go` | `GET /cluster/sdn/vnets?pending=1`，输出 staged VNet 与 `state`/`pending`，可按 zone 过滤。 |
+| `proxmox_sdn_zones` | `data_source_sdn_zones.go` | `GET /cluster/sdn/zones?pending=1`，输出 staged zone 与 `state`/`pending`，可按 type 过滤。 |
 | `proxmox_storage` | `data_source_storage.go` | `GET /storage/{storage}`。 |
 | `proxmox_storages` | `data_source_storages.go` | `GET /storage`。 |
 | `proxmox_user` | `data_source_user.go` | `GET /access/users/{userid}`。 |
@@ -273,7 +280,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 37 个资源和 23 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 42 个资源和 25 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -311,6 +318,8 @@ make generate
 - `client_sdn_vnet_test.go`、`resource_sdn_vnet_test.go`：staged vnet CRUD exact-form、可变 `zone`、staged 覆盖与 deleted 缺席、variant/范围校验、import 与生命周期。
 - `client_sdn_subnet_test.go`、`resource_sdn_subnet_test.go`：CIDR→内部 id 转换、多值 `dhcp-range` 编码、staged range 覆盖与删除、CIDR/IP/前缀校验、import 与生命周期。
 - `resource_sdn_{ipam,dns,controller}_test.go`：三类对象的 exact-form CRUD（含 lock-token/digest/delete）、逐类型字段矩阵与必填项、staged 覆盖、deleted 缺席、import 与生命周期。
+- `resource_sdn_fabric_test.go`、`resource_sdn_prefix_route_test.go`：fabric/fabric node/prefix list/route map entry 的 exact-form CRUD（`delete` 以重复 key 发送）、逐协议字段矩阵、property-string 列表的 staged 覆盖与保留 id 拒绝。
+- `data_source_sdn_test.go`：zones/vnets 列表的排序、过滤、staged 覆盖与空/错误分支。
 - `e2e_smoke_test.go`：三个真实 Proxmox API e2e 测试，要求 PVE 9；只读测试覆盖 node/cluster/access/storage inventory，CRUD 测试用随机 ID 管理并清理 pool、group、role、user、API token 和 ACL，QEMU task-waiting 测试创建随机高 VMID 的空 source VM 与同节点 full clone，并验证 create/clone/delete UPID polling、正常 Terraform destroy 和带名称所有权校验的失败清理。
 - `tools/ci/*_test.go`：GitHub Actions e2e 脚本行为。
 

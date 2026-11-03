@@ -81,6 +81,20 @@ func TestDataSourceSuccessfulReads(t *testing.T) {
 			attribute: path.Root("containers").AtListIndex(0).AtName("name"), want: "unit-ct-template",
 		},
 		{
+			name: "sdn zones", dataSource: NewSDNZonesDataSource(), config: map[string]any{},
+			responses: map[string]any{
+				"/api2/json/cluster/sdn/zones?pending=1": []map[string]any{{"zone": "vz1", "type": "simple", "state": "new"}},
+			},
+			attribute: path.Root("zones").AtListIndex(0).AtName("zone"), want: "vz1",
+		},
+		{
+			name: "sdn vnets", dataSource: NewSDNVnetsDataSource(), config: map[string]any{},
+			responses: map[string]any{
+				"/api2/json/cluster/sdn/vnets?pending=1": []map[string]any{{"vnet": "vn1", "zone": "vz1", "state": "new"}},
+			},
+			attribute: path.Root("vnets").AtListIndex(0).AtName("vnet"), want: "vn1",
+		},
+		{
 			name: "realms", dataSource: NewRealmsDataSource(), config: map[string]any{},
 			responses: map[string]any{"/api2/json/access/domains": []map[string]any{
 				{"realm": "pam", "type": "pam"},

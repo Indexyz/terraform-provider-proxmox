@@ -737,3 +737,21 @@ func sdnZoneSetValues(value types.Set) []string {
 	}
 	return values
 }
+
+// sdnStagedRawList is sdnStagedList for lists whose items may contain commas
+// (property strings such as `action=permit,prefix=..`): the running slice is
+// used verbatim and a staged value must be a JSON array.
+func sdnStagedRawList(running []string, staged string) []string {
+	switch staged {
+	case "deleted":
+		return nil
+	case "":
+		return running
+	default:
+		var values []string
+		if err := json.Unmarshal([]byte(staged), &values); err == nil {
+			return values
+		}
+		return []string{staged}
+	}
+}

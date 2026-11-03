@@ -756,3 +756,399 @@ func (c *Client) SetSDNVnetFirewallOptions(ctx context.Context, vnet string, req
 	}
 	return c.do(ctx, http.MethodPut, sdnVnetFirewallOptionsPath(vnet), nil, form, nil)
 }
+
+// SDNFabric is one staged SDN fabric. Complex per-protocol lists stay property
+// strings, matching how Proxmox encodes them.
+type SDNFabric struct {
+	ID                  string                     `json:"id"`
+	Protocol            string                     `json:"protocol"`
+	IPPrefix            string                     `json:"ip_prefix"`
+	IP6Prefix           string                     `json:"ip6_prefix"`
+	HelloInterval       *float64                   `json:"hello_interval"`
+	CSNPInterval        *float64                   `json:"csnp_interval"`
+	Area                string                     `json:"area"`
+	RouteFilter         string                     `json:"route_filter"`
+	PersistentKeepalive proxmoxOptionalInt64       `json:"persistent_keepalive"`
+	RouteMapIn          string                     `json:"route_map_in"`
+	RouteMapOut         string                     `json:"route_map_out"`
+	Redistribute        []string                   `json:"redistribute"`
+	State               string                     `json:"state"`
+	Pending             map[string]json.RawMessage `json:"pending"`
+	Digest              string                     `json:"digest"`
+}
+
+type SDNFabricRequest struct {
+	Protocol            string
+	IPPrefix            *string
+	IP6Prefix           *string
+	HelloInterval       *float64
+	CSNPInterval        *float64
+	Area                *string
+	RouteFilter         *string
+	PersistentKeepalive *int64
+	RouteMapIn          *string
+	RouteMapOut         *string
+	Redistribute        []string
+	LockToken           string
+	Digest              *string
+	Delete              []string
+}
+
+// SDNFabricNode is one staged node of an SDN fabric.
+type SDNFabricNode struct {
+	FabricID   string                     `json:"fabric_id"`
+	NodeID     string                     `json:"node_id"`
+	Protocol   string                     `json:"protocol"`
+	IP         string                     `json:"ip"`
+	IP6        string                     `json:"ip6"`
+	Interfaces []string                   `json:"interfaces"`
+	PublicKey  string                     `json:"public_key"`
+	Role       string                     `json:"role"`
+	Endpoint   string                     `json:"endpoint"`
+	AllowedIPs []string                   `json:"allowed_ips"`
+	Peers      []string                   `json:"peers"`
+	State      string                     `json:"state"`
+	Pending    map[string]json.RawMessage `json:"pending"`
+	Digest     string                     `json:"digest"`
+}
+
+type SDNFabricNodeRequest struct {
+	Protocol   string
+	IP         *string
+	IP6        *string
+	Interfaces []string
+	PublicKey  *string
+	Role       *string
+	Endpoint   *string
+	AllowedIPs []string
+	Peers      []string
+	LockToken  string
+	Digest     *string
+	Delete     []string
+}
+
+func (c *Client) SDNFabrics(ctx context.Context) ([]SDNFabric, error) {
+	objects, err := c.sdnSectionList(ctx, "/cluster/sdn/fabrics/fabric")
+	if err != nil {
+		return nil, err
+	}
+	var fabrics []SDNFabric
+	for _, raw := range objects {
+		var fabric SDNFabric
+		if err := json.Unmarshal(raw, &fabric); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN fabric: %w", err)
+		}
+		fabrics = append(fabrics, fabric)
+	}
+	return fabrics, nil
+}
+
+func (c *Client) GetSDNFabric(ctx context.Context, id string) (SDNFabric, error) {
+	fabrics, err := c.SDNFabrics(ctx)
+	if err != nil {
+		return SDNFabric{}, err
+	}
+	for _, entry := range fabrics {
+		if entry.ID == id {
+			return entry, nil
+		}
+	}
+	return SDNFabric{}, errNotFound
+}
+
+func (c *Client) CreateSDNFabric(ctx context.Context, id string, req SDNFabricRequest) error {
+	form := sdnFabricForm(req)
+	form.Set("id", id)
+	form.Set("protocol", req.Protocol)
+	form.Set("lock-token", req.LockToken)
+	return c.do(ctx, http.MethodPost, "/cluster/sdn/fabrics/fabric", nil, form, nil)
+}
+
+func (c *Client) UpdateSDNFabric(ctx context.Context, id string, req SDNFabricRequest) error {
+	form := sdnFabricForm(req)
+	form.Set("id", id)
+	form.Set("protocol", req.Protocol)
+	form.Set("lock-token", req.LockToken)
+	setOptionalString(form, "digest", req.Digest)
+	for _, key := range sortedStrings(req.Delete) {
+		form.Add("delete", key)
+	}
+	return c.do(ctx, http.MethodPut, "/cluster/sdn/fabrics/fabric/"+url.PathEscape(id), nil, form, nil)
+}
+
+func (c *Client) DeleteSDNFabric(ctx context.Context, id, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, "/cluster/sdn/fabrics/fabric/"+url.PathEscape(id), nil, form, nil)
+}
+
+func sdnFabricForm(req SDNFabricRequest) url.Values {
+	form := url.Values{}
+	setOptionalString(form, "ip_prefix", req.IPPrefix)
+	setOptionalString(form, "ip6_prefix", req.IP6Prefix)
+	setOptionalFloat64(form, "hello_interval", req.HelloInterval)
+	setOptionalFloat64(form, "csnp_interval", req.CSNPInterval)
+	setOptionalString(form, "area", req.Area)
+	setOptionalString(form, "route_filter", req.RouteFilter)
+	setOptionalInt64(form, "persistent_keepalive", req.PersistentKeepalive)
+	setOptionalString(form, "route_map_in", req.RouteMapIn)
+	setOptionalString(form, "route_map_out", req.RouteMapOut)
+	for _, entry := range sortedStrings(req.Redistribute) {
+		form.Add("redistribute", entry)
+	}
+	return form
+}
+
+func sdnFabricNodesPath(fabricID string) string {
+	return "/cluster/sdn/fabrics/node/" + url.PathEscape(fabricID)
+}
+
+func (c *Client) SDNFabricNodes(ctx context.Context, fabricID string) ([]SDNFabricNode, error) {
+	objects, err := c.sdnSectionList(ctx, sdnFabricNodesPath(fabricID))
+	if err != nil {
+		return nil, err
+	}
+	var nodes []SDNFabricNode
+	for _, raw := range objects {
+		var node SDNFabricNode
+		if err := json.Unmarshal(raw, &node); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN fabric node: %w", err)
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
+}
+
+func (c *Client) GetSDNFabricNode(ctx context.Context, fabricID, nodeID string) (SDNFabricNode, error) {
+	nodes, err := c.SDNFabricNodes(ctx, fabricID)
+	if err != nil {
+		return SDNFabricNode{}, err
+	}
+	for _, entry := range nodes {
+		if entry.NodeID == nodeID {
+			return entry, nil
+		}
+	}
+	return SDNFabricNode{}, errNotFound
+}
+
+func (c *Client) CreateSDNFabricNode(ctx context.Context, fabricID, nodeID string, req SDNFabricNodeRequest) error {
+	form := sdnFabricNodeForm(req)
+	form.Set("node_id", nodeID)
+	form.Set("protocol", req.Protocol)
+	form.Set("lock-token", req.LockToken)
+	return c.do(ctx, http.MethodPost, sdnFabricNodesPath(fabricID), nil, form, nil)
+}
+
+func (c *Client) UpdateSDNFabricNode(ctx context.Context, fabricID, nodeID string, req SDNFabricNodeRequest) error {
+	form := sdnFabricNodeForm(req)
+	form.Set("node_id", nodeID)
+	form.Set("protocol", req.Protocol)
+	form.Set("lock-token", req.LockToken)
+	setOptionalString(form, "digest", req.Digest)
+	for _, key := range sortedStrings(req.Delete) {
+		form.Add("delete", key)
+	}
+	return c.do(ctx, http.MethodPut, sdnFabricNodesPath(fabricID)+"/"+url.PathEscape(nodeID), nil, form, nil)
+}
+
+func (c *Client) DeleteSDNFabricNode(ctx context.Context, fabricID, nodeID, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, sdnFabricNodesPath(fabricID)+"/"+url.PathEscape(nodeID), nil, form, nil)
+}
+
+func sdnFabricNodeForm(req SDNFabricNodeRequest) url.Values {
+	form := url.Values{}
+	setOptionalString(form, "ip", req.IP)
+	setOptionalString(form, "ip6", req.IP6)
+	for _, entry := range sortedStrings(req.Interfaces) {
+		form.Add("interfaces", entry)
+	}
+	setOptionalString(form, "public_key", req.PublicKey)
+	setOptionalString(form, "role", req.Role)
+	setOptionalString(form, "endpoint", req.Endpoint)
+	for _, entry := range sortedStrings(req.AllowedIPs) {
+		form.Add("allowed_ips", entry)
+	}
+	for _, entry := range sortedStrings(req.Peers) {
+		form.Add("peers", entry)
+	}
+	return form
+}
+
+// SDNPrefixList is one staged SDN prefix list. Entries stay property strings
+// (`action=permit,prefix=..[,le=..,ge=..]`) exactly as Proxmox encodes them.
+type SDNPrefixList struct {
+	ID      string                     `json:"id"`
+	Entries []string                   `json:"entries"`
+	State   string                     `json:"state"`
+	Pending map[string]json.RawMessage `json:"pending"`
+	Digest  string                     `json:"digest"`
+}
+
+type SDNPrefixListRequest struct {
+	Entries   []string
+	LockToken string
+	Digest    *string
+	Delete    []string
+}
+
+// SDNRouteMapEntry is one staged route map entry. Route maps exist implicitly
+// through their entries.
+type SDNRouteMapEntry struct {
+	RouteMapID string                     `json:"route-map-id"`
+	Order      proxmoxOptionalInt64       `json:"order"`
+	Action     string                     `json:"action"`
+	Set        []string                   `json:"set"`
+	Match      []string                   `json:"match"`
+	ExitAction string                     `json:"exit-action"`
+	Call       string                     `json:"call"`
+	State      string                     `json:"state"`
+	Pending    map[string]json.RawMessage `json:"pending"`
+	Digest     string                     `json:"digest"`
+}
+
+type SDNRouteMapEntryRequest struct {
+	RouteMapID string
+	Order      int64
+	Action     string
+	Set        []string
+	Match      []string
+	ExitAction *string
+	Call       *string
+	LockToken  string
+	Digest     *string
+	Delete     []string
+}
+
+func (c *Client) SDNPrefixLists(ctx context.Context) ([]SDNPrefixList, error) {
+	objects, err := c.sdnSectionList(ctx, "/cluster/sdn/prefix-lists")
+	if err != nil {
+		return nil, err
+	}
+	var lists []SDNPrefixList
+	for _, raw := range objects {
+		var list SDNPrefixList
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN prefix list: %w", err)
+		}
+		lists = append(lists, list)
+	}
+	return lists, nil
+}
+
+func (c *Client) GetSDNPrefixList(ctx context.Context, id string) (SDNPrefixList, error) {
+	lists, err := c.SDNPrefixLists(ctx)
+	if err != nil {
+		return SDNPrefixList{}, err
+	}
+	for _, entry := range lists {
+		if entry.ID == id {
+			return entry, nil
+		}
+	}
+	return SDNPrefixList{}, errNotFound
+}
+
+func (c *Client) CreateSDNPrefixList(ctx context.Context, id string, req SDNPrefixListRequest) error {
+	form := url.Values{}
+	form.Set("id", id)
+	form.Set("lock-token", req.LockToken)
+	setOptionalString(form, "digest", req.Digest)
+	for _, entry := range sortedStrings(req.Entries) {
+		form.Add("entries", entry)
+	}
+	return c.do(ctx, http.MethodPost, "/cluster/sdn/prefix-lists", nil, form, nil)
+}
+
+func (c *Client) UpdateSDNPrefixList(ctx context.Context, id string, req SDNPrefixListRequest) error {
+	form := url.Values{"id": {id}, "lock-token": {req.LockToken}}
+	setOptionalString(form, "digest", req.Digest)
+	for _, entry := range sortedStrings(req.Entries) {
+		form.Add("entries", entry)
+	}
+	for _, key := range sortedStrings(req.Delete) {
+		form.Add("delete", key)
+	}
+	return c.do(ctx, http.MethodPut, "/cluster/sdn/prefix-lists/"+url.PathEscape(id), nil, form, nil)
+}
+
+func (c *Client) DeleteSDNPrefixList(ctx context.Context, id, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, "/cluster/sdn/prefix-lists/"+url.PathEscape(id), nil, form, nil)
+}
+
+func sdnRouteMapEntriesPath() string { return "/cluster/sdn/route-maps/entries" }
+
+func (c *Client) SDNRouteMapEntries(ctx context.Context) ([]SDNRouteMapEntry, error) {
+	objects, err := c.sdnSectionList(ctx, sdnRouteMapEntriesPath())
+	if err != nil {
+		return nil, err
+	}
+	var entries []SDNRouteMapEntry
+	for _, raw := range objects {
+		var entry SDNRouteMapEntry
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			return nil, fmt.Errorf("unable to decode SDN route map entry: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+func (c *Client) GetSDNRouteMapEntry(ctx context.Context, routeMapID string, order int64) (SDNRouteMapEntry, error) {
+	entries, err := c.SDNRouteMapEntries(ctx)
+	if err != nil {
+		return SDNRouteMapEntry{}, err
+	}
+	for _, entry := range entries {
+		if entry.RouteMapID == routeMapID && entry.Order.Ptr() != nil && *entry.Order.Ptr() == order {
+			return entry, nil
+		}
+	}
+	return SDNRouteMapEntry{}, errNotFound
+}
+
+func (c *Client) CreateSDNRouteMapEntry(ctx context.Context, req SDNRouteMapEntryRequest) error {
+	form := sdnRouteMapEntryForm(req)
+	form.Set("lock-token", req.LockToken)
+	return c.do(ctx, http.MethodPost, sdnRouteMapEntriesPath(), nil, form, nil)
+}
+
+func (c *Client) UpdateSDNRouteMapEntry(ctx context.Context, routeMapID string, order int64, req SDNRouteMapEntryRequest) error {
+	form := sdnRouteMapEntryForm(req)
+	form.Set("lock-token", req.LockToken)
+	setOptionalString(form, "digest", req.Digest)
+	for _, key := range sortedStrings(req.Delete) {
+		form.Add("delete", key)
+	}
+	return c.do(ctx, http.MethodPut, fmt.Sprintf("%s/%s/%d", sdnRouteMapEntriesPath(), url.PathEscape(routeMapID), order), nil, form, nil)
+}
+
+func (c *Client) DeleteSDNRouteMapEntry(ctx context.Context, routeMapID string, order int64, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}}
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("%s/%s/%d", sdnRouteMapEntriesPath(), url.PathEscape(routeMapID), order), nil, form, nil)
+}
+
+func sdnRouteMapEntryForm(req SDNRouteMapEntryRequest) url.Values {
+	form := url.Values{
+		"route-map-id": {req.RouteMapID},
+		"order":        {fmt.Sprintf("%d", req.Order)},
+		"action":       {req.Action},
+	}
+	for _, entry := range sortedStrings(req.Set) {
+		form.Add("set", entry)
+	}
+	for _, entry := range sortedStrings(req.Match) {
+		form.Add("match", entry)
+	}
+	setOptionalString(form, "exit-action", req.ExitAction)
+	setOptionalString(form, "call", req.Call)
+	return form
+}
+
+// RollbackSDN discards every staged SDN change by restoring the running
+// snapshot into the pending configuration.
+func (c *Client) RollbackSDN(ctx context.Context, lockToken string) error {
+	form := url.Values{"lock-token": {lockToken}, "release-lock": {"1"}}
+	return c.do(ctx, http.MethodPost, "/cluster/sdn/rollback", nil, form, nil)
+}

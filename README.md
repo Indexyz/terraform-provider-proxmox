@@ -74,7 +74,12 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_apply`
 - `proxmox_sdn_controller`
 - `proxmox_sdn_dns`
+- `proxmox_sdn_fabric`
+- `proxmox_sdn_fabric_node`
 - `proxmox_sdn_ipam`
+- `proxmox_sdn_prefix_list`
+- `proxmox_sdn_rollback`
+- `proxmox_sdn_route_map_entry`
 - `proxmox_sdn_subnet`
 - `proxmox_sdn_vnet`
 - `proxmox_sdn_vnet_firewall_options`
@@ -103,6 +108,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_realms`
 - `proxmox_role`
 - `proxmox_roles`
+- `proxmox_sdn_vnets`
+- `proxmox_sdn_zones`
 - `proxmox_storage`
 - `proxmox_storages`
 - `proxmox_user`
