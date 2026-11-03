@@ -75,7 +75,7 @@ func (p *ProxmoxProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 			"otp": schema.StringAttribute{
 				Optional:            true,
 				Sensitive:           true,
-				MarkdownDescription: fmt.Sprintf("One-time password used with ticket-based authentication. Can also be set with `%s`.", envOTP),
+				MarkdownDescription: fmt.Sprintf("One-time password used with ticket-based authentication, required when the user has TFA enabled. A bare code is sent as `totp:<code>`; recovery codes as `recovery:<code>`. Can also be set with `%s`.", envOTP),
 			},
 			"api_token_id": schema.StringAttribute{
 				Optional:            true,

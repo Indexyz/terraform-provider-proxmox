@@ -31,7 +31,7 @@ provider "proxmox" {
 - `api_token_secret` (String, Sensitive) Proxmox API token secret. Can also be set with `PROXMOX_VE_API_TOKEN_SECRET`.
 - `endpoint` (String) Proxmox VE API endpoint. Accepts a base URL such as `https://pve.example.com:8006` and auto-appends `/api2/json` if needed. Can also be set with `PROXMOX_VE_ENDPOINT`.
 - `insecure` (Boolean) Disable TLS certificate verification for the Proxmox endpoint. Can also be set with `PROXMOX_VE_INSECURE`.
-- `otp` (String, Sensitive) One-time password used with ticket-based authentication. Can also be set with `PROXMOX_VE_OTP`.
+- `otp` (String, Sensitive) One-time password used with ticket-based authentication, required when the user has TFA enabled. A bare code is sent as `totp:<code>`; recovery codes as `recovery:<code>`. Can also be set with `PROXMOX_VE_OTP`.
 - `password` (String, Sensitive) Password for ticket-based authentication. Can also be set with `PROXMOX_VE_PASSWORD`.
 - `timeout_seconds` (Number) HTTP request timeout in seconds. Defaults to `30`. Can also be set with `PROXMOX_VE_TIMEOUT`.
 - `user_agent` (String) Optional custom HTTP user agent string sent to the Proxmox API.
