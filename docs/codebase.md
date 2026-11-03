@@ -157,6 +157,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_disk_wipe` | 擦除磁盘签名（命令式）。 |
 | `proxmox_node_gpt_init` | 初始化 GPT（命令式，可选 uuid）。 |
 | `proxmox_node_acme_certificate` | 写入节点 ACME 配置并下单/吊销（UPID 等待，triggers 驱动）。 |
+| `proxmox_node_apt_repository` | 启停单个 APT 源条目（凭整体配置 digest，冲突重试）。 |
+| `proxmox_node_apt_update` | 运行 `apt update`（UPID 等待，triggers 驱动）。 |
 | `proxmox_lxc_snapshot` | 管理 LXC 快照。 |
 | `proxmox_node_firewall_options` | 管理节点防火墙选项。 |
 | `proxmox_notification_endpoint_smtp` | 管理 SMTP 通知端点（密码 sensitive 且不回传，TLS mode 校验）。 |
@@ -164,6 +166,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_notification_endpoint_sendmail` | 管理本地 sendmail 目标（可 import 内置 `mail-to-root`）。 |
 | `proxmox_notification_endpoint_webhook` | 管理 webhook 端点（header 为 base64 property string，secret 名称脱敏回读）。 |
 | `proxmox_notification_matcher` | 管理通知 matcher（target/mode/severity/calendar/invert，空规则走 delete）。 |
+| `proxmox_node_service` | 管理服务运行状态（running/stopped），destroy 保持运行。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
 | `proxmox_node_network_revert` | 丢弃节点全部 staged 网络配置（DELETE + UPID 等待，destroy 无动作，保留 `pending_changes` 观测）。 |
 | `proxmox_node_network_interface` | 管理单个节点接口（bridge/bond/vlan/alias/eth/OVSBridge/OVSPort/OVSIntPort/OVSBond）的 staged 配置，不自动 reload；OVS 端口由 provider 维护父桥 `ovs_ports`（create 追加，destroy 或换父桥时移除，因 PVE 只为 OVSIntPort/OVSBond 自动维护）。 |
@@ -276,6 +279,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_nodes` | `data_source_nodes.go` | `GET /nodes`，列出节点概要。 |
 | `proxmox_node` | `data_source_node.go` | `GET /nodes/{node}/status`，读取单节点详细状态。 |
 | `proxmox_node_apt_versions` | `data_source_node_inventory.go` | `GET /nodes/{node}/apt/versions`，按 package 排序。 |
+| `proxmox_node_apt_repositories` | `data_source_node_apt.go` | `GET /nodes/{node}/apt/repositories`，按 path 排序，输出条目 index 位置。 |
 | `proxmox_node_dns` | `data_source_node_dns.go` | `GET /nodes/{node}/dns`。 |
 | `proxmox_node_hardware_pci` | `data_source_node_inventory.go` | `GET /nodes/{node}/hardware/pci`，按地址排序。 |
 | `proxmox_node_hardware_usb` | `data_source_node_inventory.go` | `GET /nodes/{node}/hardware/usb`，按 bus/port 排序。 |
@@ -352,7 +356,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 70 个资源和 68 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 73 个资源和 69 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -394,6 +398,7 @@ make generate
 - `data_source_inventory_test.go`：storage content、guest snapshot、user token/TFA、节点网络与三处防火墙选项数据源的投影/排序/校验。
 - `data_source_node_inventory_test.go`：PCI/USB 硬件、APT 版本、服务列表与 TFA unlock 的投影/排序/校验。
 - `resource_node_disk_test.go`、`resource_cluster_options_test.go`：磁盘与集群选项的 exact-form、校验矩阵、命令式资源生命周期与数据源投影。
+- `resource_node_service_test.go`：服务 start/stop、APT update、仓库 toggle（digest 冲突重试）与 apt repositories 数据源投影。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

@@ -132,6 +132,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增节点磁盘管理（zfs/lvm/lvmthin/directory、gpt init、wipe、disks/smart 数据源）与集群选项/配置（options 资源与数据源、config 数据源、join、node remove）。
 
+- 新增 `proxmox_node_service`、`proxmox_node_apt_repository`、`proxmox_node_apt_update` 与 `proxmox_node_apt_repositories` 数据源。
+
 ## 接下来
 
 ### 已完成（本轮）

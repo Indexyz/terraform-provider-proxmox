@@ -73,6 +73,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_lxc_snapshot`
 - `proxmox_nocloud_iso`
 - `proxmox_node_acme_certificate`
+- `proxmox_node_apt_repository`
+- `proxmox_node_apt_update`
 - `proxmox_node_certificate`
 - `proxmox_node_disk_directory`
 - `proxmox_node_disk_lvm`
@@ -84,6 +86,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_network_apply`
 - `proxmox_node_network_interface`
 - `proxmox_node_network_revert`
+- `proxmox_node_service`
 - `proxmox_notification_endpoint_gotify`
 - `proxmox_notification_endpoint_sendmail`
 - `proxmox_notification_endpoint_smtp`
@@ -137,6 +140,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_lxc_containers`
 - `proxmox_lxc_snapshots`
 - `proxmox_node`
+- `proxmox_node_apt_repositories`
 - `proxmox_node_apt_versions`
 - `proxmox_node_disk_smart`
 - `proxmox_node_disks`
