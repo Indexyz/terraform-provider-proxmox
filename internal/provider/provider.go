@@ -143,6 +143,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewGroupResource,
 		NewGuestFirewallOptionsResource,
 		NewHAResourceResource,
+		NewHARuleResource,
 		NewLXCContainerResource,
 		NewLXCSnapshotResource,
 		NewNoCloudISOResource,
