@@ -119,9 +119,12 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_replication_jobs`
 - `proxmox_role`
 - `proxmox_roles`
+- `proxmox_sdn_controller`
 - `proxmox_sdn_controllers`
+- `proxmox_sdn_dns`
 - `proxmox_sdn_dns_providers`
 - `proxmox_sdn_fabrics`
+- `proxmox_sdn_ipam`
 - `proxmox_sdn_ipams`
 - `proxmox_sdn_prefix_lists`
 - `proxmox_sdn_route_map_entries`

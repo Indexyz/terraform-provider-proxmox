@@ -6,65 +6,54 @@ package provider
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	datasourceschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var _ datasource.DataSource = &SDNDNSsDataSource{}
+var _ datasource.DataSource = &SDNDNSDataSource{}
 
-type SDNDNSsDataSource struct {
+type SDNDNSDataSource struct {
 	client *Client
 }
 
-type sdnDNSsDataSourceModel struct {
-	ID      types.String              `tfsdk:"id"`
-	Type    types.String              `tfsdk:"type"`
-	Servers []sdnDNSsDataSourceRecord `tfsdk:"servers"`
+type sdnDNSDataSourceModel struct {
+	ID            types.String `tfsdk:"id"`
+	DNS           types.String `tfsdk:"dns"`
+	Type          types.String `tfsdk:"type"`
+	URL           types.String `tfsdk:"url"`
+	TTL           types.Int64  `tfsdk:"ttl"`
+	ReverseMaskV6 types.Int64  `tfsdk:"reverse_mask_v6"`
+	Fingerprint   types.String `tfsdk:"fingerprint"`
+	State         types.String `tfsdk:"state"`
+	Pending       types.Map    `tfsdk:"pending"`
 }
 
-type sdnDNSsDataSourceRecord struct {
-	DNS     types.String `tfsdk:"dns"`
-	Type    types.String `tfsdk:"type"`
-	URL     types.String `tfsdk:"url"`
-	TTL     types.Int64  `tfsdk:"ttl"`
-	State   types.String `tfsdk:"state"`
-	Pending types.Map    `tfsdk:"pending"`
+func NewSDNDNSDataSource() datasource.DataSource { return &SDNDNSDataSource{} }
+
+func (d *SDNDNSDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_sdn_dns"
 }
 
-func NewSDNDNSsDataSource() datasource.DataSource { return &SDNDNSsDataSource{} }
-
-func (d *SDNDNSsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_sdn_dns_providers"
-}
-
-func (d *SDNDNSsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *SDNDNSDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = datasourceschema.Schema{
-		MarkdownDescription: "Lists staged SDN DNS providers from `/cluster/sdn/dns`, sorted by `dns`. Provider keys are not exposed.",
+		MarkdownDescription: "Reads one staged SDN DNS provider from `/cluster/sdn/dns`. The provider key is not exposed, only its fingerprint.",
 		Attributes: map[string]datasourceschema.Attribute{
-			"id":   datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "Unique identifier for this data source call."},
-			"type": datasourceschema.StringAttribute{Optional: true, MarkdownDescription: "Restrict the result to one DNS provider type. An empty value disables this filter."},
-			"servers": datasourceschema.ListNestedAttribute{
-				Computed:            true,
-				MarkdownDescription: "Matching DNS providers, sorted by `dns`.",
-				NestedObject: datasourceschema.NestedAttributeObject{
-					Attributes: map[string]datasourceschema.Attribute{
-						"dns":     datasourceschema.StringAttribute{Computed: true},
-						"type":    datasourceschema.StringAttribute{Computed: true},
-						"url":     datasourceschema.StringAttribute{Computed: true},
-						"ttl":     datasourceschema.Int64Attribute{Computed: true},
-						"state":   datasourceschema.StringAttribute{Computed: true},
-						"pending": datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType},
-					},
-				},
-			},
+			"id":              datasourceschema.StringAttribute{Computed: true, MarkdownDescription: "DNS provider identifier."},
+			"dns":             datasourceschema.StringAttribute{Required: true, MarkdownDescription: "DNS provider to read."},
+			"type":            datasourceschema.StringAttribute{Computed: true},
+			"url":             datasourceschema.StringAttribute{Computed: true},
+			"ttl":             datasourceschema.Int64Attribute{Computed: true},
+			"reverse_mask_v6": datasourceschema.Int64Attribute{Computed: true},
+			"fingerprint":     datasourceschema.StringAttribute{Computed: true},
+			"state":           datasourceschema.StringAttribute{Computed: true},
+			"pending":         datasourceschema.MapAttribute{Computed: true, ElementType: types.StringType},
 		},
 	}
 }
 
-func (d *SDNDNSsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *SDNDNSDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -76,39 +65,34 @@ func (d *SDNDNSsDataSource) Configure(_ context.Context, req datasource.Configur
 	d.client = client
 }
 
-func (d *SDNDNSsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var config sdnDNSsDataSourceModel
+func (d *SDNDNSDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var config sdnDNSDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	servers, err := d.client.SDNDNSs(ctx)
+	name := config.DNS.ValueString()
+	entry, err := d.client.GetSDNDNS(ctx, name)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to Read Proxmox SDN DNS Providers", fmt.Sprintf("Unable to call `/cluster/sdn/dns`: %s", err))
+		resp.Diagnostics.AddError("Unable to Read Proxmox SDN DNS Provider", fmt.Sprintf("Unable to call `/cluster/sdn/dns`: %s", err))
 		return
 	}
-	filter := stringValue(config.Type)
-	records := make([]sdnDNSsDataSourceRecord, 0, len(servers))
-	for _, server := range servers {
-		if filter != "" && server.Type != filter {
-			continue
-		}
-		staged := sdnPendingMap(server.Pending)
-		record := sdnDNSsDataSourceRecord{
-			DNS:     types.StringValue(server.DNS),
-			Type:    types.StringValue(server.Type),
-			URL:     sdnStagedString(server.URL, staged["url"]),
-			TTL:     sdnStagedInt64(server.TTL.Ptr(), staged["ttl"]),
-			State:   stringOrNull(server.State),
-			Pending: types.MapNull(types.StringType),
-		}
-		if len(staged) > 0 {
-			pending, pendingDiags := types.MapValueFrom(ctx, types.StringType, staged)
-			resp.Diagnostics.Append(pendingDiags...)
-			record.Pending = pending
-		}
-		records = append(records, record)
+	staged := sdnPendingMap(entry.Pending)
+	pending := types.MapNull(types.StringType)
+	if len(staged) > 0 {
+		value, pendingDiags := types.MapValueFrom(ctx, types.StringType, staged)
+		resp.Diagnostics.Append(pendingDiags...)
+		pending = value
 	}
-	sort.Slice(records, func(i, j int) bool { return records[i].DNS.ValueString() < records[j].DNS.ValueString() })
-	resp.Diagnostics.Append(resp.State.Set(ctx, &sdnDNSsDataSourceModel{ID: types.StringValue("sdn_dns_providers"), Type: config.Type, Servers: records})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &sdnDNSDataSourceModel{
+		ID:            types.StringValue(name),
+		DNS:           types.StringValue(entry.DNS),
+		Type:          sdnStagedString(entry.Type, staged["type"]),
+		URL:           sdnStagedString(entry.URL, staged["url"]),
+		TTL:           sdnStagedInt64(entry.TTL.Ptr(), staged["ttl"]),
+		ReverseMaskV6: sdnStagedInt64(entry.ReverseMaskV6.Ptr(), staged["reversemaskv6"]),
+		Fingerprint:   sdnStagedString(entry.Fingerprint, staged["fingerprint"]),
+		State:         stringOrNull(entry.State),
+		Pending:       pending,
+	})...)
 }

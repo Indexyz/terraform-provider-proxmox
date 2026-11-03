@@ -95,11 +95,72 @@ func TestSDNSingletonDataSourcesMissing(t *testing.T) {
 		"subnet": {"/api2/json/cluster/sdn/vnets/vn1/subnets?pending=1", map[string]any{"vnet": "vn1", "subnet": "10.0.0.0/24"}, func(responses, config map[string]any) bool {
 			return runSDNDataSource(t, NewSDNSubnetDataSource(), responses, config).Diagnostics.HasError()
 		}},
+		"ipam": {"/api2/json/cluster/sdn/ipams?pending=1", map[string]any{"ipam": "gone"}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNIPAMDataSource(), responses, config).Diagnostics.HasError()
+		}},
+		"dns": {"/api2/json/cluster/sdn/dns?pending=1", map[string]any{"dns": "gone"}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNDNSDataSource(), responses, config).Diagnostics.HasError()
+		}},
+		"controller": {"/api2/json/cluster/sdn/controllers?pending=1", map[string]any{"controller": "gone"}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNControllerDataSource(), responses, config).Diagnostics.HasError()
+		}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if !tc.read(map[string]any{tc.path: []any{}}, tc.config) {
 				t.Fatal("missing entry must surface an error")
 			}
 		})
+	}
+}
+
+func TestSDNIPAMDataSourceReadsStagedIPAM(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/ipams?pending=1": []map[string]any{
+			{"ipam": "ip1", "type": "netbox", "url": "https://nb", "section": 1, "fingerprint": "aa", "state": "changed", "pending": map[string]any{"url": "https://nb2", "section": "2"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNIPAMDataSource(), responses, map[string]any{"ipam": "ip1"})
+	var state sdnIPAMDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if state.URL.ValueString() != "https://nb2" || state.Section.ValueInt64() != 2 || state.Pending.Elements()["url"].(interface{}) == nil {
+		t.Fatalf("staged overlay failed: %#v", state)
+	}
+}
+
+func TestSDNDNSDataSourceReadsStagedProvider(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/dns?pending=1": []map[string]any{
+			{"dns": "pdns", "type": "powerdns", "url": "https://pd", "ttl": 300, "reversemaskv6": 16, "fingerprint": "bb", "pending": map[string]any{"ttl": "600"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNDNSDataSource(), responses, map[string]any{"dns": "pdns"})
+	var state sdnDNSDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if state.TTL.ValueInt64() != 600 || state.ReverseMaskV6.ValueInt64() != 16 || state.Type.ValueString() != "powerdns" {
+		t.Fatalf("staged overlay failed: %#v", state)
+	}
+}
+
+func TestSDNControllerDataSourceReadsStagedController(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/controllers?pending=1": []map[string]any{
+			{"controller": "evpn1", "type": "evpn", "asn": 65000, "node": "node1", "nodes": "node1,node2", "fabric": "f1", "loopback": "10.0.0.1", "route-map-in": "rm1", "state": "changed", "pending": map[string]any{"asn": "65001"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNControllerDataSource(), responses, map[string]any{"controller": "evpn1"})
+	var state sdnControllerDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if state.ASN.ValueInt64() != 65001 || state.Fabric.ValueString() != "f1" || state.RouteMapIn.ValueString() != "rm1" {
+		t.Fatalf("staged overlay failed: %#v", state)
+	}
+	var nodes []string
+	if diags := state.Nodes.ElementsAs(context.Background(), &nodes, false); diags.HasError() || len(nodes) != 2 {
+		t.Fatalf("unexpected nodes: %#v (%v)", nodes, diags)
 	}
 }
