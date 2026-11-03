@@ -170,3 +170,5 @@ user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步
 仍未实机验证：多节点（HA negative affinity、迁移、跨节点存储）、LDAP/AD 登录与 realm sync、hostpci/USB/virtiofs 需要真实硬件或 virtiofsd、LXC 生命周期、OVS 网络、cloud-init/DHCP 行为、`proxmox_sdn_rollback` 与 SDN 数据面。
 
 - 新增 guest 防火墙对象 `proxmox_guest_firewall_alias`、`proxmox_guest_firewall_ip_set`、`proxmox_guest_firewall_ip_set_entry`（`node`/`guest_type`/`vmid` 作用域，digest CAS，`nomatch`，import）。单节点实机验证：创建 alias/ipset/entry、wire 内容与 digest、就地更新（cidr/comment/nomatch 清除）、plan 无漂移、销毁清理均通过。
+
+补充验收（同一天，同一 PVE 9.2 guest）：集群映射 dir/pci/usb（真实 PCI 地址与 id-only USB）、通知端点 gotify/sendmail/webhook + matcher + 内置 `mail-to-root` import、节点自定义证书上传/回读/服务端证书切换/移除、真实 Let's Encrypt 账户注册与吊销、ACME 插件、节点 ACME 下单（`.local` 被 CA 以 `rejectedIdentifier` 拒绝，证明下单链路）、challenge schema 数据源、以及全部新数据源（真实 VM + snapshot）。实机暴露并已修复：mapping DELETE 无 digest、webhook header 更新只接受 base64（create 接受模板）、ACME 账户异步 UPID/`account` 对象/`contact` 纯邮箱、`san`/`notafter` 双形态、node ACME 配置必须写 `acmedomain[n]` 且不能与 `acme.domains` 重复。
