@@ -36,6 +36,15 @@ func TestNodeNetworkInterfaceSchema(t *testing.T) {
 	if !resp.Schema.Attributes["id"].IsComputed() {
 		t.Fatal("id must be computed")
 	}
+	if !resp.Schema.Attributes["ovs_ports"].IsComputed() || resp.Schema.Attributes["ovs_ports"].IsOptional() {
+		t.Fatal("ovs_ports must be computed-only; the provider maintains the bridge port list")
+	}
+	for _, name := range []string{"ovs_tag", "ovs_options", "ovs_bridge", "ovs_bonds"} {
+		attribute := resp.Schema.Attributes[name]
+		if !attribute.IsOptional() || !attribute.IsComputed() {
+			t.Fatalf("%s must be optional and computed", name)
+		}
+	}
 	for _, excluded := range []string{"digest", "cidr", "cidr6", "families", "method", "active", "exists"} {
 		if _, ok := resp.Schema.Attributes[excluded]; ok {
 			t.Fatalf("node network interface schema must not expose %s", excluded)
