@@ -49,6 +49,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_acme_account`
 - `proxmox_acme_plugin`
 - `proxmox_backup_job`
+- `proxmox_cluster_bulk_action`
 - `proxmox_cluster_firewall_alias`
 - `proxmox_cluster_firewall_ip_set`
 - `proxmox_cluster_firewall_ip_set_entry`
@@ -94,6 +95,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_notification_endpoint_smtp`
 - `proxmox_notification_endpoint_webhook`
 - `proxmox_notification_matcher`
+- `proxmox_notification_target_test`
 - `proxmox_pool`
 - `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`

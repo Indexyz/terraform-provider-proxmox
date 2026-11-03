@@ -136,6 +136,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_node_vzdump`、`proxmox_node_backup_prune` 与 backup-info/included_volumes/realm-sync 数据源。
 
+- 新增 `proxmox_cluster_bulk_action` 与 `proxmox_notification_target_test`。
+
 ## 接下来
 
 ### 已完成（本轮）

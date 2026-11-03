@@ -127,6 +127,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_acme_account` | 注册 ACME 账户（contact/directory/tos，异步等待，敏感 EAB）。 |
 | `proxmox_acme_plugin` | 管理 ACME DNS 插件（`data` base64 编解码、digest CAS）。 |
 | `proxmox_backup_job` | 管理 cluster-wide vzdump 备份计划、guest 选择和 retention。 |
+| `proxmox_cluster_bulk_action` | cluster-wide 批量 start/shutdown/suspend/migrate（UPID 等待）。 |
 | `proxmox_cluster_firewall_alias` | 管理集群级防火墙 IP/network alias。 |
 | `proxmox_cluster_firewall_ip_set` | 管理集群级命名 IP set。 |
 | `proxmox_cluster_firewall_ip_set_entry` | 管理集群级 IP set 地址、网络或 alias 条目。 |
@@ -168,6 +169,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_notification_endpoint_webhook` | 管理 webhook 端点（header 为 base64 property string，secret 名称脱敏回读）。 |
 | `proxmox_notification_matcher` | 管理通知 matcher（target/mode/severity/calendar/invert，空规则走 delete）。 |
 | `proxmox_node_service` | 管理服务运行状态（running/stopped），destroy 保持运行。 |
+| `proxmox_notification_target_test` | 向通知 target 发送测试消息（triggers 驱动）。 |
 | `proxmox_node_vzdump` | 触发 vzdump 备份（UPID 等待，triggers 驱动）。 |
 | `proxmox_node_network_apply` | 显式 apply 节点 staged 网络配置（reload UPID 等待，destroy 无动作）。 |
 | `proxmox_node_network_revert` | 丢弃节点全部 staged 网络配置（DELETE + UPID 等待，destroy 无动作，保留 `pending_changes` 观测）。 |
@@ -361,7 +363,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 75 个资源和 72 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 77 个资源和 72 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -405,6 +407,7 @@ make generate
 - `resource_node_disk_test.go`、`resource_cluster_options_test.go`：磁盘与集群选项的 exact-form、校验矩阵、命令式资源生命周期与数据源投影。
 - `resource_node_service_test.go`：服务 start/stop、APT update、仓库 toggle（digest 冲突重试）与 apt repositories 数据源投影。
 - `resource_node_backup_test.go`：vzdump、prune（DELETE query + UPID）、backup-info 三个数据源。
+- `resource_cluster_bulk_action_test.go`：bulk action 表单、校验矩阵、生命周期与通知 target 测试。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。
