@@ -138,6 +138,9 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewClusterFirewallIPSetEntryResource,
 		NewClusterFirewallOptionsResource,
 		NewClusterFirewallSecurityGroupResource,
+		NewClusterMappingDirResource,
+		NewClusterMappingPCIResource,
+		NewClusterMappingUSBResource,
 		NewClusterMetricsServerResource,
 		NewFirewallRuleResource,
 		NewGroupResource,
@@ -186,6 +189,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 	return []func() datasource.DataSource{
 		NewACLDataSource,
 		NewBackupJobsDataSource,
+		NewClusterMappingDataSource,
 		NewClusterMetricsServersDataSource,
 		NewFirewallRulesDataSource,
 		NewGroupDataSource,

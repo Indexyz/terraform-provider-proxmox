@@ -130,6 +130,9 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_cluster_firewall_ip_set_entry` | 管理集群级 IP set 地址、网络或 alias 条目。 |
 | `proxmox_cluster_firewall_options` | 管理集群级防火墙启用、默认策略和日志限速。 |
 | `proxmox_cluster_firewall_security_group` | 管理集群级防火墙 security group。 |
+| `proxmox_cluster_mapping_pci` | 管理 PCI 硬件映射（property string map、`subsystem_id`、`iommugroup`、无 digest 删除）。 |
+| `proxmox_cluster_mapping_usb` | 管理 USB 硬件映射（`path` 或 `id` 二选一）。 |
+| `proxmox_cluster_mapping_dir` | 管理目录映射（绝对路径）。 |
 | `proxmox_cluster_metrics_server` | 管理 Graphite、InfluxDB 或 OpenTelemetry metrics server。 |
 | `proxmox_firewall_rule` | 通过 content identity 管理 cluster、node、QEMU/LXC guest、security group 或 **SDN VNet** 防火墙规则。 |
 | `proxmox_group` | 管理 access group。 |
@@ -255,6 +258,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_firewall_rules` | `data_source_firewall_rules.go` | 按 scope（cluster/node/guest/security_group/vnet）读取对应 ruleset，输出 `pos`/`digest` 与全部规则字段。 |
 | `proxmox_acl` | `data_source_acl.go` | `GET /access/acl`，按 path/type 过滤、按 path+type+ugid 排序。 |
 | `proxmox_backup_jobs` | `data_source_backup_jobs.go` | `GET /cluster/backup`，按 `node` 过滤、按 id 排序。 |
+| `proxmox_cluster_mapping` | `data_source_cluster_mapping.go` | 按 `kind`+`id` 读取单个硬件映射，输出原始 property string map。 |
 | `proxmox_cluster_metrics_servers` | `data_source_cluster_metrics_servers.go` | `GET /cluster/metrics/server`。 |
 | `proxmox_group` | `data_source_group.go` | `GET /access/groups/{groupid}`。 |
 | `proxmox_groups` | `data_source_groups.go` | `GET /access/groups`。 |
@@ -311,7 +315,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 48 个资源和 49 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 51 个资源和 50 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -347,6 +351,7 @@ make generate
 - `resource_realm_cert_test.go`：证书内容的目标拒绝矩阵、上传先于配置、失败/销毁清理与刷新恢复。
 - `qemu_vm_devices_test.go`：compound 设备 parse/encode、槽位范围、默认键互斥、raw 回退与冲突、update delete 列表。
 - `resource_guest_firewall_test.go`：guest alias/ipset/entry 的 exact-form client、alias 生命周期（digest、managed comment）、scope 校验与 import 解析。
+- `resource_cluster_mapping_test.go`、`data_source_cluster_mapping_test.go`：mapping 的 property string 编解码、exact-form CRUD、kind 校验矩阵、import 与数据源投影。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。
