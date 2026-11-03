@@ -68,6 +68,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_guest_firewall_ip_set`
 - `proxmox_guest_firewall_ip_set_entry`
 - `proxmox_guest_firewall_options`
+- `proxmox_guest_migration`
 - `proxmox_ha_resource`
 - `proxmox_ha_rule`
 - `proxmox_lxc_container`

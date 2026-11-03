@@ -146,6 +146,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_guest_firewall_ip_set` | 管理 guest 防火墙 IP set（POST+`rename` 更新）。 |
 | `proxmox_guest_firewall_ip_set_entry` | 管理 guest IP set 条目（`cidr` 身份、`nomatch`、digest CAS）。 |
 | `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
+| `proxmox_guest_migration` | 迁移 guest 到目标节点（qemu/lxc，UPID 等待；当前仅单节点，行为由单测覆盖）。 |
 | `proxmox_ha_resource` | 管理现有 QEMU/LXC guest 的 PVE 9 HA enrollment、显式 requested state 和恢复策略；destroy 固定 `purge=0`，只退出 HA 管理。 |
 | `proxmox_ha_rule` | 管理 PVE 9 HA 放置规则（node-affinity/resource-affinity）。 |
 | `proxmox_ha_rule` | 管理 PVE 9 `node-affinity`/`resource-affinity` 放置规则（含 negative affinity 与 `disable`），以 computed `feasibility_errors` 暴露服务端不可行状态。 |
@@ -376,7 +377,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 84 个资源和 78 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 85 个资源和 78 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -426,6 +427,7 @@ make generate
 - `data_source_rrddata_test.go`：节点/QEMU RRD 数据源 JSON 透传。
 - `resource_node_status_test.go`：status 命令、stopall/suspendall 表单与生命周期。
 - `resource_node_execute_test.go`：execute 批次表单/失败路径、生命周期与 metrics export 数据源。
+- `resource_guest_migration_test.go`：qemu/lxc 迁移表单与生命周期（暂无第二节点）。
 - `data_source_sdn_breadth_test.go`：ipam/dns/controller/fabric/prefix list/route map entry/subnet 列表数据源的投影、排序、过滤、空结果与 API 错误。
 - `data_source_ha_test.go`：HA resource/rule 列表的投影、排序、类型过滤、空结果与 API 错误。
 - `data_source_acl_jobs_test.go`：ACL/backup job/replication job 列表的投影、排序、过滤、空结果与 API 错误。

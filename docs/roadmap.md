@@ -148,6 +148,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 `proxmox_node_execute` 与 `proxmox_metrics_export` 数据源。
 
+- 新增 `proxmox_guest_migration`（单测覆盖，待多节点验收）。
+
 ## 接下来
 
 ### 已完成（本轮）

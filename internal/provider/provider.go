@@ -154,6 +154,7 @@ func (p *ProxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewGuestFirewallIPSetResource,
 		NewGuestFirewallIPSetEntryResource,
 		NewGuestFirewallOptionsResource,
+		NewGuestMigrationResource,
 		NewHAResourceResource,
 		NewHARuleResource,
 		NewLXCContainerResource,
