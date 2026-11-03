@@ -119,7 +119,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 
 ## 资源
 
-当前注册 **42 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **43 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -146,6 +146,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_qemu_vm` | 管理 QEMU VM、clone、typed/raw 配置、`start_on_create`/`stop_on_destroy` 生命周期钩子、显式 `power` 电源协调和 `nocloud_cdrom_slot` NoCloud seed 槽位标记。 |
 | `proxmox_nocloud_iso` | 生成并管理 cloud-init NoCloud seed ISO（`CIDATA` 卷标）的 storage content；全部创建输入 RequiresReplace，已存在目标文件拒绝而不采纳。 |
 | `proxmox_realm` | 管理 Proxmox VE 9 LDAP、AD 或 OpenID Connect 外部认证 realm；LDAP/AD 目录同步、客户端证书路径、forced TFA 块；secret 使用 WriteOnly + version 轮换。 |
+| `proxmox_realm_sync` | 命令式 LDAP/AD 同步（`POST .../sync` + UPID 等待，`remove_vanished` 可破坏、destroy 无动作）。 |
 | `proxmox_replication_job` | 管理 cluster storage replication 计划，不隐式运行复制或清理数据。 |
 | `proxmox_role` | 管理 RBAC 角色和权限集合。 |
 | `proxmox_sdn_apply` | 全局提交 staged SDN 配置（`PUT /cluster/sdn` + `reloadnetworkall` UPID 等待，destroy 无动作）。 |
@@ -280,7 +281,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 42 个资源和 25 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 43 个资源和 25 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 
@@ -311,6 +312,7 @@ make generate
 - `terraform_core_generation_test.go`：构建 provider 二进制并用真实 Terraform CLI（dev_overrides）对本地 mock PVE API 执行指南的代次链路：generation 1 apply → generation 2 替换 → destroy，断言真实 Terraform core 依赖图导出的顺序（seed 上传先于 clone、替换时旧 VM 先销毁、旧 seed 仅在替换 VM 重新指向并启动后才删除、销毁时 VM 先于 seed 删除），而非手工调用资源回调。
 - `resource_nocloud_iso_lifecycle_test.go`：NoCloud ISO 的 multipart 上传、task owner 轮询、retained task 对账、existing-file 拒绝与幂等清理。
 - `client_realm_test.go`、`resource_realm_test.go`、`data_source_realm_test.go`：PVE 9 realm exact-form CRUD/read、variant 校验、secret 过滤、WriteOnly version 轮换和 managed-field deletion。
+- `resource_realm_sync_test.go`：realm sync 的 exact-form（scope/remove-vanished/enable-new/dry-run）、空 UPID、非 LDAP realm 拒绝、命令语义（destroy 不重跑）与缺失 realm 清理。
 - `client_ha_resource_test.go`、`resource_ha_resource_test.go`：PVE 9 HA collection lookup、exact-form CRUD、fresh digest contract、`purge=0`、schema/validation、effective defaults 和 managed-field deletion。
 - `client_ha_rule_test.go`、`resource_ha_rule_test.go`：PVE 9 HA rule collection lookup、exact-form create/update（PUT 必带 `rule`、绝不带 `type`）、`nodes` 线路编码、fresh digest、variant 校验矩阵、effective defaults、feasibility error 透传与 managed-field deletion。
 - `client_node_network_test.go`、`resource_node_network_interface_test.go`、`resource_node_network_apply_test.go`：节点网络的 staged CRUD exact-form（连字符 key、空格连接的有序端口列表、OVS `ovs_*` 字段）、`changes` 捕获、reload UPID 校验与任务等待、类型矩阵（含 OVS 专用 bond mode 与必填 `ovs_bridge`）与 apply 的 no-op destroy。

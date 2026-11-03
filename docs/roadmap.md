@@ -97,6 +97,10 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 ## 接下来
 
+### 已完成（本轮）
+
+- 新增命令式 `proxmox_realm_sync`：`POST /access/domains/{realm}/sync` + UPID 等待，`scope` required、`remove_vanished` 默认 `none`（可为 `acl;properties;entry`）、`enable_new` 默认 true、`dry_run`，全部 RequiresReplace + `triggers` 驱动重跑；create 前校验 realm 存在且为 LDAP/AD，destroy 无动作，缺失 realm 时刷新移出 state，import realm。注册 43 资源。
+
 ### 优先实现
 
 input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B NoCloud ISO 资源、Stage C CD-ROM 安全集成与指南）、Review round 1 九项必修（1–9）、Review round 2 三处缺陷修复与 Review round 4（无 delay 异步 DELETE 空/畸形 UPID 应答拒绝，覆盖 VM 与 NoCloud ISO 两路删除）已全部完成；真实模板根盘的 Terraform Core 盘映射一致性缺陷已在切片 B 修复（盘状态投影边界 + 真实 CLI 根盘 fixture 全链验证），refresh 所有权缺陷已按终审要求以拒绝路径修复（标记化 update 不再认可 prior-state 自有 seed 的就地更换，seed 更替走 VM 替换）。残留边界：未标记（无 `nocloud_cdrom_slot`）工作流（typed 与 raw 透传均）不做 CD-ROM 附着安全检查（严格检查按 owner 决策限定 marker 工作流；标记工作流的计划期 raw 盘槽自 round 2 修复起并入安全检查，不再是接受的绕过）。真实环境 DHCP/cloud-init/Runner 行为按指南验收清单人工确认，仍未验证。
@@ -106,7 +110,7 @@ SDN epic 功能面已完成（含 apply 与 rollback 两个显式执行面）：
 ### 后续中大型功能
 
 - `proxmox_lxc_containers` 列表数据源已完成（见上方已完成条目）；同类 guest 列表后续可考虑统一的跨类型查询体验。
-- Authentication realm 高级后续已完成（列表数据源、LDAP/AD 目录同步与证书、OpenID group claim、forced TFA）；仍待：`/sync` 命令式触发设计（可参考 `proxmox_node_network_apply` 的显式执行形式）、client certificate 内容上传与 user TFA 管理。
+- Authentication realm 高级后续已完成（列表数据源、LDAP/AD 目录同步与证书、OpenID group claim、forced TFA），`/sync` 也已作为命令式 `proxmox_realm_sync`（triggers 驱动、UPID 等待、destroy 无动作、`remove_vanished` 破坏性语义）交付；仍待：client certificate 内容上传与 user TFA 管理。
 - HA rules：研究已交付（[`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)），`proxmox_ha_rule` 实现与单测已交付；剩余工作是多节点实机验收与（如需要）data source。
 - Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；后续剩 `alias`/`eth` altname 重命名与 revert 资源化。
 - SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply、zones/vnets 数据源）；仅剩可选的数据源广度扩充与实机验收。

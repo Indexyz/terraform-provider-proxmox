@@ -204,3 +204,30 @@ func realmForm(req RealmRequest) url.Values {
 	setOptionalString(form, "tfa", req.TFA)
 	return form
 }
+
+// SDN-style sync options for LDAP/AD realms.
+type RealmSyncRequest struct {
+	Realm          string
+	Scope          string
+	RemoveVanished string
+	EnableNew      *bool
+	DryRun         *bool
+}
+
+// SyncRealm starts an LDAP/AD user/group sync and returns the worker UPID.
+func (c *Client) SyncRealm(ctx context.Context, req RealmSyncRequest) (string, error) {
+	form := url.Values{
+		"scope":           {req.Scope},
+		"remove-vanished": {req.RemoveVanished},
+	}
+	setOptionalBool(form, "enable-new", req.EnableNew)
+	setOptionalBool(form, "dry-run", req.DryRun)
+	var upid string
+	if err := c.do(ctx, http.MethodPost, "/access/domains/"+url.PathEscape(req.Realm)+"/sync", nil, form, &upid); err != nil {
+		return "", err
+	}
+	if err := validateQemuTaskAck(upid, "realm sync"); err != nil {
+		return "", err
+	}
+	return upid, nil
+}

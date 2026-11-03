@@ -69,6 +69,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_qemu_snapshot`
 - `proxmox_qemu_vm`
 - `proxmox_realm`
+- `proxmox_realm_sync`
 - `proxmox_replication_job`
 - `proxmox_role`
 - `proxmox_sdn_apply`

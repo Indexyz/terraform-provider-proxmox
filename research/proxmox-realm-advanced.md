@@ -86,8 +86,9 @@ deletion so removing it sends `delete=tfa`.
 
 ## Non-goals
 
-- `/access/domains/{realm}/sync` stays a separate imperative concern; nothing in this
-  change triggers a sync run.
+- The sync endpoint is delivered as its own command resource, `proxmox_realm_sync`
+  (`scope` required, `remove-vanished` default `none`, `enable-new`, `dry-run`, UPID wait,
+  trigger-driven re-runs, no-op destroy). Nothing in the realm CRUD triggers a sync.
 - no TFA *user* management (`/access/tfa`), only the realm-level provider restriction;
 - no `secure`/`sslversion` (deprecated in favour of `mode`);
 - no client-certificate file upload, only path fields;
