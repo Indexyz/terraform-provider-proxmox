@@ -40,6 +40,9 @@ resource "proxmox_node_network_interface" "ovsbr0" {
 
 # Internal OVS port with a VLAN tag; ovs_bridge is required for OVSIntPort and
 # OVSBond because Proxmox cannot place them otherwise.
+# An existing physical NIC becomes an OVS port by declaring it as one;
+# adoption keeps its unmanaged settings.
+#
 resource "proxmox_node_network_interface" "tenant100" {
   node        = "node1"
   iface       = "ovs100"

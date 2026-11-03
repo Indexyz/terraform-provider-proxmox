@@ -232,3 +232,9 @@ func (c *Client) mutateNodeNetworkOVSPorts(ctx context.Context, node, bridge str
 	}
 	return c.do(ctx, http.MethodPut, nodeNetworkPath(node)+"/"+url.PathEscape(bridge), nil, form, nil)
 }
+
+// NodeNetworkInterfaceExists reports a duplicate-interface rejection from
+// Proxmox so a caller can fall back to converting the existing record.
+func nodeNetworkInterfaceExists(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "interface already exists")
+}

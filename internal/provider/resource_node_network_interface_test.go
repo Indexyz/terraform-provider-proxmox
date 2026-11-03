@@ -784,3 +784,130 @@ func ovsPortTestModel(bridge string) nodeNetworkModel {
 	}
 	return model
 }
+
+func TestNodeNetworkOVSPortAdoptsExistingNIC(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	interfaces := map[string]map[string]any{
+		"ovsbr0": {"iface": "ovsbr0", "type": "OVSBridge", "ovs_ports": ""},
+		"eth1":   {"iface": "eth1", "type": "eth", "address": "10.0.0.5", "netmask": "255.255.255.0"},
+	}
+	var portUpdates []url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			list := make([]map[string]any, 0, len(interfaces))
+			for _, entry := range interfaces {
+				list = append(list, entry)
+			}
+			handler.envelope(w, list)
+		case http.MethodPost:
+			writeAPIError(t, w, http.StatusBadRequest, "interface already exists")
+		case http.MethodPut:
+			if err := r.ParseForm(); err != nil {
+				handler.fail(w, "parse form: %v", err)
+				return
+			}
+			bridge := strings.TrimPrefix(r.URL.EscapedPath(), "/api2/json/nodes/node1/network/")
+			if entry, ok := interfaces[bridge]; ok && entry["type"] == "OVSBridge" {
+				interfaces[bridge]["ovs_ports"] = r.Form.Get("ovs_ports")
+				handler.envelope(w, nil)
+				return
+			}
+			portUpdates = append(portUpdates, r.Form)
+			interfaces["eth1"]["type"] = "OVSPort"
+			interfaces["eth1"]["ovs_bridge"] = r.Form.Get("ovs_bridge")
+			handler.envelope(w, nil)
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := nodeNetworkModel{
+		ID: types.StringValue("node1/eth1"), Node: types.StringValue("node1"), Iface: types.StringValue("eth1"),
+		Type: types.StringValue(nodeNetworkTypeOVSPort), OVSBridge: types.StringValue("ovsbr0"),
+		BridgePorts: types.SetNull(types.StringType), Slaves: types.SetNull(types.StringType),
+		OVSPorts: types.SetNull(types.StringType), OVSBonds: types.SetNull(types.StringType),
+	}
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if createResp.Diagnostics.HasError() {
+		t.Fatalf("adoption diagnostics: %v", createResp.Diagnostics)
+	}
+	if len(portUpdates) != 1 || portUpdates[0].Get("type") != "OVSPort" || portUpdates[0].Get("ovs_bridge") != "ovsbr0" {
+		t.Fatalf("existing NIC was not converted to an OVS port: %#v", portUpdates)
+	}
+	if _, ok := portUpdates[0]["address"]; ok {
+		t.Fatalf("adoption must not overwrite unconfigured settings: %#v", portUpdates[0])
+	}
+	if got := interfaces["ovsbr0"]["ovs_ports"]; got != "eth1" {
+		t.Fatalf("adopted port was not attached to the bridge: %v", got)
+	}
+	for _, failure := range handler.failures {
+		t.Fatal(failure)
+	}
+}
+
+func TestNodeNetworkOVSPortAdoptionRejectsForeignType(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			handler.envelope(w, []map[string]any{{"iface": "vmbr0", "type": "bridge"}})
+		case http.MethodPost:
+			writeAPIError(t, w, http.StatusBadRequest, "interface already exists")
+		default:
+			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := ovsPortTestModel("vmbr0")
+	config.Iface = types.StringValue("vmbr0")
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if !createResp.Diagnostics.HasError() || !strings.Contains(createResp.Diagnostics[0].Detail(), `"bridge"`) {
+		t.Fatalf("foreign interface type was adopted: %v", createResp.Diagnostics)
+	}
+}
+
+func TestNodeNetworkDuplicateNonOVSPortKeepsOriginalError(t *testing.T) {
+	ctx := context.Background()
+	handler := &lifecycleHandler{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !handler.auth(w, r) {
+			return
+		}
+		if r.Method == http.MethodPost {
+			writeAPIError(t, w, http.StatusBadRequest, "interface already exists")
+			return
+		}
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+	}))
+	defer server.Close()
+
+	res := &NodeNetworkInterfaceResource{client: testLifecycleClient(t, server)}
+	schema := testResourceSchema(t, res)
+	config := ovsPortTestModel("")
+	config.Type = types.StringValue(nodeNetworkTypeOVSBridge)
+	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schema.Schema}}
+	initializeResourcePrivate(t, &createResp)
+	res.Create(ctx, resource.CreateRequest{Config: testResourceConfig(t, schema, config), Plan: testResourcePlan(t, schema, config)}, &createResp)
+	if !createResp.Diagnostics.HasError() || !strings.Contains(createResp.Diagnostics[0].Detail(), "already exists") {
+		t.Fatalf("duplicate OVSBridge was not reported: %v", createResp.Diagnostics)
+	}
+}

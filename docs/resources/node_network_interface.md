@@ -55,6 +55,9 @@ resource "proxmox_node_network_interface" "ovsbr0" {
 
 # Internal OVS port with a VLAN tag; ovs_bridge is required for OVSIntPort and
 # OVSBond because Proxmox cannot place them otherwise.
+# An existing physical NIC becomes an OVS port by declaring it as one;
+# adoption keeps its unmanaged settings.
+#
 resource "proxmox_node_network_interface" "tenant100" {
   node        = "node1"
   iface       = "ovs100"
@@ -70,7 +73,7 @@ resource "proxmox_node_network_interface" "tenant100" {
 
 ### Required
 
-- `iface` (String) Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`. Must not already exist; changes require replacement.
+- `iface` (String) Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`. Must not already exist, except that an existing `eth` interface can be converted into an `OVSPort`; changes require replacement.
 - `node` (String) Cluster node that owns the interface. Changes require replacement.
 - `type` (String) Interface type: `bridge`, `bond`, `vlan`, `eth`, or an OVS type (`OVSBridge`, `OVSPort`, `OVSIntPort`, `OVSBond`). Changes require replacement.
 

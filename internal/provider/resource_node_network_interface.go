@@ -93,7 +93,7 @@ func (r *NodeNetworkInterfaceResource) Schema(_ context.Context, _ resource.Sche
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, MarkdownDescription: "Interface identifier in `<node>/<iface>` form.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"node":         schema.StringAttribute{Required: true, MarkdownDescription: "Cluster node that owns the interface. Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"iface":        schema.StringAttribute{Required: true, MarkdownDescription: "Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`. Must not already exist; changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"iface":        schema.StringAttribute{Required: true, MarkdownDescription: "Interface name such as `vmbr1`, `bond1`, `bond0.100`, or `eth1`. Must not already exist, except that an existing `eth` interface can be converted into an `OVSPort`; changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"type":         schema.StringAttribute{Required: true, MarkdownDescription: "Interface type: `bridge`, `bond`, `vlan`, `eth`, or an OVS type (`OVSBridge`, `OVSPort`, `OVSIntPort`, `OVSBond`). Changes require replacement.", PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"autostart":    schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Bring the interface up on boot."},
 			"mtu":          schema.Int64Attribute{Optional: true, Computed: true, MarkdownDescription: "Interface MTU between 1280 and 65520."},
@@ -412,8 +412,15 @@ func (r *NodeNetworkInterfaceResource) Create(ctx context.Context, req resource.
 		return
 	}
 	if err := r.client.CreateNodeNetworkInterface(ctx, plan.Node.ValueString(), plan.Iface.ValueString(), createReq); err != nil {
-		resp.Diagnostics.AddError("Unable to Create Proxmox Node Network Interface", err.Error())
-		return
+		// Proxmox rejects re-using an interface name; an existing NIC can be
+		// converted into an OVS port instead of being recreated.
+		if plan.Type.ValueString() != nodeNetworkTypeOVSPort || !nodeNetworkInterfaceExists(err) {
+			resp.Diagnostics.AddError("Unable to Create Proxmox Node Network Interface", err.Error())
+			return
+		}
+		if !r.adoptOVSPort(ctx, plan, createReq, &resp.Diagnostics) {
+			return
+		}
 	}
 	if isConfiguredValue(plan.OVSBridge) {
 		if err := r.client.AddNodeNetworkOVSPort(ctx, plan.Node.ValueString(), plan.OVSBridge.ValueString(), plan.Iface.ValueString()); err != nil {
@@ -629,3 +636,24 @@ var (
 	}
 	nodeNetworkOVSBondModes = []string{"active-backup", "balance-slb", "lacp-balance-slb", "lacp-balance-tcp"}
 )
+
+// adoptOVSPort converts an existing interface record into an OVS port. Only
+// plain eth interfaces qualify; bridges, bonds and VLANs keep their identity.
+func (r *NodeNetworkInterfaceResource) adoptOVSPort(ctx context.Context, plan nodeNetworkModel, request NodeNetworkInterfaceRequest, diags *diag.Diagnostics) bool {
+	node := plan.Node.ValueString()
+	iface := plan.Iface.ValueString()
+	current, err := r.client.GetNodeNetworkInterface(ctx, node, iface)
+	if err != nil {
+		diags.AddError("Unable to Adopt Proxmox Node Network Interface", err.Error())
+		return false
+	}
+	if current.Type != nodeNetworkTypeEth && current.Type != nodeNetworkTypeOVSPort {
+		diags.AddError("Unable to Adopt Proxmox Node Network Interface", fmt.Sprintf("interface %q already exists as %q; only eth interfaces can be converted into an OVS port", iface, current.Type))
+		return false
+	}
+	if err := r.client.UpdateNodeNetworkInterface(ctx, node, iface, request); err != nil {
+		diags.AddError("Unable to Adopt Proxmox Node Network Interface", err.Error())
+		return false
+	}
+	return true
+}
