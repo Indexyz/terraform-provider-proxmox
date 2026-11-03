@@ -104,6 +104,18 @@ func TestSDNSingletonDataSourcesMissing(t *testing.T) {
 		"controller": {"/api2/json/cluster/sdn/controllers?pending=1", map[string]any{"controller": "gone"}, func(responses, config map[string]any) bool {
 			return runSDNDataSource(t, NewSDNControllerDataSource(), responses, config).Diagnostics.HasError()
 		}},
+		"fabric": {"/api2/json/cluster/sdn/fabrics/fabric?pending=1", map[string]any{"fabric_id": "gone"}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNFabricDataSource(), responses, config).Diagnostics.HasError()
+		}},
+		"fabric_node": {"/api2/json/cluster/sdn/fabrics/node/f1?pending=1", map[string]any{"fabric_id": "f1", "node_id": "gone"}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNFabricNodeDataSource(), responses, config).Diagnostics.HasError()
+		}},
+		"prefix_list": {"/api2/json/cluster/sdn/prefix-lists?pending=1", map[string]any{"prefix_list_id": "gone"}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNPrefixListDataSource(), responses, config).Diagnostics.HasError()
+		}},
+		"route_map_entry": {"/api2/json/cluster/sdn/route-maps/entries?pending=1", map[string]any{"route_map_id": "rm1", "order": int64(10)}, func(responses, config map[string]any) bool {
+			return runSDNDataSource(t, NewSDNRouteMapEntryDataSource(), responses, config).Diagnostics.HasError()
+		}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if !tc.read(map[string]any{tc.path: []any{}}, tc.config) {
@@ -162,5 +174,78 @@ func TestSDNControllerDataSourceReadsStagedController(t *testing.T) {
 	var nodes []string
 	if diags := state.Nodes.ElementsAs(context.Background(), &nodes, false); diags.HasError() || len(nodes) != 2 {
 		t.Fatalf("unexpected nodes: %#v (%v)", nodes, diags)
+	}
+}
+
+func TestSDNFabricDataSourceReadsStagedFabric(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/fabrics/fabric?pending=1": []map[string]any{
+			{"id": "f1", "protocol": "ospf", "ip_prefix": "10.0.0.0/16", "route_map_in": "rm1", "redistribute": []string{"connected"}, "state": "new", "pending": map[string]any{"ip_prefix": "10.9.0.0/16"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNFabricDataSource(), responses, map[string]any{"fabric_id": "f1"})
+	var state sdnFabricDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if state.IPPrefix.ValueString() != "10.9.0.0/16" || state.RouteMapIn.ValueString() != "rm1" {
+		t.Fatalf("staged overlay failed: %#v", state)
+	}
+	if got := sdnListValues(state.Redistribute); fmt.Sprint(got) != fmt.Sprint([]string{"connected"}) {
+		t.Fatalf("unexpected redistribute: %v", got)
+	}
+}
+
+func TestSDNFabricNodeDataSourceReadsStagedNode(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/fabrics/node/f1?pending=1": []map[string]any{
+			{"fabric_id": "f1", "node_id": "n1", "protocol": "ospf", "ip": "10.0.0.1", "interfaces": []string{"eth1"}, "role": "spine", "endpoint": "10.0.0.1:51820", "allowed_ips": []string{"10.0.0.0/24"}, "peers": []string{"n2"}, "public_key": "pk", "state": "changed", "pending": map[string]any{"role": "leaf"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNFabricNodeDataSource(), responses, map[string]any{"fabric_id": "f1", "node_id": "n1"})
+	var state sdnFabricNodeDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if state.Role.ValueString() != "leaf" || state.Endpoint.ValueString() != "10.0.0.1:51820" || state.PublicKey.ValueString() != "pk" {
+		t.Fatalf("staged overlay failed: %#v", state)
+	}
+	if got := sdnListValues(state.AllowedIPs); fmt.Sprint(got) != fmt.Sprint([]string{"10.0.0.0/24"}) {
+		t.Fatalf("unexpected allowed ips: %v", got)
+	}
+}
+
+func TestSDNPrefixListDataSourceReadsStagedEntries(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/prefix-lists?pending=1": []map[string]any{
+			{"id": "pl1", "entries": []string{"action=permit,prefix=10.0.0.0/24"}, "state": "changed", "pending": map[string]any{"entries": "action=deny,prefix=10.0.0.0/24"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNPrefixListDataSource(), responses, map[string]any{"prefix_list_id": "pl1"})
+	var state sdnPrefixListDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if got := sdnListValues(state.Entries); fmt.Sprint(got) != fmt.Sprint([]string{"action=deny,prefix=10.0.0.0/24"}) {
+		t.Fatalf("staged entries must win: %v", got)
+	}
+}
+
+func TestSDNRouteMapEntryDataSourceReadsStagedEntry(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/cluster/sdn/route-maps/entries?pending=1": []map[string]any{
+			{"route-map-id": "rm1", "order": 10, "action": "permit", "set": []string{"local-preference 200"}, "match": []string{"ip address prefix-list pl1"}, "exit-action": "on-match-next", "call": "rm2", "state": "new", "pending": map[string]any{"action": "deny"}},
+		},
+	}
+	readResp := runSDNDataSource(t, NewSDNRouteMapEntryDataSource(), responses, map[string]any{"route_map_id": "rm1", "order": int64(10)})
+	var state sdnRouteMapEntryDataSourceModel
+	if diags := readResp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("decode state: %v", diags)
+	}
+	if state.Action.ValueString() != "deny" || state.ExitAction.ValueString() != "on-match-next" || state.Call.ValueString() != "rm2" {
+		t.Fatalf("staged overlay failed: %#v", state)
+	}
+	if got := sdnListValues(state.Set); fmt.Sprint(got) != fmt.Sprint([]string{"local-preference 200"}) {
+		t.Fatalf("unexpected set: %v", got)
 	}
 }

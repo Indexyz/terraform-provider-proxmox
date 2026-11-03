@@ -271,11 +271,15 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_sdn_controllers` | `data_source_sdn_controllers.go` | `GET /cluster/sdn/controllers?pending=1`，输出 staged controller 与 `state`/`pending`，可按 type 过滤。 |
 | `proxmox_sdn_dns` | `data_source_sdn_dns.go` | 读取单个 staged DNS provider（含 `pending` 覆盖），只暴露 fingerprint。 |
 | `proxmox_sdn_dns_providers` | `data_source_sdn_dns_providers.go` | `GET /cluster/sdn/dns?pending=1`，输出 staged DNS provider 与 `state`/`pending`，可按 type 过滤。 |
+| `proxmox_sdn_fabric` | `data_source_sdn_fabric.go` | 读取单个 staged fabric（含 `pending` 覆盖）。 |
+| `proxmox_sdn_fabric_node` | `data_source_sdn_fabric_node.go` | 读取单个 staged fabric node（`fabric_id`+`node_id`，含 `pending` 覆盖）。 |
 | `proxmox_sdn_fabrics` | `data_source_sdn_fabrics.go` | `GET /cluster/sdn/fabrics/fabric?pending=1`，输出 staged fabric 与 `state`/`pending`，可按 protocol 过滤。 |
 | `proxmox_sdn_ipam` | `data_source_sdn_ipam.go` | 读取单个 staged IPAM（含 `pending` 覆盖），只暴露 fingerprint。 |
 | `proxmox_sdn_ipams` | `data_source_sdn_ipams.go` | `GET /cluster/sdn/ipams?pending=1`，输出 staged IPAM 与 `state`/`pending`，可按 type 过滤。 |
+| `proxmox_sdn_prefix_list` | `data_source_sdn_prefix_list.go` | 读取单个 staged prefix list（含 `pending` 覆盖）。 |
 | `proxmox_sdn_prefix_lists` | `data_source_sdn_prefix_lists.go` | `GET /cluster/sdn/prefix-lists?pending=1`，输出 entries 与 `state`/`pending`。 |
 | `proxmox_sdn_route_map_entries` | `data_source_sdn_route_map_entries.go` | `GET /cluster/sdn/route-maps/entries?pending=1`，必填 `route_map_id`，输出 entry 与 `state`/`pending`。 |
+| `proxmox_sdn_route_map_entry` | `data_source_sdn_route_map_entry.go` | 读取单个 staged route map entry（`route_map_id`+`order`，含 `pending` 覆盖）。 |
 | `proxmox_sdn_subnets` | `data_source_sdn_subnets.go` | `GET /cluster/sdn/vnets/{vnet}/subnets?pending=1`，必填 `vnet`，输出 subnet 与 `state`/`pending`。 |
 | `proxmox_sdn_subnet` | `data_source_sdn_subnet.go` | 读取单个 staged subnet（含 `pending` 覆盖）。 |
 | `proxmox_sdn_vnet` | `data_source_sdn_vnet.go` | 读取单个 staged VNet（含 `pending` 覆盖）。 |
@@ -303,7 +307,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 45 个资源和 44 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 45 个资源和 48 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 

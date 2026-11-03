@@ -123,11 +123,15 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_controllers`
 - `proxmox_sdn_dns`
 - `proxmox_sdn_dns_providers`
+- `proxmox_sdn_fabric`
+- `proxmox_sdn_fabric_node`
 - `proxmox_sdn_fabrics`
 - `proxmox_sdn_ipam`
 - `proxmox_sdn_ipams`
+- `proxmox_sdn_prefix_list`
 - `proxmox_sdn_prefix_lists`
 - `proxmox_sdn_route_map_entries`
+- `proxmox_sdn_route_map_entry`
 - `proxmox_sdn_subnet`
 - `proxmox_sdn_subnets`
 - `proxmox_sdn_vnet`
