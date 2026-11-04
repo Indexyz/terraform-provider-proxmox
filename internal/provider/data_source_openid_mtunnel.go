@@ -250,3 +250,47 @@ func (d *GuestProxyDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	config.Cert = types.StringValue(fmt.Sprint(result["cert"]))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 }
+
+type GuestMTunnelWebsocketDataSource struct{ client *Client }
+
+type guestMTunnelWebsocketModel struct {
+	Type   types.String `tfsdk:"type"`
+	Node   types.String `tfsdk:"node"`
+	VMID   types.Int64  `tfsdk:"vmid"`
+	Socket types.String `tfsdk:"socket"`
+	Ticket types.String `tfsdk:"ticket"`
+	Result types.String `tfsdk:"result"`
+}
+
+func NewGuestMTunnelWebsocketDataSource() datasource.DataSource {
+	return &GuestMTunnelWebsocketDataSource{}
+}
+func (d *GuestMTunnelWebsocketDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_guest_mtunnel_websocket"
+}
+func (d *GuestMTunnelWebsocketDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = datasourceschema.Schema{MarkdownDescription: "Resolves a migration tunnel websocket through `/nodes/{node}/{type}/{vmid}/mtunnelwebsocket`.", Attributes: map[string]datasourceschema.Attribute{
+		"type": datasourceschema.StringAttribute{Required: true}, "node": datasourceschema.StringAttribute{Required: true},
+		"vmid": datasourceschema.Int64Attribute{Required: true}, "socket": datasourceschema.StringAttribute{Required: true},
+		"ticket": datasourceschema.StringAttribute{Required: true, Sensitive: true},
+		"result": datasourceschema.StringAttribute{Computed: true},
+	}}
+}
+func (d *GuestMTunnelWebsocketDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	d.client = notificationConfigureDS(req, resp)
+}
+func (d *GuestMTunnelWebsocketDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var config guestMTunnelWebsocketModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	result, err := d.client.GuestMTunnelWebsocket(ctx, config.Type.ValueString(), config.Node.ValueString(), config.VMID.ValueInt64(), config.Socket.ValueString(), config.Ticket.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Resolve Migration Tunnel Websocket", err.Error())
+		return
+	}
+	data, _ := json.Marshal(result)
+	config.Result = types.StringValue(string(data))
+	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
+}

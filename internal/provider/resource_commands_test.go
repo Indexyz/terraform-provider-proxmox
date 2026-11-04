@@ -215,3 +215,13 @@ func TestGuestProxyDataSource(t *testing.T) {
 		t.Fatalf("guest proxy failed: %v", resp.Diagnostics)
 	}
 }
+
+func TestGuestMTunnelWebsocketDataSource(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/nodes/pve-1/qemu/300/mtunnelwebsocket?socket=%2Frun%2Fx&ticket=t": map[string]any{"socket": "/run/x"},
+	}
+	resp := runSDNDataSource(t, NewGuestMTunnelWebsocketDataSource(), responses, map[string]any{"type": "qemu", "node": "pve-1", "vmid": int64(300), "socket": "/run/x", "ticket": "t"})
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("mtunnel websocket failed: %v", resp.Diagnostics)
+	}
+}

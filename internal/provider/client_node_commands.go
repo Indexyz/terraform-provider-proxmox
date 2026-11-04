@@ -390,3 +390,13 @@ func (c *Client) GuestProxy(ctx context.Context, proxy GuestProxy) (map[string]a
 	}
 	return result, nil
 }
+
+func (c *Client) GuestMTunnelWebsocket(ctx context.Context, guestType, node string, vmid int64, socket, ticket string) (map[string]any, error) {
+	query := url.Values{"socket": {socket}, "ticket": {ticket}}
+	apiPath := fmt.Sprintf("/nodes/%s/%s/%d/mtunnelwebsocket", url.PathEscape(node), guestType, vmid)
+	var result map[string]any
+	if err := c.do(ctx, http.MethodGet, apiPath, query, nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}

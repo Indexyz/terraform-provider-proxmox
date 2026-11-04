@@ -190,6 +190,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_groups`
 - `proxmox_guest_firewall_options`
 - `proxmox_guest_mtunnel`
+- `proxmox_guest_mtunnel_websocket`
 - `proxmox_guest_proxy`
 - `proxmox_ha_groups`
 - `proxmox_ha_manager_status`
