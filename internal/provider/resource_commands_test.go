@@ -205,3 +205,13 @@ func TestStorageFileRestoreAndQueryDataSources(t *testing.T) {
 		t.Fatalf("query metadata failed: %v", query.Diagnostics)
 	}
 }
+
+func TestGuestProxyDataSource(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/nodes/pve-1/qemu/300/vncproxy": map[string]any{"port": "5901", "ticket": "t", "user": "u", "upid": "UPID:x"},
+	}
+	resp := runSDNDataSource(t, NewGuestProxyDataSource(), responses, map[string]any{"type": "qemu", "node": "pve-1", "vmid": int64(300), "kind": "vncproxy"})
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("guest proxy failed: %v", resp.Diagnostics)
+	}
+}

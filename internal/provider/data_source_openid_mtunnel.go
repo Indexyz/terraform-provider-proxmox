@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -189,3 +190,63 @@ func (d *GuestMTunnelDataSource) Read(ctx context.Context, req datasource.ReadRe
 }
 
 var _ = strings.TrimSpace
+
+type GuestProxyDataSource struct{ client *Client }
+
+type guestProxyModel struct {
+	Type             types.String `tfsdk:"type"`
+	Node             types.String `tfsdk:"node"`
+	VMID             types.Int64  `tfsdk:"vmid"`
+	Kind             types.String `tfsdk:"kind"`
+	GeneratePassword types.Bool   `tfsdk:"generate_password"`
+	Websocket        types.Bool   `tfsdk:"websocket"`
+	Proxy            types.String `tfsdk:"proxy"`
+	Port             types.String `tfsdk:"port"`
+	Ticket           types.String `tfsdk:"ticket"`
+	User             types.String `tfsdk:"user"`
+	UPID             types.String `tfsdk:"upid"`
+	Password         types.String `tfsdk:"password"`
+	Cert             types.String `tfsdk:"cert"`
+	Result           types.String `tfsdk:"result"`
+}
+
+func NewGuestProxyDataSource() datasource.DataSource { return &GuestProxyDataSource{} }
+func (d *GuestProxyDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_guest_proxy"
+}
+func (d *GuestProxyDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = datasourceschema.Schema{MarkdownDescription: "Requests a guest console proxy (VNC, terminal or SPICE) through `/nodes/{node}/{type}/{vmid}/{kind}`.", Attributes: map[string]datasourceschema.Attribute{
+		"type": datasourceschema.StringAttribute{Required: true}, "node": datasourceschema.StringAttribute{Required: true},
+		"vmid": datasourceschema.Int64Attribute{Required: true}, "kind": datasourceschema.StringAttribute{Required: true, MarkdownDescription: "`vncproxy`, `termproxy` or `spiceproxy`."},
+		"generate_password": datasourceschema.BoolAttribute{Optional: true}, "websocket": datasourceschema.BoolAttribute{Optional: true},
+		"proxy": datasourceschema.StringAttribute{Optional: true},
+		"port":  datasourceschema.StringAttribute{Computed: true}, "ticket": datasourceschema.StringAttribute{Computed: true, Sensitive: true},
+		"user": datasourceschema.StringAttribute{Computed: true}, "upid": datasourceschema.StringAttribute{Computed: true},
+		"password": datasourceschema.StringAttribute{Computed: true, Sensitive: true}, "cert": datasourceschema.StringAttribute{Computed: true},
+		"result": datasourceschema.StringAttribute{Computed: true},
+	}}
+}
+func (d *GuestProxyDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	d.client = notificationConfigureDS(req, resp)
+}
+func (d *GuestProxyDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var config guestProxyModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	result, err := d.client.GuestProxy(ctx, GuestProxy{GuestType: config.Type.ValueString(), Node: config.Node.ValueString(), VMID: config.VMID.ValueInt64(), Kind: config.Kind.ValueString(), GeneratePassword: config.GeneratePassword.ValueBool(), Websocket: config.Websocket.ValueBool(), Proxy: config.Proxy.ValueString()})
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Request Guest Proxy", err.Error())
+		return
+	}
+	data, _ := json.Marshal(result)
+	config.Result = types.StringValue(string(data))
+	config.Port = types.StringValue(fmt.Sprint(result["port"]))
+	config.Ticket = types.StringValue(fmt.Sprint(result["ticket"]))
+	config.User = types.StringValue(fmt.Sprint(result["user"]))
+	config.UPID = types.StringValue(fmt.Sprint(result["upid"]))
+	config.Password = types.StringValue(fmt.Sprint(result["password"]))
+	config.Cert = types.StringValue(fmt.Sprint(result["cert"]))
+	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
+}

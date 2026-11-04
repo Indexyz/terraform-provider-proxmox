@@ -356,3 +356,37 @@ func (c *Client) QemuVNCProxy(ctx context.Context, node string, vmid int64, gene
 	}
 	return result, nil
 }
+
+type GuestProxy struct {
+	TypeName         string `json:"-"`
+	GuestType        string `json:"-"`
+	Node             string `json:"-"`
+	VMID             int64  `json:"-"`
+	Kind             string `json:"-"`
+	GeneratePassword bool   `json:"-"`
+	Websocket        bool   `json:"-"`
+	Proxy            string `json:"-"`
+}
+
+func (c *Client) GuestProxy(ctx context.Context, proxy GuestProxy) (map[string]any, error) {
+	form := url.Values{}
+	switch proxy.Kind {
+	case "vncproxy":
+		if proxy.GeneratePassword {
+			form.Set("generate-password", "1")
+		}
+		if proxy.Websocket {
+			form.Set("websocket", "1")
+		}
+	case "spiceproxy":
+		if proxy.Proxy != "" {
+			form.Set("proxy", proxy.Proxy)
+		}
+	}
+	apiPath := fmt.Sprintf("/nodes/%s/%s/%d/%s", url.PathEscape(proxy.Node), proxy.GuestType, proxy.VMID, proxy.Kind)
+	var result map[string]any
+	if err := c.do(ctx, http.MethodPost, apiPath, nil, form, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}

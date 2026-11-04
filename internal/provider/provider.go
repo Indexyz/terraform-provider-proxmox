@@ -255,6 +255,7 @@ func (p *ProxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewAccessPermissionsDataSource,
 		NewAccessVNCTicketDataSource,
 		NewGuestMTunnelDataSource,
+		NewGuestProxyDataSource,
 		NewOpenIDAuthURLDataSource,
 		NewOpenIDLoginDataSource,
 		NewAPLTemplatesDataSource,
