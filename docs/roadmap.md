@@ -161,36 +161,62 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 ## 接下来
 
-### 已完成（本轮）
+### 本轮完成（2026-11-03/04）
 
-- 新增命令式 `proxmox_realm_sync`：`POST /access/domains/{realm}/sync` + UPID 等待，`scope` required、`remove_vanished` 默认 `none`（可为 `acl;properties;entry`）、`enable_new` 默认 true、`dry_run`，全部 RequiresReplace + `triggers` 驱动重跑；create 前校验 realm 存在且为 LDAP/AD，destroy 无动作，缺失 realm 时刷新移出 state，import realm。注册 43 资源。
+- 环境升级为**双节点** PVE 9.2 集群（`pve2` 加入、quorum 2/2、嵌套 KVM）并装好 Ceph 20（mon/mgr/OSD），仍为单机公网、80/443 被上游网关占用。
+- 多节点验收：磁盘无关 VM 双向迁移、HA `resource-affinity negative` 把 325 固定在 pve2 而 326 留在 pve-e2e、节点重启与 HA 服务恢复。
+- LDAP 验收：slapd + OU/用户/组，`proxmox_realm`/`proxmox_realm_sync` 同步用户组，`alice@ldap-tf` 登录换票成功。
+- OVS 验收：OVSBridge + OVSIntPort、`ovs-vsctl` 端口、网关 ping 与 plan 稳定。
+- SDN 验收：simple zone/vnet/subnet 的网关数据面与 rollback；vlan zone 本身不落网关（已记录）。
+- ACME 验收：Cloudflare quick tunnel 暴露 80 完成真实 Let's Encrypt HTTP-01 签发（证书已装为 `pveproxy-ssl.pem`）。
+- Ceph 交付：`proxmox_cluster_ceph_flag`、`proxmox_node_ceph_{monitor,osd,pool}` 与 `ceph_{status,flags}`、`node_ceph_{monitors,osd_tree,pools}`；OSD 销毁按 out→stop→destroy+zap 清理，flag/pool/OSD/mon import 全部实机通过。
+- 缺陷修复：`netmask` 前缀↔点分归一化、network apply 接受 `WARNINGS`、ACME `force` 默认值、Ceph 数值布尔与 OSD 设备定位重试/导入补全。
 
-### 优先实现
+### 代码面剩余（按 family）
 
-input.md 计划的 NoCloud 交付链路（Stage A 生命周期钩子、Stage B NoCloud ISO 资源、Stage C CD-ROM 安全集成与指南）、Review round 1 九项必修（1–9）、Review round 2 三处缺陷修复与 Review round 4（无 delay 异步 DELETE 空/畸形 UPID 应答拒绝，覆盖 VM 与 NoCloud ISO 两路删除）已全部完成；真实模板根盘的 Terraform Core 盘映射一致性缺陷已在切片 B 修复（盘状态投影边界 + 真实 CLI 根盘 fixture 全链验证），refresh 所有权缺陷已按终审要求以拒绝路径修复（标记化 update 不再认可 prior-state 自有 seed 的就地更换，seed 更替走 VM 替换）。残留边界：未标记（无 `nocloud_cdrom_slot`）工作流（typed 与 raw 透传均）不做 CD-ROM 附着安全检查（严格检查按 owner 决策限定 marker 工作流；标记工作流的计划期 raw 盘槽自 round 2 修复起并入安全检查，不再是接受的绕过）。真实环境 DHCP/cloud-init/Runner 行为按指南验收清单人工确认，仍未验证。
-
-SDN epic 功能面已完成（含 apply 与 rollback 两个显式执行面）：全部 zone 类型、VNet（含防火墙 options/scope）、subnet、ipam/dns/controller、fabric/fabric node、prefix list、route map entry、全局 apply，以及 zones/vnets 列表数据源。剩余：实物验收（见下）与可选的数据源扩充。
-
-user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步只剩实机验收（TFA 需 ticket 认证与真实 LDAP、证书内容需真实存储与 LDAP 登录、compound 设备需可透传硬件/virtiofsd）与数据源广度扩充。
+- 集群：`/cluster/log`、`/cluster/tasks`、`/cluster/status`、`/cluster/jobs/schedule-analyze`；`/cluster/qemu/cpu-flags` 与 `custom-cpu-models`；HA `status/current`、`manager_status` 读面；`/cluster/ha/groups`（PVE 9 返回 500，仅历史兼容）。
+- Ceph 剩余：fs、MDS、MGR、CRUSH、rules、cfg、log、init、restart-bulk；OSD 的 lv-info/scrub/metadata；多 mon/多 MGR 拓扑。
+- 节点：`aplinfo`、`capabilities`、`hosts`、`netstat`、`report`、旧 `rrd`、`wakeonlan`、`startall`、`migrateall`、`query-url-metadata`、`query-oci-repo-tags`、节点任务列表、节点 SDN 视图。
+- Guest：`cloudinit/dump|pending`、`monitor`、`sendkey`、`remote_migrate`/`mtunnel`、`move_disk`/`move_volume`、agent 的 `file-read|file-write|fsfreeze|fstrim`、VNC/SPICE/term 代理会话。
+- 存储：`file-restore list|download`、`import-metadata`、`oci-registry-pull`、存储 `rrd/rrddata`、`identity`。
+- 访问控制：`/access/permissions` 数据源、`/access/vncticket`、OpenID 交互登录；通知 target 列表数据源。
+- 仍未实现的 guest 家族细节以 API Viewer 逐 endpoint 核对后再排期，不做无验收的批量声明。
 
 ### 后续中大型功能
 
 - `proxmox_lxc_containers` 列表数据源已完成（见上方已完成条目）；同类 guest 列表后续可考虑统一的跨类型查询体验。
-- Authentication realm 高级后续全部交付：列表数据源、LDAP/AD 目录同步与证书（路径与内容上传）、OpenID group claim、forced TFA、命令式 `proxmox_realm_sync` 与 `proxmox_user_tfa`；仅剩实机验收。
-- HA rules：研究、`proxmox_ha_rule` 与 `proxmox_ha_resources`/`proxmox_ha_rules` 数据源均已完成；仅剩多节点实机验收。
+- Authentication realm 高级后续全部交付：列表数据源、LDAP/AD 目录同步与证书（路径与内容上传）、OpenID group claim、forced TFA、命令式 `proxmox_realm_sync` 与 `proxmox_user_tfa`；LDAP 登录/同步已验收，AD/OpenID/forced TFA 仍未验证。
+- HA rules：研究、`proxmox_ha_rule` 与 `proxmox_ha_resources`/`proxmox_ha_rules` 数据源均已完成；negative resource-affinity 已在双节点验收，node-affinity strict 与故障切换未验证。
 - Node networking：基础切片（Linux bridge/bond/vlan/eth + 显式 apply）已交付，见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；OVS 系列（`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBond`，父桥 `ovs_ports` 由服务端维护、`ovs_bridge` 必填、OVS 专属 bond mode）已补入同一资源；`proxmox_node_network_revert`、`alias` 类型（`<parent>:<n>` 附加地址）与只读 `altnames` 已交付；PVE 无 rename endpoint，`eth` 重命名仍是后续项。
-- SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply）；数据源已覆盖 zones/vnets/subnets/ipams/dns providers/controllers/fabrics/prefix lists/route map entries；仅剩实机验收。
+- SDN：研究契约与实现均已完成（zone 全类型、VNet + 防火墙、subnet、ipam/dns/controller、fabric/node、prefix list、route map entry、apply）；数据源已覆盖 zones/vnets/subnets/ipams/dns providers/controllers/fabrics/prefix lists/route map entries；simple zone 数据面与 rollback 已验收，其余 zone 数据面未验证。
 - QEMU compound devices 已交付 `hostpci`（含 `romfile`、`legacy-igd`、`vendor-id`/`device-id`/`sub-*-id` 覆盖）、`usb`、`rng`、`virtiofs` typed 槽位（含 raw 回退与 delete 移除）；未知新 key 仍整槽回退到 `raw.extra_config`。
 
 ### 持续约束
 
 - 新增或修改 Provider schema 时运行 `make generate`，同步更新 `docs/index.md`、`docs/resources/`、`docs/data-sources/` 和示例。
-- 当前 e2e 环境是单节点 Proxmox VE 9.2，运行三个精确选择的测试：扩展只读数据源、随机命名的 pool/access CRUD，以及无 disk/storage/network/runtime start 的空 QEMU source VM/同节点 full clone task polling。存储配置、防火墙、HA、replication、backup、外部 realm、LXC、QEMU/LXC 运行时操作、多节点或 ZFS 行为仍以 HTTP 单元测试覆盖，除非为其设计隔离的 acceptance 环境；linked clone 的 COW/base 共享语义同样超出该环境（source VM 无磁盘）。
+- e2e 环境现为双节点 PVE 9.2 + Ceph 20（嵌套 KVM、单机公网、上游网关占用 80/443）。多节点迁移、HA negative affinity、LDAP、OVS、SDN simple 数据面与真实 ACME 已验收；其余仍以 HTTP 单元测试为主。带磁盘迁移、LXC、hostpci/USB/virtiofs、跨节点存储、linked clone COW 与多 zone 数据面仍缺验收环境。
 - QEMU/LXC 运行状态保持 observed-only；不要把 start/stop/rollback 等命令式操作伪装成普通资源的期望状态。显式 opt-in 的声明式 `power` 属性（仅在 apply/create/update 中协调、refresh 永不动作）是该约束唯一文档化的例外。
 - 扩展 typed 字段时同步更新 schema、mapping、client 分类和测试，并保持 typed 与 `raw.extra_config` 单一 source of truth。
 - 后续可按资源 family 对照固定版本 Proxmox API Viewer，补充经过验证的最小权限矩阵与 import 操作手册；在完成逐 endpoint 核验前不提供可能误导用户的通用权限角色。
 
 研究依据：[Proxmox VE API Viewer](https://pve.proxmox.com/pve-docs/api-viewer/)、当前 `internal/provider/provider.go` 注册表、现有 client/resource 模式，以及 [BPG Provider 的公开资源覆盖面](https://github.com/bpg/terraform-provider-proxmox/tree/main/docs/resources)。候选比较见 [`research/proxmox-next-feature.md`](../research/proxmox-next-feature.md)；HA resource 的 PVE 9.2 schema、生命周期和验证边界见 [`research/proxmox-ha-resource.md`](../research/proxmox-ha-resource.md)；HA rule 的 PVE 9.2 终点、可行性交叉检查、digest 生命周期与迁移 gate 见 [`research/proxmox-ha-rule.md`](../research/proxmox-ha-rule.md)；节点网络的 staged/`changes`/reload 契约与断连边界见 [`research/proxmox-node-network.md`](../research/proxmox-node-network.md)；LXC guest 列表的类型剔除与过滤契约见 [`research/proxmox-lxc-containers.md`](../research/proxmox-lxc-containers.md)；realm 索引、目录同步、客户端证书与 TFA 语法见 [`research/proxmox-realm-advanced.md`](../research/proxmox-realm-advanced.md)；SDN 的全局锁、pending/running 与切片计划见 [`research/proxmox-sdn.md`](../research/proxmox-sdn.md)； TFA/证书内容/compound 设备的 PVE 契约与边界见 [`research/proxmox-tfa-cert-devices.md`](../research/proxmox-tfa-cert-devices.md)；QEMU/LXC linked clone 的 PVE 契约（`full` 默认、`storage`/`format` 拒绝、存储 `clone` feature 矩阵、base 镜像生命周期）见 [`research/proxmox-linked-clone.md`](../research/proxmox-linked-clone.md)。
+
+## 实机验收（双节点 + Ceph，2026-11-04）
+
+在既有 PVE 9.2 guest 内新建第二节点 `pve2`（Debian 13 + proxmox-ve，静态 10.0.2.31，`--cpu host` 提供嵌套 KVM），`pvecm add` 加入集群并保持 quorum 2/2。公网 IP 的 80/443 属于上游 UniFi 网关（301），ACME 改用 Cloudflare quick tunnel 暴露 80。
+
+逐项验证：
+
+- 迁移：`proxmox_guest_migration` 把 VM 324 迁到 pve2 再迁回，两次均成功且 plan 干净。
+- HA：`proxmox_ha_rule` `resource-affinity` + `affinity = negative`，325 被调度到 pve2、326 留在 pve-e2e，两条服务 `started`、plan 干净；期间重启 HA CRM/LRM 恢复卡死的 migrate 状态。
+- LDAP：slapd（`dc=example,dc=com`、people/groups OU、alice/bob、groupOfNames）→ `proxmox_realm`（ldap, 389）+ `proxmox_realm_sync`（both, enable_new），任务日志确认导入用户与 `terraform-ldap-tf` 组，`alice@ldap-tf` + 密码换票成功。
+- OVS：pve2 安装 openvswitch，`OVSBridge ovsbr0` + `OVSIntPort ovsint0` apply 后 `ovs-vsctl show` 正确，`10.10.10.1` 可 ping，plan 0。
+- SDN：simple zone `tfs`/vnet `tfsv`/subnet 10.30.30.0/24 的网关出现在节点并可 ping；另建 staged vnet 后 `proxmox_sdn_rollback` 清空 pending 且 running 配置不变。vlan zone 不生成网关（仅 simple/EVPN 落网关）。
+- ACME：`proxmox_acme_account` + standalone 插件 + `proxmox_node_acme_certificate`，经隧道完成 HTTP-01，Let's Encrypt 证书签发并作为 `pveproxy-ssl.pem` 生效（CN=competition-skins-backing-generally.trycloudflare.com，notAfter 2027-02-01）。
+- Ceph：`pveceph install/init` + mon/mgr + `/dev/vdb` OSD；`proxmox_cluster_ceph_flag`、`proxmox_node_ceph_pool`（size 2/pg 8）与 `proxmox_node_ceph_osd` 创建成功，status/flags/pools/OSD tree/monitors 数据源可读，mon 导入与 plan 干净；OSD `terraform destroy` 走 out→stop→zap，设备释放干净。单 OSD 因 size=2 报 `HEALTH_WARN`，属预期。
+- 实机暴露并修复：`netmask` 前缀/点分转换、network apply `WARNINGS` 成功、ACME `force` 默认、Ceph flag/mon 数值布尔、OSD 设备定位重试与导入字段补全。
+
+环境说明：双节点均为嵌套 VM，pve2 用 2 GiB；重启 pve-e2e 后需 `pvecm expected 1` → 启动 330 → `expected 2`，否则 HA watchdog 会因无 quorum 重启节点。ACME quick tunnel 为临时进程，证书本身长期有效；8006 证书未覆盖公网 IP，仍以 `insecure = true` 连接。
 
 ## 实机验收（PVE 9.2 单节点，2026-11-03）
 
@@ -198,7 +224,7 @@ user TFA、realm 证书内容上传与 QEMU compound 设备已完成；下一步
 
 实机暴露并已修复的缺陷（均有回归测试）：DELETE 带 body 被 APIServer 501 拒绝（全部改为 query）、`proxmox_user` 密码更新未走 `PUT /access/password`、`keys` 在加 TFA 后被服务端改写为 `x` 导致不一致、TFA ValidateConfig 在 unknown 值下误报、recovery 条目无法 PUT（改为重建）且描述不回传、provider 登录对 enabled TFA 缺少两步 challenge、`/nodes/{node}/network` 的 `changes` 已变成 diff 字符串、整节点 revert 同步无 UPID、realm 证书与 HA rule 校验把 unknown 元素当空、ACL 未使用的绑定写成空列表、metrics server 的 computed 字段 apply 后仍 unknown。
 
-仍未实机验证：多节点（HA negative affinity、迁移、跨节点存储）、LDAP/AD 登录与 realm sync、hostpci/USB/virtiofs 需要真实硬件或 virtiofsd、LXC 生命周期、OVS 网络、cloud-init/DHCP 行为、`proxmox_sdn_rollback` 与 SDN 数据面。
+仍未实机验证（更新到 2026-11-04）：hostpci/USB 真机透传与 virtiofsd、LXC 生命周期/rootfs、带真实磁盘的跨节点迁移与跨节点存储、linked clone 的 COW/模板保护、HA node-affinity strict 与故障切换、OVS 物理口/OVSBond、SDN 的 vlan/vxlan/evpn/qinq/faucet 数据面与 DNS/IPAM 联动、AD（仅验证 LDAP）、OpenID IdP、forced TFA、PBS/`file-restore`、ZFS/NFS/CIFS/iSCSI/CephFS 存储与磁盘创建、ACME DNS-01、外部 SMTP/Gotify/Webhook 投递、防火墙真实流量、InfluxDB/OTLP metrics。
 
 - 新增 guest 防火墙对象 `proxmox_guest_firewall_alias`、`proxmox_guest_firewall_ip_set`、`proxmox_guest_firewall_ip_set_entry`（`node`/`guest_type`/`vmid` 作用域，digest CAS，`nomatch`，import）。单节点实机验证：创建 alias/ipset/entry、wire 内容与 digest、就地更新（cidr/comment/nomatch 清除）、plan 无漂移、销毁清理均通过。
 
