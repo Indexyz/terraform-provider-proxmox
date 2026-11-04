@@ -119,7 +119,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 
 ## 资源
 
-当前注册 **115 个资源**，并在 `examples/resources/` 中各有对应示例：
+当前注册 **128 个资源**，并在 `examples/resources/` 中各有对应示例：
 
 | 资源 | 主要职责 |
 | --- | --- |
@@ -129,6 +129,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_backup_job` | 管理 cluster-wide vzdump 备份计划、guest 选择和 retention。 |
 | `proxmox_cluster_bulk_action` | cluster-wide 批量 start/shutdown/suspend/migrate（UPID 等待）。 |
 | `proxmox_cluster_ceph_flag` | 启停 Ceph cluster flag（destroy 关闭）。 |
+| `proxmox_cluster_ceph_health_mute` | 静音单个 Ceph health check（`PUT /cluster/ceph/health-mute/{code}`，destroy 解除）。 |
+| `proxmox_cluster_ceph_restart_bulk` | cluster-wide 批量重启 Ceph daemon（`POST /cluster/ceph/restart-bulk`，UPID 等待）。 |
 | `proxmox_cluster_firewall_alias` | 管理集群级防火墙 IP/network alias。 |
 | `proxmox_cluster_firewall_ip_set` | 管理集群级命名 IP set。 |
 | `proxmox_cluster_firewall_ip_set_entry` | 管理集群级 IP set 地址、网络或 alias 条目。 |
@@ -144,14 +146,21 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_firewall_rule` | 通过 content identity 管理 cluster、node、QEMU/LXC guest、security group 或 **SDN VNet** 防火墙规则。 |
 | `proxmox_group` | 管理 access group。 |
 | `proxmox_guest_firewall_alias` | 管理 guest 防火墙 alias（`/nodes/{node}/{guest}/{vmid}/firewall/aliases`，digest CAS）。 |
+| `proxmox_guest_cloudinit` | 重新生成 QEMU cloud-init 盘（`PUT .../cloudinit`）。 |
+| `proxmox_guest_dbus_vmstate` | 启停 QEMU DBus VMState helper。 |
 | `proxmox_guest_firewall_ip_set` | 管理 guest 防火墙 IP set（POST+`rename` 更新）。 |
 | `proxmox_guest_firewall_ip_set_entry` | 管理 guest IP set 条目（`cidr` 身份、`nomatch`、digest CAS）。 |
 | `proxmox_guest_firewall_options` | 管理 QEMU/LXC guest 防火墙选项。 |
 | `proxmox_guest_migration` | 迁移 guest 到目标节点（qemu/lxc，UPID 等待；当前仅单节点，行为由单测覆盖）。 |
+| `proxmox_guest_status_action` | 执行 start/stop/shutdown/suspend/resume/reboot/reset 并等待任务。 |
+| `proxmox_guest_template` | 将 guest 转为模板。 |
+| `proxmox_guest_unlink` | 从 QEMU 配置卸载磁盘（不删除卷）。 |
 | `proxmox_ha_resource` | 管理现有 QEMU/LXC guest 的 PVE 9 HA enrollment、显式 requested state 和恢复策略；destroy 固定 `purge=0`，只退出 HA 管理。 |
+| `proxmox_ha_resource_migrate` | 触发 HA `migrate`/`relocate` 并暴露阻塞资源 JSON。 |
 | `proxmox_ha_rule` | 管理 PVE 9 HA 放置规则（node-affinity/resource-affinity）。 |
 | `proxmox_ha_rule` | 管理 PVE 9 `node-affinity`/`resource-affinity` 放置规则（含 negative affinity 与 `disable`），以 computed `feasibility_errors` 暴露服务端不可行状态。 |
 | `proxmox_lxc_container` | 管理 LXC 容器、clone、typed/raw 配置和显式 `power` 电源协调。 |
+| `proxmox_lxc_resize` | 调整 LXC mount point 容量（`PUT .../lxc/{vmid}/resize`）。 |
 | `proxmox_node_ceph_monitor` | 创建/删除 Ceph mon（UPID 等待，import）。 |
 | `proxmox_node_ceph_osd` | 创建 OSD 并按 out→stop→destroy 清理；import。 |
 | `proxmox_node_ceph_pool` | 管理 Ceph pool（size/min_size/pg/autoscale）。 |
@@ -209,6 +218,8 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_sdn_zone` | 管理 `simple`/`vlan`/`qinq`/`vxlan`/`evpn`/`faucet` 全部 zone 类型的 staged 配置（逐类型字段矩阵），锁令牌 + digest CAS，不自动提交。 |
 | `proxmox_storage` | 管理 Proxmox 存储池。 |
 | `proxmox_storage_file_download` | 下载并管理 storage 中的 ISO、LXC template 或 import image。 |
+| `proxmox_storage_download_url` | 从 URL 直接下载到存储（destroy 删除卷）。 |
+| `proxmox_storage_upload` | 上传本地文件到存储（destroy 删除卷）。 |
 | `proxmox_storage_volume` | 管理卷 notes（仅 backup）与 protected（PUT，destroy 删卷，import）。 |
 | `proxmox_storage_volume_transfer` | 复制/移动卷到 target（POST + UPID 等待）。 |
 | `proxmox_user` | 管理 Proxmox 用户。 |
@@ -279,6 +290,7 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 | `proxmox_node_ceph_osd_scrub` | 见对应 API/生成文档。 |
 | `proxmox_node_ceph_restart` | 见对应 API/生成文档。 |
 | `proxmox_node_ceph_restart_bulk` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_start` / `proxmox_node_ceph_stop` | 启停单个 Ceph 服务。 |
 | `proxmox_node_hosts` | 见对应 API/生成文档。 |
 | `proxmox_node_migrateall` | 见对应 API/生成文档。 |
 | `proxmox_node_oci_pull` | 见对应 API/生成文档。 |
@@ -344,6 +356,8 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_acl` | `data_source_acl.go` | `GET /access/acl`，按 path/type 过滤、按 path+type+ugid 排序。 |
 | `proxmox_ceph_flags` | `data_source_ceph.go` | `GET /cluster/ceph/flags`。 |
 | `proxmox_ceph_status` | `data_source_ceph.go` | `GET /cluster/ceph/status`，原样 JSON。 |
+| `proxmox_cluster_ceph_health_mutes` | 列出已静音的 Ceph health check。 |
+| `proxmox_cluster_ceph_metadata` | `GET /cluster/ceph/metadata` JSON。 |
 | `proxmox_backup_job_included_volumes` | `data_source_backup_info.go` | `GET /cluster/backup/{id}/included_volumes`，展开 children。 |
 | `proxmox_backup_not_backed_up` | `data_source_backup_info.go` | `GET /cluster/backup-info/not-backed-up`，按 vmid 排序。 |
 | `proxmox_backup_jobs` | `data_source_backup_jobs.go` | `GET /cluster/backup`，按 `node` 过滤、按 id 排序。 |
@@ -357,6 +371,11 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_guest_mtunnel` | `data_source_openid_mtunnel.go` | `POST /nodes/{node}/{type}/{vmid}/mtunnel`，输出 socket/ticket/upid。 |
 | `proxmox_guest_mtunnel_websocket` | `data_source_openid_mtunnel.go` | `GET /nodes/{node}/{type}/{vmid}/mtunnelwebsocket`。 |
 | `proxmox_guest_proxy` | `data_source_openid_mtunnel.go` | `POST /nodes/{node}/{type}/{vmid}/{kind}`（vnc/term/spice 代理）。 |
+| `proxmox_guest_feature` | 查询 guest feature 支持与节点。 |
+| `proxmox_guest_firewall_refs` | 列出 guest 防火墙引用。 |
+| `proxmox_guest_pending` | 读取 pending 配置 JSON。 |
+| `proxmox_guest_rrd_image` / `proxmox_guest_rrddata` | guest RRD 图与数据点。 |
+| `proxmox_guest_vnc_websocket` | 解析 guest VNC WebSocket 端口。 |
 | `proxmox_ha_resources` | `data_source_ha_resources.go` | `GET /cluster/ha/resources`，按 `sid` 排序。 |
 | `proxmox_ha_rules` | `data_source_ha_rules.go` | `GET /cluster/ha/rules`，按类型过滤、按 `rule` 排序并输出 `errors`。 |
 | `proxmox_lxc_container` | `data_source_lxc_container.go` | 读取 LXC `/config` 和 `/status/current`，共享 LXC typed/raw 映射。 |
@@ -383,6 +402,8 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_sdn_fabric_node` | `data_source_sdn_fabric_node.go` | 读取单个 staged fabric node（`fabric_id`+`node_id`，含 `pending` 覆盖）。 |
 | `proxmox_sdn_fabrics` | `data_source_sdn_fabrics.go` | `GET /cluster/sdn/fabrics/fabric?pending=1`，输出 staged fabric 与 `state`/`pending`，可按 protocol 过滤。 |
 | `proxmox_access_vncticket` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_access_ticket` | `POST /access/ticket` 登录并输出 ticket/CSRF。 |
+| `proxmox_access_tfa_entries` | `GET /access/tfa` 列出全集群 TFA 条目。 |
 | `proxmox_cluster_log` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_cluster_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_cluster_tasks` | `data_source_api_or_ceph.go` | 见对应 API。 |
@@ -391,12 +412,16 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_ha_groups` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_ha_manager_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_ha_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_ha_status_summary` | `GET /cluster/ha/status` 汇总 JSON。 |
 | `proxmox_lxc_interfaces` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_capabilities` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_ceph_config` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_ceph_config_raw` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_ceph_config_value` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_ceph_crush` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_cmd_safety` | 查询 Ceph 服务动作是否安全。 |
+| `proxmox_node_ceph_config_index` | `GET /nodes/{node}/ceph/cfg` 子资源索引 JSON。 |
+| `proxmox_node_ceph_releases` | 列出可安装 Ceph release。 |
 | `proxmox_node_ceph_filesystems` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_ceph_log` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_ceph_mds_daemons` | `data_source_api_or_ceph.go` | 见对应 API。 |
@@ -412,6 +437,7 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_node_tasks` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_termproxy` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_node_vncshell` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_vnc_websocket` | 解析节点 shell VNC WebSocket 端口。 |
 | `proxmox_notification_targets` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_qemu_agent_file` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_qemu_agent_fsfreeze_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
@@ -463,7 +489,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 115 个资源和 136 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 128 个资源和 151 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 

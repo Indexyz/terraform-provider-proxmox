@@ -354,3 +354,15 @@ func (c *Client) StopCephOSDService(ctx context.Context, node string, osdid int6
 	}
 	return c.waitForNodeTask(ctx, node, upid)
 }
+
+func (c *Client) CephServiceAction(ctx context.Context, node, service, action string) (string, error) {
+	var upid string
+	err := c.do(ctx, http.MethodPost, "/nodes/"+url.PathEscape(node)+"/ceph/"+action, nil, url.Values{"service": {service}}, &upid)
+	if err != nil {
+		return "", err
+	}
+	if upid == "" {
+		return "", nil
+	}
+	return upid, validateQemuTaskAck(upid, "ceph "+action)
+}

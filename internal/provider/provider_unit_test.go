@@ -111,7 +111,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		resourceNames = append(resourceNames, resp.TypeName)
 	}
 	sort.Strings(resourceNames)
-	if want := []string{"proxmox_acl", "proxmox_acme_account", "proxmox_acme_plugin", "proxmox_backup_job", "proxmox_cluster_bulk_action", "proxmox_cluster_ceph_flag", "proxmox_cluster_firewall_alias", "proxmox_cluster_firewall_ip_set", "proxmox_cluster_firewall_ip_set_entry", "proxmox_cluster_firewall_options", "proxmox_cluster_firewall_security_group", "proxmox_cluster_join", "proxmox_cluster_mapping_dir", "proxmox_cluster_mapping_pci", "proxmox_cluster_mapping_usb", "proxmox_cluster_metrics_server", "proxmox_cluster_node_remove", "proxmox_cluster_options", "proxmox_custom_cpu_model", "proxmox_firewall_rule", "proxmox_group", "proxmox_guest_firewall_alias", "proxmox_guest_firewall_ip_set", "proxmox_guest_firewall_ip_set_entry", "proxmox_guest_firewall_options", "proxmox_guest_migration", "proxmox_guest_move_disk", "proxmox_guest_move_volume", "proxmox_guest_remote_migrate", "proxmox_ha_armed", "proxmox_ha_resource", "proxmox_ha_rule", "proxmox_lxc_container", "proxmox_lxc_snapshot", "proxmox_nocloud_iso", "proxmox_node_acme_certificate", "proxmox_node_apl_download", "proxmox_node_apt_repository", "proxmox_node_apt_update", "proxmox_node_backup_prune", "proxmox_node_ceph_fs", "proxmox_node_ceph_init", "proxmox_node_ceph_mds", "proxmox_node_ceph_mgr", "proxmox_node_ceph_monitor", "proxmox_node_ceph_osd", "proxmox_node_ceph_osd_scrub", "proxmox_node_ceph_pool", "proxmox_node_ceph_restart", "proxmox_node_ceph_restart_bulk", "proxmox_node_certificate", "proxmox_node_disk_directory", "proxmox_node_disk_lvm", "proxmox_node_disk_lvmthin", "proxmox_node_disk_wipe", "proxmox_node_disk_zfs", "proxmox_node_dns", "proxmox_node_execute", "proxmox_node_firewall_options", "proxmox_node_gpt_init", "proxmox_node_hosts", "proxmox_node_migrateall", "proxmox_node_network_apply", "proxmox_node_network_interface", "proxmox_node_network_revert", "proxmox_node_oci_pull", "proxmox_node_service", "proxmox_node_startall", "proxmox_node_status_command", "proxmox_node_stopall", "proxmox_node_suspendall", "proxmox_node_time", "proxmox_node_vzdump", "proxmox_node_wakeonlan", "proxmox_notification_endpoint_gotify", "proxmox_notification_endpoint_sendmail", "proxmox_notification_endpoint_smtp", "proxmox_notification_endpoint_webhook", "proxmox_notification_matcher", "proxmox_notification_target_test", "proxmox_pool", "proxmox_qemu_agent_exec", "proxmox_qemu_agent_file_write", "proxmox_qemu_agent_fsfreeze", "proxmox_qemu_agent_fstrim", "proxmox_qemu_cloudinit_pending", "proxmox_qemu_monitor", "proxmox_qemu_sendkey", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_realm", "proxmox_realm_sync", "proxmox_replication_job", "proxmox_role", "proxmox_sdn_apply", "proxmox_sdn_controller", "proxmox_sdn_dns", "proxmox_sdn_fabric", "proxmox_sdn_fabric_node", "proxmox_sdn_ipam", "proxmox_sdn_prefix_list", "proxmox_sdn_rollback", "proxmox_sdn_route_map_entry", "proxmox_sdn_subnet", "proxmox_sdn_vnet", "proxmox_sdn_vnet_firewall_options", "proxmox_sdn_zone", "proxmox_storage", "proxmox_storage_file_download", "proxmox_storage_volume", "proxmox_storage_volume_transfer", "proxmox_user", "proxmox_user_tfa", "proxmox_user_tfa_unlock", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
+	if want := []string{"proxmox_acl", "proxmox_acme_account", "proxmox_acme_plugin", "proxmox_backup_job", "proxmox_cluster_bulk_action", "proxmox_cluster_ceph_flag", "proxmox_cluster_ceph_health_mute", "proxmox_cluster_ceph_restart_bulk", "proxmox_cluster_firewall_alias", "proxmox_cluster_firewall_ip_set", "proxmox_cluster_firewall_ip_set_entry", "proxmox_cluster_firewall_options", "proxmox_cluster_firewall_security_group", "proxmox_cluster_join", "proxmox_cluster_mapping_dir", "proxmox_cluster_mapping_pci", "proxmox_cluster_mapping_usb", "proxmox_cluster_metrics_server", "proxmox_cluster_node_remove", "proxmox_cluster_options", "proxmox_custom_cpu_model", "proxmox_firewall_rule", "proxmox_group", "proxmox_guest_cloudinit", "proxmox_guest_dbus_vmstate", "proxmox_guest_firewall_alias", "proxmox_guest_firewall_ip_set", "proxmox_guest_firewall_ip_set_entry", "proxmox_guest_firewall_options", "proxmox_guest_migration", "proxmox_guest_move_disk", "proxmox_guest_move_volume", "proxmox_guest_remote_migrate", "proxmox_guest_status_action", "proxmox_guest_template", "proxmox_guest_unlink", "proxmox_ha_armed", "proxmox_ha_resource", "proxmox_ha_resource_migrate", "proxmox_ha_rule", "proxmox_lxc_container", "proxmox_lxc_resize", "proxmox_lxc_snapshot", "proxmox_nocloud_iso", "proxmox_node_acme_certificate", "proxmox_node_apl_download", "proxmox_node_apt_repository", "proxmox_node_apt_update", "proxmox_node_backup_prune", "proxmox_node_ceph_fs", "proxmox_node_ceph_init", "proxmox_node_ceph_mds", "proxmox_node_ceph_mgr", "proxmox_node_ceph_monitor", "proxmox_node_ceph_osd", "proxmox_node_ceph_osd_scrub", "proxmox_node_ceph_pool", "proxmox_node_ceph_restart", "proxmox_node_ceph_restart_bulk", "proxmox_node_ceph_start", "proxmox_node_ceph_stop", "proxmox_node_certificate", "proxmox_node_disk_directory", "proxmox_node_disk_lvm", "proxmox_node_disk_lvmthin", "proxmox_node_disk_wipe", "proxmox_node_disk_zfs", "proxmox_node_dns", "proxmox_node_execute", "proxmox_node_firewall_options", "proxmox_node_gpt_init", "proxmox_node_hosts", "proxmox_node_migrateall", "proxmox_node_network_apply", "proxmox_node_network_interface", "proxmox_node_network_revert", "proxmox_node_oci_pull", "proxmox_node_service", "proxmox_node_startall", "proxmox_node_status_command", "proxmox_node_stopall", "proxmox_node_suspendall", "proxmox_node_time", "proxmox_node_vzdump", "proxmox_node_wakeonlan", "proxmox_notification_endpoint_gotify", "proxmox_notification_endpoint_sendmail", "proxmox_notification_endpoint_smtp", "proxmox_notification_endpoint_webhook", "proxmox_notification_matcher", "proxmox_notification_target_test", "proxmox_pool", "proxmox_qemu_agent_exec", "proxmox_qemu_agent_file_write", "proxmox_qemu_agent_fsfreeze", "proxmox_qemu_agent_fstrim", "proxmox_qemu_cloudinit_pending", "proxmox_qemu_monitor", "proxmox_qemu_sendkey", "proxmox_qemu_snapshot", "proxmox_qemu_vm", "proxmox_realm", "proxmox_realm_sync", "proxmox_replication_job", "proxmox_role", "proxmox_sdn_apply", "proxmox_sdn_controller", "proxmox_sdn_dns", "proxmox_sdn_fabric", "proxmox_sdn_fabric_node", "proxmox_sdn_ipam", "proxmox_sdn_prefix_list", "proxmox_sdn_rollback", "proxmox_sdn_route_map_entry", "proxmox_sdn_subnet", "proxmox_sdn_vnet", "proxmox_sdn_vnet_firewall_options", "proxmox_sdn_zone", "proxmox_storage", "proxmox_storage_download_url", "proxmox_storage_file_download", "proxmox_storage_upload", "proxmox_storage_volume", "proxmox_storage_volume_transfer", "proxmox_user", "proxmox_user_tfa", "proxmox_user_tfa_unlock", "proxmox_user_token"}; !reflect.DeepEqual(resourceNames, want) {
 		t.Fatalf("unexpected resources: got %v want %v", resourceNames, want)
 	}
 
@@ -125,6 +125,8 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 	sort.Strings(dataSourceNames)
 	want := []string{
 		"proxmox_access_permissions",
+		"proxmox_access_tfa_entries",
+		"proxmox_access_ticket",
 		"proxmox_access_vncticket",
 		"proxmox_acl",
 		"proxmox_acme_challenge_schema",
@@ -134,6 +136,8 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_backup_not_backed_up",
 		"proxmox_ceph_flags",
 		"proxmox_ceph_status",
+		"proxmox_cluster_ceph_health_mutes",
+		"proxmox_cluster_ceph_metadata",
 		"proxmox_cluster_config",
 		"proxmox_cluster_firewall_options",
 		"proxmox_cluster_log",
@@ -149,15 +153,22 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_firewall_rules",
 		"proxmox_group",
 		"proxmox_groups",
+		"proxmox_guest_feature",
 		"proxmox_guest_firewall_options",
+		"proxmox_guest_firewall_refs",
 		"proxmox_guest_mtunnel",
 		"proxmox_guest_mtunnel_websocket",
+		"proxmox_guest_pending",
 		"proxmox_guest_proxy",
+		"proxmox_guest_rrd_image",
+		"proxmox_guest_rrddata",
+		"proxmox_guest_vnc_websocket",
 		"proxmox_ha_groups",
 		"proxmox_ha_manager_status",
 		"proxmox_ha_resources",
 		"proxmox_ha_rules",
 		"proxmox_ha_status",
+		"proxmox_ha_status_summary",
 		"proxmox_lxc_container",
 		"proxmox_lxc_containers",
 		"proxmox_lxc_interfaces",
@@ -167,7 +178,9 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_node_apt_repositories",
 		"proxmox_node_apt_versions",
 		"proxmox_node_capabilities",
+		"proxmox_node_ceph_cmd_safety",
 		"proxmox_node_ceph_config",
+		"proxmox_node_ceph_config_index",
 		"proxmox_node_ceph_config_raw",
 		"proxmox_node_ceph_config_value",
 		"proxmox_node_ceph_crush",
@@ -180,6 +193,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_node_ceph_osd_metadata",
 		"proxmox_node_ceph_osd_tree",
 		"proxmox_node_ceph_pools",
+		"proxmox_node_ceph_releases",
 		"proxmox_node_ceph_rules",
 		"proxmox_node_certificates_info",
 		"proxmox_node_disk_smart",
@@ -202,6 +216,7 @@ func TestProviderExportsResourcesAndDataSources(t *testing.T) {
 		"proxmox_node_tasks",
 		"proxmox_node_termproxy",
 		"proxmox_node_time",
+		"proxmox_node_vnc_websocket",
 		"proxmox_node_vncshell",
 		"proxmox_nodes",
 		"proxmox_notification_targets",

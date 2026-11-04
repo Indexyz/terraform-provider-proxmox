@@ -52,11 +52,13 @@ func isoVolumeExists(ctx context.Context, client *Client, node, storage, volumeI
 }
 
 type UploadStorageFileRequest struct {
-	Node     string
-	Storage  string
-	Content  string
-	Filename string
-	Data     []byte
+	Node              string
+	Storage           string
+	Content           string
+	Filename          string
+	Data              []byte
+	Checksum          string
+	ChecksumAlgorithm string
 }
 
 // UploadStorageFile POSTs a file as multipart form data to
@@ -70,6 +72,16 @@ func (c *Client) UploadStorageFile(ctx context.Context, req UploadStorageFileReq
 	writer := multipart.NewWriter(&body)
 	if err := writer.WriteField("content", req.Content); err != nil {
 		return "", "", fmt.Errorf("unable to encode upload form field: %w", err)
+	}
+	if req.Checksum != "" {
+		if err := writer.WriteField("checksum", req.Checksum); err != nil {
+			return "", "", fmt.Errorf("unable to encode upload checksum: %w", err)
+		}
+	}
+	if req.ChecksumAlgorithm != "" {
+		if err := writer.WriteField("checksum-algorithm", req.ChecksumAlgorithm); err != nil {
+			return "", "", fmt.Errorf("unable to encode upload checksum algorithm: %w", err)
+		}
 	}
 	file, err := writer.CreateFormFile("filename", req.Filename)
 	if err != nil {

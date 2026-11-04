@@ -51,6 +51,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_backup_job`
 - `proxmox_cluster_bulk_action`
 - `proxmox_cluster_ceph_flag`
+- `proxmox_cluster_ceph_health_mute`
+- `proxmox_cluster_ceph_restart_bulk`
 - `proxmox_cluster_firewall_alias`
 - `proxmox_cluster_firewall_ip_set`
 - `proxmox_cluster_firewall_ip_set_entry`
@@ -67,6 +69,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_firewall_rule`
 - `proxmox_group`
 - `proxmox_guest_firewall_alias`
+- `proxmox_guest_cloudinit`
+- `proxmox_guest_dbus_vmstate`
 - `proxmox_guest_firewall_ip_set`
 - `proxmox_guest_firewall_ip_set_entry`
 - `proxmox_guest_firewall_options`
@@ -74,10 +78,15 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_guest_move_disk`
 - `proxmox_guest_move_volume`
 - `proxmox_guest_remote_migrate`
+- `proxmox_guest_status_action`
+- `proxmox_guest_template`
+- `proxmox_guest_unlink`
 - `proxmox_ha_armed`
 - `proxmox_ha_resource`
+- `proxmox_ha_resource_migrate`
 - `proxmox_ha_rule`
 - `proxmox_lxc_container`
+- `proxmox_lxc_resize`
 - `proxmox_lxc_snapshot`
 - `proxmox_nocloud_iso`
 - `proxmox_node_acme_certificate`
@@ -95,6 +104,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_ceph_pool`
 - `proxmox_node_ceph_restart`
 - `proxmox_node_ceph_restart_bulk`
+- `proxmox_node_ceph_start`
+- `proxmox_node_ceph_stop`
 - `proxmox_node_certificate`
 - `proxmox_node_disk_directory`
 - `proxmox_node_disk_lvm`
@@ -154,6 +165,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_sdn_zone`
 - `proxmox_storage`
 - `proxmox_storage_file_download`
+- `proxmox_storage_download_url`
+- `proxmox_storage_upload`
 - `proxmox_storage_volume`
 - `proxmox_storage_volume_transfer`
 - `proxmox_user`
@@ -164,6 +177,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 ## Supported Data Sources
 
 - `proxmox_access_permissions`
+- `proxmox_access_ticket`
+- `proxmox_access_tfa_entries`
 - `proxmox_access_vncticket`
 - `proxmox_acl`
 - `proxmox_acme_challenge_schema`
@@ -172,6 +187,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_backup_jobs`
 - `proxmox_backup_not_backed_up`
 - `proxmox_ceph_flags`
+- `proxmox_cluster_ceph_health_mutes`
+- `proxmox_cluster_ceph_metadata`
 - `proxmox_ceph_status`
 - `proxmox_cluster_config`
 - `proxmox_cluster_firewall_options`
@@ -192,11 +209,18 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_guest_mtunnel`
 - `proxmox_guest_mtunnel_websocket`
 - `proxmox_guest_proxy`
+- `proxmox_guest_feature`
+- `proxmox_guest_firewall_refs`
+- `proxmox_guest_pending`
+- `proxmox_guest_rrd_image`
+- `proxmox_guest_rrddata`
+- `proxmox_guest_vnc_websocket`
 - `proxmox_ha_groups`
 - `proxmox_ha_manager_status`
 - `proxmox_ha_resources`
 - `proxmox_ha_rules`
 - `proxmox_ha_status`
+- `proxmox_ha_status_summary`
 - `proxmox_lxc_container`
 - `proxmox_lxc_containers`
 - `proxmox_lxc_interfaces`
@@ -210,6 +234,9 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_ceph_config_raw`
 - `proxmox_node_ceph_config_value`
 - `proxmox_node_ceph_crush`
+- `proxmox_node_ceph_cmd_safety`
+- `proxmox_node_ceph_config_index`
+- `proxmox_node_ceph_releases`
 - `proxmox_node_ceph_filesystems`
 - `proxmox_node_ceph_log`
 - `proxmox_node_ceph_mds_daemons`
@@ -242,6 +269,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_termproxy`
 - `proxmox_node_time`
 - `proxmox_node_vncshell`
+- `proxmox_node_vnc_websocket`
 - `proxmox_nodes`
 - `proxmox_notification_targets`
 - `proxmox_openid_auth_url`

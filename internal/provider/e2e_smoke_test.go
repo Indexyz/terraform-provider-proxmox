@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,6 +34,8 @@ data "proxmox_cluster_log" "current" {
 
 data "proxmox_ha_status" "current" {}
 
+data "proxmox_ha_status_summary" "current" {}
+
 data "proxmox_cpu_flags" "current" {
   arch = "x86_64"
 }
@@ -44,7 +47,7 @@ data "proxmox_ceph_status" "current" {}
 data "proxmox_nodes" "current" {}
 
 locals {
-  node = data.proxmox_nodes.current.nodes[0].name
+  node = sort(data.proxmox_nodes.current.nodes[*].name)[0]
 }
 
 data "proxmox_node" "current" {
@@ -139,6 +142,7 @@ data "proxmox_realms" "current" {}
 					resource.TestCheckResourceAttrSet("data.proxmox_cluster_status.current", "nodes.#"),
 					resource.TestCheckResourceAttrSet("data.proxmox_cluster_log.current", "entries.#"),
 					resource.TestCheckResourceAttrSet("data.proxmox_ha_status.current", "entries.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_ha_status_summary.current", "summary"),
 					resource.TestCheckResourceAttrSet("data.proxmox_cpu_flags.current", "flags.#"),
 					resource.TestCheckResourceAttrSet("data.proxmox_notification_targets.current", "targets.#"),
 					resource.TestCheckResourceAttrSet("data.proxmox_ceph_status.current", "status"),
@@ -243,6 +247,7 @@ func TestAccProxmoxE2EQemuVMTaskWaiting(t *testing.T) {
 			if len(nodes) == 0 {
 				t.Fatal("discover Proxmox node for QEMU acceptance test: no nodes returned")
 			}
+			sort.Slice(nodes, func(i, j int) bool { return nodes[i].Name < nodes[j].Name })
 			node = nodes[0].Name
 
 			for _, vmID := range []int64{cloneVMID, sourceVMID} {
@@ -347,7 +352,7 @@ func testAccProxmoxE2EQemuVMTaskWaitingConfig(sourceVMID, cloneVMID int64, sourc
 data "proxmox_nodes" "current" {}
 
 locals {
-  node = data.proxmox_nodes.current.nodes[0].name
+  node = sort(data.proxmox_nodes.current.nodes[*].name)[0]
 }
 
 resource "proxmox_qemu_vm" "source" {
