@@ -284,7 +284,7 @@ func (d *CephOSDMetadataDataSource) Metadata(_ context.Context, req datasource.M
 }
 
 func (r *CephFSResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Creates and destroys a CephFS through `/nodes/{node}/ceph/fs/{name}`.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Creates and destroys a CephFS through `/nodes/{node}/ceph/fs/{name}`. Destroy deletes MDS daemons of the filesystem first; if Ceph keeps a daemon in `up:creating`, run `ceph fs fail <name>` before destroying.", Attributes: map[string]schema.Attribute{
 		"id": schema.StringAttribute{Computed: true}, "node": schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"name":        schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"pg_num":      schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifierRequiresReplace()}},

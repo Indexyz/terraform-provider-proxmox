@@ -3,12 +3,12 @@
 page_title: "proxmox_node_ceph_fs Resource - proxmox"
 subcategory: ""
 description: |-
-  Creates and destroys a CephFS through /nodes/{node}/ceph/fs/{name}.
+  Creates and destroys a CephFS through /nodes/{node}/ceph/fs/{name}. Destroy deletes MDS daemons of the filesystem first; if Ceph keeps a daemon in up:creating, run ceph fs fail <name> before destroying.
 ---
 
 # proxmox_node_ceph_fs (Resource)
 
-Creates and destroys a CephFS through `/nodes/{node}/ceph/fs/{name}`.
+Creates and destroys a CephFS through `/nodes/{node}/ceph/fs/{name}`. Destroy deletes MDS daemons of the filesystem first; if Ceph keeps a daemon in `up:creating`, run `ceph fs fail <name>` before destroying.
 
 ## Example Usage
 
