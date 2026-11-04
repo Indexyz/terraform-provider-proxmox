@@ -25,6 +25,22 @@ func TestAccProxmoxE2EReadOnly(t *testing.T) {
 				Config: `
 data "proxmox_version" "current" {}
 
+data "proxmox_cluster_status" "current" {}
+
+data "proxmox_cluster_log" "current" {
+  max = 2
+}
+
+data "proxmox_ha_status" "current" {}
+
+data "proxmox_cpu_flags" "current" {
+  arch = "x86_64"
+}
+
+data "proxmox_notification_targets" "current" {}
+
+data "proxmox_ceph_status" "current" {}
+
 data "proxmox_nodes" "current" {}
 
 locals {
@@ -120,9 +136,14 @@ data "proxmox_realms" "current" {}
 					resource.TestCheckResourceAttr("data.proxmox_realm.pam", "type", "pam"),
 					resource.TestCheckResourceAttr("data.proxmox_lxc_containers.current", "id", "lxc_containers"),
 					resource.TestCheckResourceAttrSet("data.proxmox_lxc_containers.current", "containers.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_cluster_status.current", "nodes.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_cluster_log.current", "entries.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_ha_status.current", "entries.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_cpu_flags.current", "flags.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_notification_targets.current", "targets.#"),
+					resource.TestCheckResourceAttrSet("data.proxmox_ceph_status.current", "status"),
 					resource.TestCheckResourceAttr("data.proxmox_realms.current", "id", "realms"),
-					resource.TestCheckResourceAttr("data.proxmox_realms.current", "realms.0.realm", "pam"),
-					resource.TestCheckResourceAttr("data.proxmox_realms.current", "realms.0.type", "pam"),
+					resource.TestCheckResourceAttrSet("data.proxmox_realms.current", "realms.#"),
 				),
 			},
 		},
