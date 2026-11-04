@@ -267,12 +267,12 @@ func (c *Client) StorageRRDData(ctx context.Context, node, storage, timeframe, c
 }
 
 type FileRestoreEntry struct {
-	Filepath string `json:"filepath"`
-	Type     string `json:"type"`
-	Size     int64  `json:"size"`
-	Mtime    int64  `json:"mtime"`
-	Text     string `json:"text"`
-	Leaf     bool   `json:"leaf"`
+	Filepath string              `json:"filepath"`
+	Type     string              `json:"type"`
+	Size     int64               `json:"size"`
+	Mtime    int64               `json:"mtime"`
+	Text     string              `json:"text"`
+	Leaf     proxmoxOptionalBool `json:"leaf"`
 }
 
 func (c *Client) FileRestoreList(ctx context.Context, node, storage, volume, filepath string) ([]FileRestoreEntry, error) {

@@ -185,3 +185,23 @@ func TestOpenIDAndMTunnelDataSources(t *testing.T) {
 		t.Fatalf("mtunnel failed: %v", tunnel.Diagnostics)
 	}
 }
+
+func TestStorageFileRestoreAndQueryDataSources(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/nodes/pve-1/storage/backup/file-restore/list?volume=backup%3Abackup%2Fb.vma.zst":                                []map[string]any{{"filepath": "/etc/hostname", "type": "f", "size": 5, "leaf": 1}},
+		"/api2/json/nodes/pve-1/storage/backup/file-restore/download?filepath=%2Fetc%2Fhostname&volume=backup%3Abackup%2Fb.vma.zst": "pve1",
+		"/api2/json/nodes/pve-1/query-url-metadata?url=https%3A%2F%2Fexample.com":                                                   map[string]any{"filename": "example", "size": 1, "mimetype": "text/html"},
+	}
+	list := runSDNDataSource(t, NewFileRestoreListDataSource(), responses, map[string]any{"node": "pve-1", "storage": "backup", "volume": "backup:backup/b.vma.zst"})
+	if list.Diagnostics.HasError() {
+		t.Fatalf("file restore list failed: %v", list.Diagnostics)
+	}
+	download := runSDNDataSource(t, NewFileRestoreDownloadDataSource(), responses, map[string]any{"node": "pve-1", "storage": "backup", "volume": "backup:backup/b.vma.zst", "filepath": "/etc/hostname"})
+	if download.Diagnostics.HasError() {
+		t.Fatalf("file restore download failed: %v", download.Diagnostics)
+	}
+	query := runSDNDataSource(t, NewQueryURLMetadataDataSource(), responses, map[string]any{"node": "pve-1", "url": "https://example.com"})
+	if query.Diagnostics.HasError() {
+		t.Fatalf("query metadata failed: %v", query.Diagnostics)
+	}
+}

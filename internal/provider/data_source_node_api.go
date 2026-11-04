@@ -862,7 +862,7 @@ func (d *FileRestoreListDataSource) Read(ctx context.Context, req datasource.Rea
 	}
 	records := make([]fileRestoreRecord, 0, len(entries))
 	for _, entry := range entries {
-		records = append(records, fileRestoreRecord{Filepath: stringOrNull(entry.Filepath), Type: stringOrNull(entry.Type), Size: types.Int64Value(entry.Size), Mtime: types.Int64Value(entry.Mtime), Leaf: types.BoolValue(entry.Leaf), Text: stringOrNull(entry.Text)})
+		records = append(records, fileRestoreRecord{Filepath: stringOrNull(entry.Filepath), Type: stringOrNull(entry.Type), Size: types.Int64Value(entry.Size), Mtime: types.Int64Value(entry.Mtime), Leaf: nodesBoolOrNull(entry.Leaf), Text: stringOrNull(entry.Text)})
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &fileRestoreListModel{Node: config.Node, Storage: config.Storage, Volume: config.Volume, Filepath: config.Filepath, Entries: records})...)
 }
