@@ -266,6 +266,30 @@ Endpoint 由 `normalizeEndpoint` 规范化：必须是完整 URL，不能包含 
 - 上传节点与 VM 节点都要求目标 storage 可见、enabled、active 且支持 `iso` content；存在性判定以 content collection 读取为准。
 - 删除仅针对 state 记录的精确卷；VM 依赖 `volume_id` 引用保证销毁顺序，示例指南要求 ISO 资源 `create_before_destroy` 以避免在 VM 仍引用时删除 ISO。
 
+| `proxmox_custom_cpu_model` | 见对应 API/生成文档。 |
+| `proxmox_guest_move_disk` | 见对应 API/生成文档。 |
+| `proxmox_guest_move_volume` | 见对应 API/生成文档。 |
+| `proxmox_guest_remote_migrate` | 见对应 API/生成文档。 |
+| `proxmox_ha_armed` | 见对应 API/生成文档。 |
+| `proxmox_node_apl_download` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_fs` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_init` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_mds` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_mgr` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_osd_scrub` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_restart` | 见对应 API/生成文档。 |
+| `proxmox_node_ceph_restart_bulk` | 见对应 API/生成文档。 |
+| `proxmox_node_hosts` | 见对应 API/生成文档。 |
+| `proxmox_node_migrateall` | 见对应 API/生成文档。 |
+| `proxmox_node_oci_pull` | 见对应 API/生成文档。 |
+| `proxmox_node_startall` | 见对应 API/生成文档。 |
+| `proxmox_node_wakeonlan` | 见对应 API/生成文档。 |
+| `proxmox_qemu_agent_file_write` | 见对应 API/生成文档。 |
+| `proxmox_qemu_agent_fsfreeze` | 见对应 API/生成文档。 |
+| `proxmox_qemu_agent_fstrim` | 见对应 API/生成文档。 |
+| `proxmox_qemu_cloudinit_pending` | 见对应 API/生成文档。 |
+| `proxmox_qemu_monitor` | 见对应 API/生成文档。 |
+| `proxmox_qemu_sendkey` | 见对应 API/生成文档。 |
 ## QEMU typed/raw 映射规则
 
 QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保留长尾配置；同一个 Proxmox key 只能有一个 source of truth。
@@ -353,6 +377,50 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_sdn_fabric` | `data_source_sdn_fabric.go` | 读取单个 staged fabric（含 `pending` 覆盖）。 |
 | `proxmox_sdn_fabric_node` | `data_source_sdn_fabric_node.go` | 读取单个 staged fabric node（`fabric_id`+`node_id`，含 `pending` 覆盖）。 |
 | `proxmox_sdn_fabrics` | `data_source_sdn_fabrics.go` | `GET /cluster/sdn/fabrics/fabric?pending=1`，输出 staged fabric 与 `state`/`pending`，可按 protocol 过滤。 |
+| `proxmox_access_vncticket` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_cluster_log` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_cluster_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_cluster_tasks` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_cpu_flags` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_custom_cpu_models` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_ha_groups` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_ha_manager_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_ha_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_lxc_interfaces` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_capabilities` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_config` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_config_raw` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_config_value` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_crush` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_filesystems` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_log` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_mds_daemons` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_mgr_daemons` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_osd_lv_info` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_osd_metadata` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_ceph_rules` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_netstat` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_report` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_rrd_image` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_sdn` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_spiceshell` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_tasks` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_termproxy` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_node_vncshell` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_notification_targets` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_qemu_agent_file` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_qemu_agent_fsfreeze_status` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_qemu_cloudinit_dump` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_qemu_vncproxy` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_query_oci_repo_tags` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_query_url_metadata` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_schedule_analyze` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_storage_file_restore_download` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_storage_file_restore_list` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_storage_identity` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_storage_import_metadata` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_storage_rrd_image` | `data_source_api_or_ceph.go` | 见对应 API。 |
+| `proxmox_storage_rrddata` | `data_source_api_or_ceph.go` | 见对应 API。 |
 | `proxmox_sdn_ipam` | `data_source_sdn_ipam.go` | 读取单个 staged IPAM（含 `pending` 覆盖），只暴露 fingerprint。 |
 | `proxmox_sdn_ipams` | `data_source_sdn_ipams.go` | `GET /cluster/sdn/ipams?pending=1`，输出 staged IPAM 与 `state`/`pending`，可按 type 过滤。 |
 | `proxmox_sdn_prefix_list` | `data_source_sdn_prefix_list.go` | 读取单个 staged prefix list（含 `pending` 覆盖）。 |
@@ -390,7 +458,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 91 个资源和 85 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 114 个资源和 130 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 

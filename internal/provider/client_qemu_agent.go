@@ -198,4 +198,14 @@ func agentPath(node string, vmid int64, command string) string {
 	return result
 }
 
-var _ = json.RawMessage{}
+// AgentCommand posts a no-argument agent command and returns the raw result as string.
+func (c *Client) AgentCommand(ctx context.Context, node string, vmid int64, command string) (string, error) {
+	var result struct {
+		Result json.RawMessage `json:"result"`
+	}
+	if err := c.do(ctx, http.MethodPost, agentPath(node, vmid, command), nil, url.Values{}, &result); err != nil {
+		return "", err
+	}
+	trimmed := strings.Trim(string(result.Result), `"`)
+	return trimmed, nil
+}

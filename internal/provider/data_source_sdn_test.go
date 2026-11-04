@@ -27,7 +27,7 @@ func runSDNDataSource(t *testing.T, ds datasource.DataSource, responses map[stri
 			key += "?" + r.URL.RawQuery
 		}
 		data, ok := responses[key]
-		if !ok || r.Method != http.MethodGet {
+		if !ok || (r.Method != http.MethodGet && r.Method != http.MethodPost) {
 			handler.fail(w, "unexpected request: %s %s", r.Method, key)
 			return
 		}

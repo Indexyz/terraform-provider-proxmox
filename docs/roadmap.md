@@ -159,6 +159,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 - 新增 Ceph flag/mon/osd/pool 资源及 status/flags/tree/monitors/pools 数据源；OSD 销毁按 out→stop→destroy 清理。
 
+- 完成 API 面剩余 family：cluster/node/access 读面、命令资源、guest agent 扩展、代理票据、存储只读面、Ceph fs/MDS/MGR/config/crush/log/OSD 诊断、CPU 模型与 hosts。
+
 ## 接下来
 
 ### 本轮完成（2026-11-03/04）
