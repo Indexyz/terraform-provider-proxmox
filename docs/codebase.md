@@ -354,12 +354,15 @@ QEMU VM 映射代码的核心边界：typed schema 覆盖常见配置，raw 保�
 | `proxmox_groups` | `data_source_groups.go` | `GET /access/groups`。 |
 | `proxmox_replication_jobs` | `data_source_replication_jobs.go` | `GET /cluster/replication`，按 `guest` 过滤、按 id 排序。 |
 | `proxmox_guest_firewall_options` | `data_source_infra_state.go` | `GET /nodes/{node}/{guest}/{vmid}/firewall/options`。 |
+| `proxmox_guest_mtunnel` | `data_source_openid_mtunnel.go` | `POST /nodes/{node}/{type}/{vmid}/mtunnel`，输出 socket/ticket/upid。 |
 | `proxmox_ha_resources` | `data_source_ha_resources.go` | `GET /cluster/ha/resources`，按 `sid` 排序。 |
 | `proxmox_ha_rules` | `data_source_ha_rules.go` | `GET /cluster/ha/rules`，按类型过滤、按 `rule` 排序并输出 `errors`。 |
 | `proxmox_lxc_container` | `data_source_lxc_container.go` | 读取 LXC `/config` 和 `/status/current`，共享 LXC typed/raw 映射。 |
 | `proxmox_lxc_containers` | `data_source_lxc_containers.go` | `/cluster/resources?type=vm` 客户端剔除 QEMU 后按 `template`/`name`/`node` 过滤并按 VMID 升序输出。 |
 | `proxmox_metrics_export` | `resource_node_execute.go` | `GET /cluster/metrics/export`。 |
 | `proxmox_lxc_snapshots` | `data_source_guest_snapshots.go` | `GET /nodes/{node}/lxc/{vmid}/snapshot`，按 name 排序。 |
+| `proxmox_openid_auth_url` | `data_source_openid_mtunnel.go` | `POST /access/openid/auth-url`。 |
+| `proxmox_openid_login` | `data_source_openid_mtunnel.go` | `POST /access/openid/login`，输出 ticket/cap。 |
 | `proxmox_pool` | `data_source_pool.go` | `GET /pools?poolid=...`。 |
 | `proxmox_qemu_rrddata` | `data_source_rrddata.go` | `GET /nodes/{node}/qemu/{vmid}/rrddata`，原样 JSON 输出。 |
 | `proxmox_qemu_agent` | `data_source_qemu_agent.go` | 聚合 agent 命令、osinfo、hostname、timezone、文件系统与网卡。 |
@@ -458,7 +461,7 @@ make generate
 2. `terraform fmt -recursive ../examples/` 格式化 Terraform 示例。
 3. `tfplugindocs generate --provider-dir .. -provider-name proxmox` 生成 `docs/index.md`、`docs/resources/`、`docs/data-sources/`。
 
-示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 114 个资源和 130 个数据源均有对应示例。
+示例来源约定：`examples/provider/provider.tf` 进入 provider 首页；`examples/resources/<完整资源名>/resource.tf` 进入资源页；`examples/data-sources/<完整数据源名>/data-source.tf` 进入数据源页。当前 114 个资源和 133 个数据源均有对应示例。
 
 注意：本地运行 `make generate` 需要 Terraform CLI；CI 的 `generate` job 会安装 Terraform 并检查生成后是否有未提交 diff。指南源码手工维护在 `templates/guides/`，由 tfplugindocs 渲染到 `docs/guides/`；不要只编辑生成结果。
 

@@ -189,6 +189,7 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_group`
 - `proxmox_groups`
 - `proxmox_guest_firewall_options`
+- `proxmox_guest_mtunnel`
 - `proxmox_ha_groups`
 - `proxmox_ha_manager_status`
 - `proxmox_ha_resources`
@@ -241,6 +242,8 @@ See [Provider configuration and troubleshooting](docs/guides/provider-configurat
 - `proxmox_node_vncshell`
 - `proxmox_nodes`
 - `proxmox_notification_targets`
+- `proxmox_openid_auth_url`
+- `proxmox_openid_login`
 - `proxmox_pool`
 - `proxmox_pools`
 - `proxmox_qemu_agent`

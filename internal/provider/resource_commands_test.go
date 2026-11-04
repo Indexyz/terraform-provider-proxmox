@@ -165,3 +165,23 @@ func TestProxyDataSources(t *testing.T) {
 		t.Fatalf("vncticket read failed: %v", ticket.Diagnostics)
 	}
 }
+
+func TestOpenIDAndMTunnelDataSources(t *testing.T) {
+	responses := map[string]any{
+		"/api2/json/access/openid/auth-url":       "https://idp/auth",
+		"/api2/json/access/openid/login":          map[string]any{"username": "u", "ticket": "t", "CSRFPreventionToken": "c"},
+		"/api2/json/nodes/pve-1/qemu/300/mtunnel": map[string]any{"socket": "/run/x", "ticket": "t", "upid": "UPID:x"},
+	}
+	auth := runSDNDataSource(t, NewOpenIDAuthURLDataSource(), responses, map[string]any{"realm": "r", "redirect_url": "https://pve"})
+	if auth.Diagnostics.HasError() {
+		t.Fatalf("auth url failed: %v", auth.Diagnostics)
+	}
+	login := runSDNDataSource(t, NewOpenIDLoginDataSource(), responses, map[string]any{"code": "c", "redirect_url": "https://pve", "state": "s"})
+	if login.Diagnostics.HasError() {
+		t.Fatalf("openid login failed: %v", login.Diagnostics)
+	}
+	tunnel := runSDNDataSource(t, NewGuestMTunnelDataSource(), responses, map[string]any{"type": "qemu", "node": "pve-1", "vmid": int64(300)})
+	if tunnel.Diagnostics.HasError() {
+		t.Fatalf("mtunnel failed: %v", tunnel.Diagnostics)
+	}
+}
