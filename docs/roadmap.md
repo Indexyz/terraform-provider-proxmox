@@ -176,6 +176,8 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 
 ### 代码面剩余（按 family）
 
+
+全部 family 已实现并有单元测试；除服务端缺口（cloudinit pending、Ceph restart-bulk 返回 501，storage identity/rrd 需插件实现）外均已在双节点 PVE 9.2 实机调用。
 - 集群：`/cluster/log`、`/cluster/tasks`、`/cluster/status`、`/cluster/jobs/schedule-analyze`；`/cluster/qemu/cpu-flags` 与 `custom-cpu-models`；HA `status/current`、`manager_status` 读面；`/cluster/ha/groups`（PVE 9 返回 500，仅历史兼容）。
 - Ceph 剩余：fs、MDS、MGR、CRUSH、rules、cfg、log、init、restart-bulk；OSD 的 lv-info/scrub/metadata；多 mon/多 MGR 拓扑。
 - 节点：`aplinfo`、`capabilities`、`hosts`、`netstat`、`report`、旧 `rrd`、`wakeonlan`、`startall`、`migrateall`、`query-url-metadata`、`query-oci-repo-tags`、节点任务列表、节点 SDN 视图。
