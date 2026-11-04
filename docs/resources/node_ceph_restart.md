@@ -26,6 +26,7 @@ resource "proxmox_node_ceph_restart" "r" {
 
 - `node` (String)
 - `service` (String)
+- `triggers` (Map of String)
 
 ### Read-Only
 

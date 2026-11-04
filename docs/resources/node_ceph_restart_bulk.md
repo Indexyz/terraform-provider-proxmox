@@ -25,6 +25,7 @@ resource "proxmox_node_ceph_restart_bulk" "r" {
 ### Required
 
 - `node` (String)
+- `triggers` (Map of String)
 
 ### Optional
 

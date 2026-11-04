@@ -207,6 +207,9 @@ func (c *Client) CephInit(ctx context.Context, node string, network, clusterNetw
 	if err := c.do(ctx, http.MethodPost, "/nodes/"+url.PathEscape(node)+"/ceph/init", nil, form, &upid); err != nil {
 		return "", err
 	}
+	if upid == "" {
+		return "", nil
+	}
 	return upid, validateQemuTaskAck(upid, "ceph init")
 }
 func (c *Client) CephRestart(ctx context.Context, node, service string) (string, error) {

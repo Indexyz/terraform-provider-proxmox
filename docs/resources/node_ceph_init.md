@@ -26,6 +26,7 @@ resource "proxmox_node_ceph_init" "c" {
 ### Required
 
 - `node` (String)
+- `triggers` (Map of String)
 
 ### Optional
 

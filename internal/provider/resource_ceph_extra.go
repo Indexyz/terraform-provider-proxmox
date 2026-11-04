@@ -103,12 +103,14 @@ type cephInitModel struct {
 	PGBits         types.Int64  `tfsdk:"pg_bits"`
 	DisableCephx   types.Bool   `tfsdk:"disable_cephx"`
 	UPID           types.String `tfsdk:"upid"`
+	Triggers       types.Map    `tfsdk:"triggers"`
 }
 type cephRestartModel struct {
-	ID      types.String `tfsdk:"id"`
-	Node    types.String `tfsdk:"node"`
-	Service types.String `tfsdk:"service"`
-	UPID    types.String `tfsdk:"upid"`
+	ID       types.String `tfsdk:"id"`
+	Node     types.String `tfsdk:"node"`
+	Service  types.String `tfsdk:"service"`
+	UPID     types.String `tfsdk:"upid"`
+	Triggers types.Map    `tfsdk:"triggers"`
 }
 type cephRestartBulkModel struct {
 	ID           types.String `tfsdk:"id"`
@@ -119,6 +121,7 @@ type cephRestartBulkModel struct {
 	SetNoout     types.Bool   `tfsdk:"set_noout"`
 	Timeout      types.Int64  `tfsdk:"timeout"`
 	UPID         types.String `tfsdk:"upid"`
+	Triggers     types.Map    `tfsdk:"triggers"`
 }
 type cephOSDScrubModel struct {
 	ID       types.String `tfsdk:"id"`
@@ -317,12 +320,14 @@ func (r *CephInitResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 		"pg_bits":         schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifierRequiresReplace()}},
 		"disable_cephx":   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), PlanModifiers: []planmodifier.Bool{boolPlanModifierRequiresReplace()}},
 		"upid":            schema.StringAttribute{Computed: true},
+		"triggers":        schema.MapAttribute{Required: true, ElementType: types.StringType, PlanModifiers: []planmodifier.Map{mapplanmodifierRequiresReplace()}},
 	}}
 }
 func (r *CephRestartResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Restarts one Ceph service through `POST /nodes/{node}/ceph/restart`.", Attributes: map[string]schema.Attribute{
 		"id": schema.StringAttribute{Computed: true}, "node": schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"service": schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}}, "upid": schema.StringAttribute{Computed: true},
+		"triggers": schema.MapAttribute{Required: true, ElementType: types.StringType, PlanModifiers: []planmodifier.Map{mapplanmodifierRequiresReplace()}},
 	}}
 }
 func (r *CephRestartBulkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -334,6 +339,7 @@ func (r *CephRestartBulkResource) Schema(_ context.Context, _ resource.SchemaReq
 		"set_noout":     schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), PlanModifiers: []planmodifier.Bool{boolPlanModifierRequiresReplace()}},
 		"timeout":       schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifierRequiresReplace()}},
 		"upid":          schema.StringAttribute{Computed: true},
+		"triggers":      schema.MapAttribute{Required: true, ElementType: types.StringType, PlanModifiers: []planmodifier.Map{mapplanmodifierRequiresReplace()}},
 	}}
 }
 func (r *CephOSDScrubResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -694,7 +700,7 @@ func (r *CephInitResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics.AddError("Unable to Initialize Ceph", err.Error())
 		return
 	}
-	if !waitTask(ctx, r.client, upid, &resp.Diagnostics) {
+	if upid != "" && !waitTask(ctx, r.client, upid, &resp.Diagnostics) {
 		return
 	}
 	plan.ID = types.StringValue(plan.Node.ValueString())
