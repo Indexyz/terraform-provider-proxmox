@@ -174,8 +174,7 @@ Node networking OVS 系列已交付：`OVSBridge`/`OVSPort`/`OVSIntPort`/`OVSBon
 - Ceph 交付：`proxmox_cluster_ceph_flag`、`proxmox_node_ceph_{monitor,osd,pool}` 与 `ceph_{status,flags}`、`node_ceph_{monitors,osd_tree,pools}`；OSD 销毁按 out→stop→destroy+zap 清理，flag/pool/OSD/mon import 全部实机通过。
 - 缺陷修复：`netmask` 前缀↔点分归一化、network apply 接受 `WARNINGS`、ACME `force` 默认值、Ceph 数值布尔与 OSD 设备定位重试/导入补全。
 
-### 代码面剩余（按 family）
-
+### API 面 family（已全部落地）
 
 全部 family 已实现并有单元测试；除服务端缺口（cloudinit pending、Ceph restart-bulk 返回 501，storage identity/rrd 需插件实现）外均已在双节点 PVE 9.2 实机调用。
 - 集群：`/cluster/log`、`/cluster/tasks`、`/cluster/status`、`/cluster/jobs/schedule-analyze`；`/cluster/qemu/cpu-flags` 与 `custom-cpu-models`；HA `status/current`、`manager_status` 读面；`/cluster/ha/groups`（PVE 9 返回 500，仅历史兼容）。
