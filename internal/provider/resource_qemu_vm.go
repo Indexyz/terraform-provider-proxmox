@@ -1208,7 +1208,7 @@ func (r *QemuVMResource) submitQemuVMWithRetry(ctx context.Context, plan *qemuVM
 // allocateVMID returns the next free cluster VMID through `GET /cluster/nextid`.
 // The endpoint cannot express a floor, so when start is positive the provider
 // proposes candidate IDs beginning at start and asserts availability until one
-// is free (a taken candidate fails with HTTP 400 `VM <id> already exists`).
+// is free. Proxmox reports an occupied candidate with HTTP 400.
 func (r *QemuVMResource) allocateVMID(ctx context.Context, start int64) (int64, error) {
 	if start <= 0 {
 		return r.client.GetNextVMID(ctx, nil)
@@ -1220,7 +1220,11 @@ func (r *QemuVMResource) allocateVMID(ctx context.Context, start int64) (int64, 
 			return vmID, nil
 		}
 		var apiErr *APIError
-		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadRequest || !strings.Contains(apiErr.Body, "already exists") {
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadRequest {
+			return 0, err
+		}
+		if !strings.Contains(apiErr.Body, "already exists") &&
+			!strings.Contains(apiErr.Body, fmt.Sprintf("guest ID %d is already in use", candidate)) {
 			return 0, err
 		}
 	}
