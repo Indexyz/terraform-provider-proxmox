@@ -534,24 +534,30 @@ func TestQemuVMResourceCreateAllocatesFromVMIDStart(t *testing.T) {
 			return
 		}
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=200":
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=3999":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"vmid": "VM 200 already exists"}, "data": nil}); err != nil {
+			if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"vmid": "VM 3999 already exists"}, "data": nil}); err != nil {
 				handler.fail(w, "encode response: %v", err)
 			}
-		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=201":
-			handler.envelope(w, 201)
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=4000":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			if err := json.NewEncoder(w).Encode(map[string]any{"errors": map[string]string{"vmid": "guest ID 4000 is already in use"}, "data": nil}); err != nil {
+				handler.fail(w, "encode response: %v", err)
+			}
+		case r.Method == http.MethodGet && r.URL.Path == "/api2/json/cluster/nextid" && r.URL.RawQuery == "vmid=4001":
+			handler.envelope(w, 4001)
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu":
-			if !handler.form(w, r, url.Values{"vmid": {"201"}}) {
+			if !handler.form(w, r, url.Values{"vmid": {"4001"}}) {
 				return
 			}
 			handler.envelope(w, "UPID:pve one:qemu-create-nextid-start")
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/tasks/UPID:pve%20one:qemu-create-nextid-start/status":
 			handler.envelope(w, map[string]any{"status": "stopped", "exitstatus": "OK"})
-		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/201/config":
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/4001/config":
 			handler.envelope(w, map[string]any{"name": "start-vm"})
-		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/201/status/current":
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api2/json/nodes/pve%20one/qemu/4001/status/current":
 			handler.envelope(w, map[string]any{"status": "stopped"})
 		default:
 			handler.fail(w, "unexpected request: %s %s", r.Method, r.URL.String())
@@ -563,7 +569,7 @@ func TestQemuVMResourceCreateAllocatesFromVMIDStart(t *testing.T) {
 	schema := testResourceSchema(t, res)
 	model := minimalQemuVMModel("pve one", 0)
 	model.VMID = types.Int64Unknown()
-	model.VMIDStart = types.Int64Value(200)
+	model.VMIDStart = types.Int64Value(3999)
 	resp := testResourceCreateResponse(t, schema)
 	res.Create(context.Background(), resource.CreateRequest{Plan: testResourcePlan(t, schema, model)}, &resp)
 	if resp.Diagnostics.HasError() {
@@ -573,7 +579,7 @@ func TestQemuVMResourceCreateAllocatesFromVMIDStart(t *testing.T) {
 	if diags := resp.State.Get(context.Background(), &created); diags.HasError() {
 		t.Fatalf("decode vm_id_start create state: %v", diags)
 	}
-	if created.VMID.ValueInt64() != 201 || created.VMIDStart.ValueInt64() != 200 || created.ID.ValueString() != "pve one/201" {
+	if created.VMID.ValueInt64() != 4001 || created.VMIDStart.ValueInt64() != 3999 || created.ID.ValueString() != "pve one/4001" {
 		t.Fatalf("unexpected vm_id_start state: %#v", created)
 	}
 	handler.assert(t)

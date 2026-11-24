@@ -2,6 +2,7 @@
 
 ## 已完成
 
+- QEMU VMID 分配识别 `/cluster/nextid` 返回的 HTTP 400 `guest ID N is already in use`，继续检查下一个候选 ID。资源生命周期测试覆盖连续遇到两种占用响应后成功创建 VM。
 - 扫描项目结构、Provider 配置、HTTP client、资源、数据源、QEMU VM typed/raw 映射、文档生成和 CI/e2e 工具链。
 - 新增 `docs/codebase.md`，整理开发者向代码库说明、API surface、资源/数据源职责、QEMU 扩展边界、测试与 CI 入口、已有 spec/plan 归档，并记录 `AGENTS.md` 中的贡献约束。
 - 确认现有 `docs/` schema/reference 文档由 `tfplugindocs` 生成，23 个资源和 19 个数据源均有示例来源。
