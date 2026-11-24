@@ -1,3 +1,9 @@
+## 0.7.2 (2026-11-24)
+
+FIXES:
+
+- Continue QEMU VMID allocation when Proxmox reports that the candidate guest ID is already in use.
+
 ## 0.7.1 (2026-10-16)
 
 FIXES:
